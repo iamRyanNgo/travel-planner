@@ -353,18 +353,21 @@ async function initApp(){
   showLoading('Checking your session…');
   let handled=false;
   DB.auth.onAuthStateChange(async(event,session)=>{
+    if(event==='SIGNED_OUT'){
+      handled=false; ME=null; TRIPS=[]; TD={}; showSignIn();
+      return;
+    }
     if(handled)return;
     if(event==='INITIAL_SESSION'&&session){
       handled=true;
       await afterSignIn(session.user);
+    } else if(event==='INITIAL_SESSION'&&!session){
+      showSignIn();
     } else if(event==='SIGNED_IN'&&session){
       handled=true;
       await afterSignIn(session.user);
-    } else if(event==='SIGNED_OUT'){
-      handled=false; ME=null; showSignIn();
     }
   });
-  setTimeout(()=>{ if(!handled)showSignIn(); },4000);
 }
 
 async function afterSignIn(user){
