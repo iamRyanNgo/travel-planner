@@ -173,6 +173,12 @@ select option{background:var(--panel)}
 .pack-qty{font-size:12px;color:var(--muted);margin-right:4px}
 .pack-del{font-size:12px;color:var(--dim);opacity:0;transition:.15s}
 .pack-item:hover .pack-del{opacity:1}
+.pack-cat-add{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;padding:1px 6px;border-radius:6px;line-height:1;flex-shrink:0;transition:.15s}
+.pack-cat-add:hover{background:var(--border);color:var(--text)}
+.pack-quick-add{margin-bottom:8px}
+.pack-quick-input{width:100%;box-sizing:border-box;background:var(--panel);border:1px dashed var(--border2);border-radius:8px;color:var(--text);padding:8px 10px;font-size:13px;outline:none;font-family:inherit}
+.pack-quick-input:focus{border-color:var(--accent);border-style:solid}
+.pack-quick-input::placeholder{color:var(--dim)}
 
 /* ── Budget ── */
 .budget-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
@@ -961,11 +967,14 @@ function renderPacking(t,d){
     </div>`:''}
     ${Object.entries(byCategory).filter(([,items])=>items.length).map(([cat,catItems])=>{
       const catPacked=catItems.filter(i=>i.packed).length;
+      const qid=`qa_${cat.replace(/[^a-z0-9]/gi,'_').toLowerCase()}`;
       return`<div class="pack-section">
         <div class="pack-section-header">
           <div class="pack-section-title">${cat} <span style="color:var(--dim)">(${catPacked}/${catItems.length})</span></div>
           <div class="pack-progress"><div class="pack-progress-fill" style="width:${catItems.length?Math.round(catPacked/catItems.length*100):0}%"></div></div>
+          ${write?`<button class="pack-cat-add" onclick="showPackQuickAdd('${qid}')" title="Add to ${esc(cat)}">＋</button>`:''}
         </div>
+        ${write?`<div class="pack-quick-add hidden" id="${qid}"><input class="pack-quick-input" data-trip="${t.id}" data-cat="${esc(cat)}" placeholder="Item name — press Enter to add…" onkeydown="packQuickKey(event,this)"></div>`:''}
         ${catItems.map(item=>`
         <div class="pack-item ${item.packed?'packed':''}" onclick="${write?`togglePack('${t.id}','${item.id}',${!item.packed})`:''}" style="${write?'':'cursor:default'}">
           <div class="pack-check">${item.packed?'✓':''}</div>
@@ -1426,6 +1435,20 @@ async function togglePack(tripId,id,packed){
 async function deletePackItem(tripId,id){
   await DB.from('wtn_pack_items').delete().eq('id',id);
   await loadTripDetail(tripId);renderTab();
+}
+function showPackQuickAdd(qid){
+  const el=document.getElementById(qid);if(!el)return;
+  const wasHidden=el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if(wasHidden)el.querySelector('input').focus();
+}
+async function packQuickKey(e,el){
+  if(e.key==='Escape'){el.value='';el.closest('.pack-quick-add').classList.add('hidden');return;}
+  if(e.key!=='Enter')return;
+  const name=el.value.trim();if(!name)return;
+  el.value='';
+  await DB.from('wtn_pack_items').insert({trip_id:el.dataset.trip,name,category:el.dataset.cat,qty:1});
+  toast('Added ✓');await loadTripDetail(el.dataset.trip);renderTab();
 }
 async function seedPackItems(tripId){
   const starter=[
