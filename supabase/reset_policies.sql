@@ -12,6 +12,7 @@ drop policy if exists wtn_profiles_admin          on wtn_profiles;
 drop policy if exists wtn_profiles_admin_read     on wtn_profiles;
 drop policy if exists wtn_profiles_admin_write    on wtn_profiles;
 drop policy if exists wtn_profiles_member_read    on wtn_profiles;
+drop policy if exists wtn_profiles_approved_read  on wtn_profiles;
 
 drop policy if exists wtn_req_self   on wtn_access_requests;
 drop policy if exists wtn_req_admin  on wtn_access_requests;
@@ -105,6 +106,13 @@ create policy wtn_profiles_admin_select on wtn_profiles
 create policy wtn_profiles_admin_update on wtn_profiles
   for update
   using ((auth.jwt() ->> 'email') = 'ryan.ngo94@gmail.com');
+
+-- Allow any logged-in user to read approved profiles so collaborator
+-- names and avatars show correctly (profiles are low-sensitivity in this
+-- invite-only app; the join from wtn_trip_members would otherwise be
+-- blocked by RLS and return null for everyone except yourself)
+create policy wtn_profiles_approved_read on wtn_profiles
+  for select using (approved = true);
 
 -- wtn_access_requests
 create policy wtn_req_self on wtn_access_requests

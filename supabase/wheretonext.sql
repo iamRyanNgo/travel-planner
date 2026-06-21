@@ -21,6 +21,8 @@ create policy wtn_profiles_admin_select on wtn_profiles
   for select using ((auth.jwt() ->> 'email') = 'ryan.ngo94@gmail.com');
 create policy wtn_profiles_admin_update on wtn_profiles
   for update using ((auth.jwt() ->> 'email') = 'ryan.ngo94@gmail.com');
+create policy wtn_profiles_approved_read on wtn_profiles
+  for select using (approved = true);
 
 -- Trigger: create/refresh profile on every Google OAuth login
 create or replace function wtn_handle_new_user()
