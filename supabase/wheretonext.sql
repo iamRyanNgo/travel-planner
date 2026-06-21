@@ -26,16 +26,6 @@ do $$ begin
       exists (select 1 from wtn_profiles p where p.id = auth.uid() and p.email = 'ryan.ngo94@gmail.com')
     );
   end if;
-  -- Members need to see each others' profiles (for collab display)
-  if not exists (select 1 from pg_policies where policyname='wtn_profiles_member_read' and tablename='wtn_profiles') then
-    create policy wtn_profiles_member_read on wtn_profiles for select using (
-      exists (
-        select 1 from wtn_trip_members a
-        join wtn_trip_members b on b.trip_id = a.trip_id
-        where a.user_id = auth.uid() and b.user_id = id
-      )
-    );
-  end if;
 end $$;
 
 -- Trigger: auto-create profile on sign-up
