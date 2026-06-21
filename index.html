@@ -2,11 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#080e1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://kqlkhathprlhaogwhgjf.supabase.co https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; img-src * data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src https://kqlkhathprlhaogwhgjf.supabase.co wss://kqlkhathprlhaogwhgjf.supabase.co;">
 <title>WhereToNext</title>
 <link rel="preconnect" href="https://kqlkhathprlhaogwhgjf.supabase.co">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:#080e1c; --bg2:#0d1526; --panel:#111b2e; --panel2:#172036;
@@ -227,12 +233,17 @@ select option{background:var(--panel)}
 .banner-preview{width:100%;height:110px;border-radius:10px;background:var(--border2);background-size:cover;background-position:center;margin-bottom:8px}
 .trip-card-cover.has-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.45),transparent)}
 
+button,a{touch-action:manipulation}
+.modal{overscroll-behavior:contain}
+
 @media(max-width:680px){
-  #appHeader{padding:0 14px}
-  #dashboard,#tripView{padding:16px 14px 60px}
+  #appHeader{padding:0 max(14px,env(safe-area-inset-right,14px)) 0 max(14px,env(safe-area-inset-left,14px))}
+  #dashboard,#tripView{padding:16px 14px max(60px,calc(env(safe-area-inset-bottom,0px) + 24px))}
   .trip-hero{height:200px;padding:18px;border-radius:0 0 18px 18px}
-  .modal{border-radius:18px 18px 0 0;max-height:94vh}
+  .modal{border-radius:18px 18px 0 0;max-height:min(94vh,94dvh)}
   .modal-bg{padding:0;align-items:flex-end}
+  input,select,textarea{font-size:16px}
+  .toast{bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 16px))}
 }
 /* ── People dropdown (nav bar) ── */
 .ppl-wrap{position:relative}
@@ -261,6 +272,16 @@ select option{background:var(--panel)}
   .trip-tab{padding:8px 11px;font-size:12px}
   .trip-tabs{-webkit-overflow-scrolling:touch}
   .ppl-dropdown{right:auto;left:50%;transform:translateX(-50%)}
+  .hide-sm{display:none!important}
+  .user-chip span{display:none}
+  .user-chip{padding:2px 4px}
+  .trip-hero-emoji{font-size:52px;top:14px;right:16px}
+  .stat-card .stat-val{font-size:22px}
+  .overview-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+  .booking-detail-grid{grid-template-columns:1fr 1fr}
+}
+@media(hover:none),(pointer:coarse){
+  .pack-del,.sbar-remove{opacity:.55}
 }
 
 @media print{
@@ -309,7 +330,8 @@ let CUR     = {view:'loading', tripId:null, tab:'overview'};
    UTILITIES
 ═══════════════════════════════════════════════ */
 function uid(){return Math.random().toString(36).slice(2,9)}
-function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#x27;'}[c]))}
+function safeBannerUrl(u){if(!u)return'';if(u.startsWith('data:image/'))return u;try{const p=new URL(u).protocol;if(p!=='https:'&&p!=='http:')return'';}catch{return'';}return u;}
 function fmt(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
 function fmtShort(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
 function fmtDay(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
@@ -519,7 +541,7 @@ function renderAuthHeader(){
   <div style="display:flex;align-items:center;gap:8px">
     ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" style="position:relative" id="adminBtn">🛡 Admin</button>`:''}
     <div class="user-chip">
-      ${ME.picture?`<img src="${esc(ME.picture)}" alt="">`:
+      ${ME.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="member-avatar" style="background:var(--border2);font-size:12px">${(ME.name||'?')[0]}</div>`}
       <span>${esc(ME.name?.split(' ')[0]||ME.email)}</span>
     </div>
@@ -661,7 +683,7 @@ function tripCard(t){
   const statusColor=cd.status==='active'?'rgba(52,211,153,.8)':cd.status==='upcoming'?'rgba(74,144,226,.8)':'rgba(122,144,184,.6)';
   const isShared=t.owner_id!==ME?.id;
   return`<div class="trip-card" onclick="openTrip('${t.id}')">
-    <div class="trip-card-cover${t.banner_url?' has-banner':''}" style="${t.banner_url?`background-image:url('${esc(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
+    <div class="trip-card-cover${t.banner_url?' has-banner':''}" style="${safeBannerUrl(t.banner_url)?`background-image:url('${safeBannerUrl(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
       <div class="dest-emoji">${t.emoji||'🌍'}</div>
       <span class="status-badge" style="background:${statusColor};color:#fff">${cd.label}</span>
     </div>
@@ -693,7 +715,7 @@ function renderTripShell(){
   ha.innerHTML=`
   <div style="display:flex;gap:8px;align-items:center">
     ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn">🛡 Admin</button>`:''}
-    <button class="btn sm ghost" onclick="window.print()">🖨 Print</button>
+    <button class="btn sm ghost hide-sm" onclick="window.print()">🖨 Print</button>
     <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')">⎘ Clone</button>
     ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>`:''}
     ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')">🗑</button>`:''}
@@ -702,7 +724,7 @@ function renderTripShell(){
       <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
     </div>
     <div class="user-chip">
-      ${ME?.picture?`<img src="${esc(ME.picture)}" alt="">`:
+      ${ME?.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`}
       <span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span>
     </div>
@@ -722,7 +744,7 @@ function renderTripShell(){
 
   document.getElementById('root').innerHTML=`
   <div id="tripView">
-    <div class="trip-hero" style="${t.banner_url?`background-image:url('${esc(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
+    <div class="trip-hero" style="${safeBannerUrl(t.banner_url)?`background-image:url('${safeBannerUrl(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
       <div class="trip-hero-emoji">${t.emoji||'🌍'}</div>
       <div class="trip-hero-content">
         <h1>${esc(t.name)}</h1>
@@ -785,7 +807,7 @@ function renderOverview(t,d){
       const p=m.profile||{};
       const initials=(p.name||p.email||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
       return`<div class="member-card">
-        ${p.picture?`<img class="member-avatar" src="${esc(p.picture)}" alt="">`:
+        ${p.picture?`<img class="member-avatar" src="${esc(p.picture)}" loading="lazy" decoding="async" alt="">`:
           `<div class="member-avatar" style="background:var(--border2)">${initials}</div>`}
         <div class="member-info">
           <div class="member-name">${esc(p.name||p.email||'Unknown')}</div>
@@ -1129,7 +1151,7 @@ function renderSidebar(tripId){
     const rc=m.role==='owner'?'var(--gold)':m.role==='editor'?'var(--green)':'var(--muted)';
     const bg=m.role==='owner'?'rgba(245,197,66,.15)':m.role==='editor'?'rgba(52,211,153,.12)':'rgba(122,144,184,.12)';
     return`<div class="sbar-member">
-      ${p.picture?`<img class="sbar-avatar" src="${esc(p.picture)}" alt="">`:
+      ${p.picture?`<img class="sbar-avatar" src="${esc(p.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="sbar-avatar" style="background:${bg};color:${rc}">${initials}</div>`}
       <div class="sbar-info">
         <div class="sbar-name" title="${esc(p.name||p.email||'')}">${esc(p.name||p.email||'Unknown')}</div>
@@ -1246,7 +1268,7 @@ function modalTrip(id){
     </div>
   </div>
   <div class="field"><label>Banner Image</label>
-    <div id="bannerPreviewBox" class="banner-preview" style="${t.banner_url?`background-image:url('${esc(t.banner_url||'')}');display:block`:'display:none'}"></div>
+    <div id="bannerPreviewBox" class="banner-preview" style="${safeBannerUrl(t.banner_url||'')?`background-image:url('${safeBannerUrl(t.banner_url||'')}');display:block`:'display:none'}"></div>
     <div class="row" style="gap:8px">
       <input id="t_banner_url" placeholder="Paste image URL…" value="${esc(t.banner_url||'')}" oninput="previewBanner(this.value)" style="flex:1">
       <label class="btn sm ghost" style="cursor:pointer;margin:0">📷 Upload<input type="file" accept="image/*" style="display:none" onchange="handleBannerUpload(this)"></label>
