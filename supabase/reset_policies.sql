@@ -177,9 +177,11 @@ create policy wtn_budget_d on wtn_budget_items for delete using      (wtn_can_wr
 -- the approved flag (which is managed separately).
 
 create or replace function wtn_handle_new_user()
-returns trigger language plpgsql security definer as $$
+returns trigger language plpgsql security definer
+set search_path = public
+as $$
 begin
-  insert into wtn_profiles (id, email, name, picture, approved)
+  insert into public.wtn_profiles (id, email, name, picture, approved)
   values (
     new.id,
     new.email,
