@@ -357,13 +357,7 @@ async function initApp(){
 
 async function afterSignIn(user){
   showLoading('Loading your profile…');
-  // Upsert profile (trigger handles insert; this updates name/pic)
-  await DB.from('wtn_profiles').upsert({
-    id:user.id, email:user.email,
-    name:user.user_metadata?.full_name||user.email,
-    picture:user.user_metadata?.avatar_url||null,
-  },{onConflict:'id',ignoreDuplicates:false});
-
+  // Trigger handles insert; just update name/pic if profile already exists
   const {data:profile} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
   ME = profile;
 
