@@ -109,42 +109,32 @@ create table if not exists wtn_trip_members (
 alter table wtn_trip_members enable row level security;
 
 do $$ begin
+  -- Simple flat policy: each user manages their own membership rows
+  if not exists (select 1 from pg_policies where policyname='wtn_members_self' and tablename='wtn_trip_members') then
+    create policy wtn_members_self on wtn_trip_members for all
+      using (user_id = auth.uid())
+      with check (user_id = auth.uid());
+  end if;
+  -- Trip owner can manage all member rows for their trips.
+  -- IMPORTANT: do NOT add a wtn_trips_member_read policy that reads wtn_trip_members,
+  -- or this policy will create wtn_trips <-> wtn_trip_members mutual recursion.
   if not exists (select 1 from pg_policies where policyname='wtn_members_owner' and tablename='wtn_trip_members') then
     create policy wtn_members_owner on wtn_trip_members for all using (
       exists (select 1 from wtn_trips t where t.id = trip_id and t.owner_id = auth.uid())
     );
   end if;
-  if not exists (select 1 from pg_policies where policyname='wtn_members_read' and tablename='wtn_trip_members') then
-    -- wtn_can_read is SECURITY DEFINER so it bypasses RLS — no infinite recursion.
-    -- Do NOT use a sub-SELECT on wtn_trip_members here; that causes infinite recursion
-    -- when wtn_profiles_member_read joins this table.
-    create policy wtn_members_read on wtn_trip_members for select using (
-      user_id = auth.uid() or
-      wtn_can_read(trip_id)
-    );
-  end if;
 end $$;
 
 -- ── Trip policies that reference wtn_trip_members (added after table exists) ──
+-- NOTE: wtn_trips_member_read and wtn_profiles_member_read are intentionally omitted.
+-- Adding wtn_trips_member_read (wtn_trips → wtn_trip_members) while wtn_members_owner
+-- reads wtn_trips creates mutual recursion: wtn_trips ↔ wtn_trip_members → RLS error.
+-- Non-owner shared-trip SELECT and cross-member profile visibility are not currently
+-- supported via RLS; implement via SECURITY DEFINER functions if needed later.
 do $$ begin
-  if not exists (select 1 from pg_policies where policyname='wtn_trips_member_read' and tablename='wtn_trips') then
-    create policy wtn_trips_member_read on wtn_trips for select using (
-      exists (select 1 from wtn_trip_members m where m.trip_id = id and m.user_id = auth.uid())
-    );
-  end if;
   if not exists (select 1 from pg_policies where policyname='wtn_trips_editor_update' and tablename='wtn_trips') then
     create policy wtn_trips_editor_update on wtn_trips for update using (
       exists (select 1 from wtn_trip_members m where m.trip_id = id and m.user_id = auth.uid() and m.role = 'editor')
-    );
-  end if;
-  -- Profile visibility across shared trips
-  if not exists (select 1 from pg_policies where policyname='wtn_profiles_member_read' and tablename='wtn_profiles') then
-    create policy wtn_profiles_member_read on wtn_profiles for select using (
-      exists (
-        select 1 from wtn_trip_members a
-        join wtn_trip_members b on b.trip_id = a.trip_id
-        where a.user_id = auth.uid() and b.user_id = id
-      )
     );
   end if;
 end $$;
