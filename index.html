@@ -357,8 +357,13 @@ async function initApp(){
 
 async function afterSignIn(user){
   showLoading('Loading your profile…');
-  // Trigger handles insert; just update name/pic if profile already exists
-  const {data:profile} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
+  // Trigger handles insert; retry a few times in case it's still propagating
+  let profile = null;
+  for(let i=0;i<5;i++){
+    const {data} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
+    if(data){profile=data;break;}
+    await new Promise(r=>setTimeout(r,800));
+  }
   ME = profile;
 
   if(!ME){showSignIn();return;}
