@@ -1403,11 +1403,6 @@ document.addEventListener('keydown',e=>{
 /* ═══════════════════════════════════════════════
    BOOT
 ═══════════════════════════════════════════════ */
-DB.auth.onAuthStateChange(async(event,session)=>{
-  if(event==='SIGNED_IN'&&!ME&&session){
-    await afterSignIn(session.user);
-  }
-});
 window.addEventListener('load',initApp);
 </script>
 </body>
