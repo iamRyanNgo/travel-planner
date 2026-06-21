@@ -226,8 +226,43 @@ select option{background:var(--panel)}
   .modal{border-radius:18px 18px 0 0;max-height:94vh}
   .modal-bg{padding:0;align-items:flex-end}
 }
+/* ── Trip layout with left sidebar ── */
+.trip-body{display:flex;gap:20px;align-items:flex-start}
+.trip-sidebar{width:220px;flex-shrink:0;position:sticky;top:74px;max-height:calc(100vh - 90px);overflow-y:auto;scrollbar-width:none}
+.trip-sidebar::-webkit-scrollbar{display:none}
+.trip-main{flex:1;min-width:0}
+
+/* Sidebar card */
+.sbar-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.sbar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px}
+.sbar-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;font-family:'DM Sans',sans-serif}
+.sbar-member{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border)}
+.sbar-member:first-of-type{border-top:none;padding-top:0}
+.sbar-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;object-fit:cover;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.sbar-info{flex:1;min-width:0}
+.sbar-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbar-role{font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
+.sbar-remove{color:var(--dim);background:none;border:none;font-size:12px;cursor:pointer;padding:2px 5px;border-radius:4px;transition:.15s;flex-shrink:0;opacity:0}
+.sbar-member:hover .sbar-remove{opacity:1;color:var(--coral)}
+
+/* Mobile: sidebar becomes compact horizontal member strip */
+@media(max-width:768px){
+  .trip-body{flex-direction:column;gap:10px}
+  .trip-sidebar{width:100%;position:static;max-height:none}
+  .sbar-card{padding:10px 14px;margin-bottom:0}
+  .sbar-head{margin-bottom:6px}
+  .sbar-members-wrap{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .sbar-members-wrap::-webkit-scrollbar{display:none}
+  .sbar-member{flex-direction:column;align-items:center;text-align:center;border-top:none;padding:0;min-width:50px;flex-shrink:0;gap:3px}
+  .sbar-role{display:none}
+  .sbar-remove{display:none}
+  .sbar-name{font-size:10px;max-width:54px;line-height:1.3}
+  .trip-tab{padding:8px 11px;font-size:12px}
+  .trip-tabs{-webkit-overflow-scrolling:touch}
+}
+
 @media print{
-  #appHeader,#headerActions,.btn,.trip-tabs{display:none!important}
+  #appHeader,#headerActions,.btn,.trip-tabs,.trip-sidebar{display:none!important}
   body{background:#fff;color:#000}
   .card,.booking-card,.event-card{box-shadow:none;border:1px solid #ddd}
 }
@@ -520,8 +555,9 @@ async function loadTrips(){
 }
 
 async function loadTripDetail(id){
+  const trip=TRIPS.find(x=>x.id===id);
   const [
-    {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members}
+    {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members},{data:ownerProfile}
   ] = await Promise.all([
     DB.from('wtn_events').select('*').eq('trip_id',id).order('date').order('time'),
     DB.from('wtn_flights').select('*').eq('trip_id',id).order('depart_date'),
@@ -529,12 +565,15 @@ async function loadTripDetail(id){
     DB.from('wtn_pack_items').select('*').eq('trip_id',id).order('category').order('created_at'),
     DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at'),
     DB.from('wtn_trip_members').select('*, wtn_profiles(id,name,email,picture)').eq('trip_id',id),
+    DB.from('wtn_profiles').select('id,name,email,picture').eq('id',trip?.owner_id||'').single(),
   ]);
   TD[id]={
     events:events||[], flights:flights||[], stays:stays||[],
     packItems:packItems||[], budgetItems:budgetItems||[],
     members:(members||[]).map(m=>({...m,profile:m.wtn_profiles})),
+    ownerProfile:ownerProfile||null,
   };
+  renderSidebar(id);
 }
 
 /* ═══════════════════════════════════════════════
@@ -683,10 +722,17 @@ function renderTripShell(){
         </div>
       </div>
     </div>
-    <div class="trip-tabs">
-      ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+    <div class="trip-body">
+      <aside class="trip-sidebar" id="tripSidebar">
+        <div class="sbar-card" style="padding:20px 14px;text-align:center"><div class="spinner" style="width:20px;height:20px;margin:0 auto"></div></div>
+      </aside>
+      <div class="trip-main">
+        <div class="trip-tabs">
+          ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+        </div>
+        <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
+      </div>
     </div>
-    <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
   </div>`;
 }
 
@@ -712,7 +758,7 @@ function renderOverview(t,d){
   const write=canWrite(t);
   const isOwner=t.owner_id===ME?.id;
 
-  const ownerProfile={id:t.owner_id,name:t.owner_name||'Owner',email:t.owner_email||'',picture:t.owner_picture||null};
+  const ownerProfile=d.ownerProfile||(t.owner_id===ME?.id?{id:ME.id,name:ME.name,email:ME.email,picture:ME.picture}:{id:t.owner_id,name:'Owner',email:'',picture:null});
   const allMembers=[{user_id:t.owner_id,role:'owner',profile:ownerProfile},...(d.members||[])];
 
   return`
@@ -1055,6 +1101,43 @@ async function updateMemberRole(tripId, userId, role){
   toast('Role updated');
   await loadTripDetail(tripId);
   renderTab();
+}
+
+/* ── Collaboration Sidebar ── */
+function renderSidebar(tripId){
+  const el=document.getElementById('tripSidebar');
+  if(!el)return;
+  const t=TRIPS.find(x=>x.id===tripId);
+  if(!t)return;
+  const d=TD[tripId]||{members:[],ownerProfile:null};
+  const isOwner=t.owner_id===ME?.id;
+  const ownerProf=d.ownerProfile||(t.owner_id===ME?.id?{id:ME.id,name:ME.name,email:ME.email,picture:ME.picture}:{id:t.owner_id,name:'Owner',email:'',picture:null});
+  const all=[{user_id:t.owner_id,role:'owner',profile:ownerProf},...(d.members||[])];
+
+  function mrow(m){
+    const p=m.profile||{};
+    const initials=(p.name||p.email||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const rc=m.role==='owner'?'var(--gold)':m.role==='editor'?'var(--green)':'var(--muted)';
+    const bg=m.role==='owner'?'rgba(245,197,66,.15)':m.role==='editor'?'rgba(52,211,153,.12)':'rgba(122,144,184,.12)';
+    return`<div class="sbar-member">
+      ${p.picture?`<img class="sbar-avatar" src="${esc(p.picture)}" alt="">`:
+        `<div class="sbar-avatar" style="background:${bg};color:${rc}">${initials}</div>`}
+      <div class="sbar-info">
+        <div class="sbar-name" title="${esc(p.name||p.email||'')}">${esc(p.name||p.email||'Unknown')}</div>
+        <div class="sbar-role" style="color:${rc}">${m.role}</div>
+      </div>
+      ${isOwner&&m.user_id!==ME?.id?`<button class="sbar-remove" onclick="removeMember('${tripId}','${m.user_id}')" title="Remove">✕</button>`:''}
+    </div>`;
+  }
+
+  el.innerHTML=`
+  <div class="sbar-card">
+    <div class="sbar-head">
+      <span class="sbar-label">👥 People <span style="color:var(--dim);font-weight:400">${all.length}</span></span>
+      ${isOwner?`<button class="btn sm primary" style="font-size:11px;padding:5px 10px" onclick="modalInvite('${tripId}')">＋ Invite</button>`:''}
+    </div>
+    <div class="sbar-members-wrap">${all.map(mrow).join('')}</div>
+  </div>`;
 }
 
 /* ── Trip Modal ── */
