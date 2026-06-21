@@ -351,31 +351,38 @@ function setTab(tab){CUR.tab=tab;renderTab();}
 ═══════════════════════════════════════════════ */
 async function initApp(){
   showLoading('Checking your session…');
-  // INITIAL_SESSION fires once with the resolved session (handles OAuth hash token)
-  DB.auth.onAuthStateChange(async(event, session)=>{
-    if(event==='INITIAL_SESSION'){
-      if(session){ await afterSignIn(session.user); }
-      else{ showSignIn(); }
-    } else if(event==='SIGNED_IN'&&session&&!ME){
+  let handled=false;
+  DB.auth.onAuthStateChange(async(event,session)=>{
+    if(handled)return;
+    if(event==='INITIAL_SESSION'&&session){
+      handled=true;
+      await afterSignIn(session.user);
+    } else if(event==='SIGNED_IN'&&session){
+      handled=true;
       await afterSignIn(session.user);
     } else if(event==='SIGNED_OUT'){
-      ME=null; showSignIn();
+      handled=false; ME=null; showSignIn();
     }
   });
+  setTimeout(()=>{ if(!handled)showSignIn(); },4000);
 }
 
 async function afterSignIn(user){
   showLoading('Loading your profile…');
   // Trigger handles insert; retry a few times in case it's still propagating
-  let profile = null;
-  for(let i=0;i<5;i++){
-    const {data} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
+  let profile = null, lastErr = null;
+  for(let i=0;i<6;i++){
+    const {data,error} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
     if(data){profile=data;break;}
-    await new Promise(r=>setTimeout(r,800));
+    lastErr=error;
+    await new Promise(r=>setTimeout(r,900));
   }
   ME = profile;
 
-  if(!ME){showSignIn();return;}
+  if(!ME){
+    document.getElementById('root').innerHTML=`<div class="loading-screen"><p style="color:var(--coral);max-width:380px;text-align:center">Could not load your profile. Try signing out and back in.<br><br><small style="color:var(--dim)">${lastErr?.message||'unknown error'}</small></p><button class="btn primary" onclick="signOut()" style="margin-top:16px">Sign out</button></div>`;
+    return;
+  }
 
   // Ryan is always approved
   if(ME.email===ADMIN_EMAIL && !ME.approved){
