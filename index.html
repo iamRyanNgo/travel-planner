@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WhereToNext</title>
+<link rel="preconnect" href="https://kqlkhathprlhaogwhgjf.supabase.co">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -350,20 +351,17 @@ function setTab(tab){CUR.tab=tab;renderTab();}
 ═══════════════════════════════════════════════ */
 async function initApp(){
   showLoading('Checking your session…');
-  // Wait for session to be fully ready (important after OAuth redirect)
-  const {data:{session}} = await DB.auth.getSession();
-  if(session){await afterSignIn(session.user);return;}
-  // No session yet — listen for it (handles OAuth callback)
-  const {data:{subscription}} = DB.auth.onAuthStateChange(async(event,session)=>{
-    if(event==='SIGNED_IN'&&session){
-      subscription.unsubscribe();
+  // INITIAL_SESSION fires once with the resolved session (handles OAuth hash token)
+  DB.auth.onAuthStateChange(async(event, session)=>{
+    if(event==='INITIAL_SESSION'){
+      if(session){ await afterSignIn(session.user); }
+      else{ showSignIn(); }
+    } else if(event==='SIGNED_IN'&&session&&!ME){
       await afterSignIn(session.user);
     } else if(event==='SIGNED_OUT'){
-      showSignIn();
+      ME=null; showSignIn();
     }
   });
-  // Give it 2s then show sign-in if still nothing
-  setTimeout(()=>{if(!ME)showSignIn();},2000);
 }
 
 async function afterSignIn(user){
@@ -1027,7 +1025,7 @@ async function inviteToTrip(tripId){
     trip_id:tripId, user_id:profile.id, role, invited_by:ME.id
   },{onConflict:'trip_id,user_id'});
 
-  if(error){toast('Error adding member');console.error(error);return;}
+  if(error){toast('Error adding member');return;}
   toast(`${profile.name||email} added as ${role} ✓`);
   closeModal();
   await loadTripDetail(tripId);
