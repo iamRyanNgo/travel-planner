@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wanderplan — Travel Itinerary Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080e1c; --bg2:#0d1526; --panel:#111b2e; --panel2:#172036;
+  --border:#1e2d45; --border2:#253450;
+  --text:#f0f4ff; --muted:#7a90b8; --dim:#3d5275;
+  --gold:#f5c542; --gold2:#ffe07a;
+  --blue:#4a90e2; --cyan:#22d3ee; --green:#34d399;
+  --coral:#f87171; --purple:#a78bfa; --orange:#fb923c; --pink:#f472b6;
+  --radius:14px; --shadow:0 8px 32px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+h1,h2,h3{font-family:'Playfair Display',Georgia,serif}
+a{color:var(--blue);text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;transition:.15s}
+input,textarea,select{font-family:inherit;background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:9px 12px;font-size:14px;width:100%;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(245,197,66,.12)}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px;font-weight:500;letter-spacing:.4px;text-transform:uppercase}
+select option{background:var(--panel)}
+.field{margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.flex1{flex:1;min-width:0}
+.muted{color:var(--muted)}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:var(--panel2);border:1px solid var(--border2);color:var(--muted);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid var(--border2);background:var(--panel2);color:var(--text);cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:var(--panel);transform:translateY(-1px)}
+.btn.primary{background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff;box-shadow:0 4px 16px rgba(59,111,212,.35)}
+.btn.primary:hover{background:linear-gradient(135deg,#4a7fe4,#2f5fc0)}
+.btn.gold{background:linear-gradient(135deg,#e8a800,#c47f00);border-color:#e8a800;color:#1a0f00;box-shadow:0 4px 16px rgba(245,197,66,.3)}
+.btn.danger{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.3);color:var(--coral)}
+.btn.sm{padding:6px 12px;font-size:12px;border-radius:8px}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--panel2)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.empty{text-align:center;padding:48px 24px;color:var(--muted);border:1px dashed var(--border2);border-radius:var(--radius)}
+.empty .icon{font-size:48px;margin-bottom:12px}
+
+/* ── Header ── */
+#appHeader{position:sticky;top:0;z-index:50;background:rgba(8,14,28,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:16px}
+.brand{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;background:linear-gradient(135deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;cursor:pointer;flex-shrink:0}
+.brand span{font-size:11px;font-family:'DM Sans',sans-serif;font-weight:500;color:var(--muted);display:block;letter-spacing:2px;text-transform:uppercase;margin-top:-4px}
+#breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex:1;min-width:0}
+#breadcrumb .sep{color:var(--dim)}
+#breadcrumb .crumb{color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#headerActions{display:flex;gap:8px;flex-shrink:0}
+
+/* ── Dashboard ── */
+#dashboard{max-width:1300px;margin:0 auto;padding:32px 24px}
+.dash-hero{margin-bottom:40px}
+.dash-hero h1{font-size:clamp(28px,5vw,48px);font-weight:900;margin-bottom:8px;background:linear-gradient(135deg,#fff 40%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+.dash-hero p{color:var(--muted);font-size:15px}
+.trip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.trip-card{border-radius:18px;overflow:hidden;cursor:pointer;position:relative;border:1px solid var(--border);transition:.2s;box-shadow:var(--shadow)}
+.trip-card:hover{transform:translateY(-4px);box-shadow:0 20px 60px rgba(0,0,0,.6);border-color:var(--border2)}
+.trip-card-cover{height:160px;position:relative;display:flex;align-items:flex-end;padding:16px}
+.trip-card-cover .dest-emoji{position:absolute;top:16px;right:16px;font-size:40px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
+.trip-card-cover .status-badge{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:20px;backdrop-filter:blur(8px)}
+.trip-card-body{background:var(--panel);padding:16px}
+.trip-card-body h3{font-size:17px;font-weight:700;margin-bottom:4px;font-family:'Playfair Display',serif}
+.trip-card-body .subtitle{font-size:12px;color:var(--muted);margin-bottom:12px}
+.trip-meta{display:flex;gap:12px;flex-wrap:wrap}
+.trip-meta-item{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px}
+
+/* ── Trip View ── */
+#tripView{max-width:1300px;margin:0 auto;padding:0 24px 48px}
+.trip-hero{height:260px;border-radius:0 0 24px 24px;display:flex;align-items:flex-end;padding:28px;position:relative;overflow:hidden;margin-bottom:0}
+.trip-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(8,14,28,.95) 0%,rgba(8,14,28,.4) 60%,transparent 100%)}
+.trip-hero-content{position:relative;z-index:1}
+.trip-hero-content h1{font-size:clamp(24px,4vw,40px);font-weight:900;margin-bottom:6px}
+.trip-hero-content .trip-dates{font-size:14px;color:rgba(255,255,255,.7);display:flex;gap:16px;flex-wrap:wrap}
+.trip-hero-emoji{position:absolute;top:24px;right:32px;font-size:80px;z-index:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
+
+/* ── Tabs ── */
+.trip-tabs{display:flex;gap:2px;padding:16px 0 0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;margin-bottom:24px}
+.trip-tabs::-webkit-scrollbar{display:none}
+.trip-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;transition:.15s;border-radius:0}
+.trip-tab:hover{color:var(--text)}
+.trip-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+
+/* ── Overview tab ── */
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Playfair Display',serif;color:var(--gold)}
+.stat-card .stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.travelers-list{display:flex;flex-wrap:wrap;gap:10px}
+.traveler-chip{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border2);border-radius:30px;padding:6px 14px 6px 6px;font-size:13px}
+.traveler-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.notes-area{width:100%;resize:vertical;min-height:100px;font-size:14px;line-height:1.6}
+
+/* ── Itinerary / Timeline ── */
+.day-block{margin-bottom:32px}
+.day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.day-label{display:flex;align-items:center;gap:12px}
+.day-num{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.day-info h3{font-size:16px;font-weight:700;margin-bottom:2px}
+.day-info .day-date{font-size:12px;color:var(--muted)}
+.timeline{position:relative;padding-left:28px}
+.timeline::before{content:'';position:absolute;left:10px;top:0;bottom:0;width:2px;background:var(--border);border-radius:2px}
+.tl-event{position:relative;margin-bottom:12px}
+.tl-dot{position:absolute;left:-23px;top:14px;width:12px;height:12px;border-radius:50%;border:2px solid var(--bg);z-index:1}
+.event-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;transition:.15s;display:flex;gap:12px;align-items:flex-start}
+.event-card:hover{border-color:var(--border2);background:var(--panel2)}
+.event-card.confirmed{border-left:3px solid var(--green)}
+.event-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.event-body{flex:1;min-width:0}
+.event-title{font-weight:600;font-size:14px;margin-bottom:3px}
+.event-meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.event-meta span{display:flex;align-items:center;gap:3px}
+.event-cost{font-size:13px;font-weight:700;color:var(--gold);margin-left:auto;flex-shrink:0}
+
+/* ── Stays / Flights ── */
+.booking-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:12px;cursor:pointer;transition:.15s}
+.booking-card:hover{border-color:var(--border2)}
+.booking-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:10px}
+.booking-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.booking-title{font-weight:700;font-size:15px;margin-bottom:3px}
+.booking-sub{font-size:13px;color:var(--muted)}
+.booking-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding-top:10px;border-top:1px solid var(--border)}
+.booking-detail{font-size:12px}
+.booking-detail .bd-label{color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+.booking-detail .bd-val{font-weight:600;font-size:13px}
+.conf-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.5px}
+.conf-badge.confirmed{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.conf-badge.pending{background:rgba(251,146,60,.12);color:var(--orange);border:1px solid rgba(251,146,60,.3)}
+
+/* ── Packing ── */
+.pack-section{margin-bottom:24px}
+.pack-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pack-section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.pack-progress{flex:1;height:4px;background:var(--border);border-radius:4px;overflow:hidden;margin:0 12px}
+.pack-progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--green),var(--cyan));transition:width .3s}
+.pack-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--border);margin-bottom:6px;cursor:pointer;transition:.15s}
+.pack-item:hover{border-color:var(--border2)}
+.pack-item.packed .pack-name{text-decoration:line-through;color:var(--dim)}
+.pack-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;transition:.15s}
+.pack-item.packed .pack-check{background:var(--green);border-color:var(--green);color:#000}
+.pack-name{flex:1;font-size:14px}
+.pack-qty{font-size:12px;color:var(--muted);margin-right:4px}
+.pack-del{font-size:12px;color:var(--dim);opacity:0;transition:.15s}
+.pack-item:hover .pack-del{opacity:1}
+
+/* ── Budget ── */
+.budget-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+.budget-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+.budget-stat .bv{font-size:22px;font-weight:700;margin-bottom:2px}
+.budget-stat .bl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.budget-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.budget-item:hover{border-color:var(--border2)}
+.budget-item-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.budget-item-name{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.budget-amounts{display:flex;gap:16px;font-size:13px;margin-bottom:8px}
+.budget-planned{color:var(--muted)}
+.budget-actual{font-weight:600}
+.budget-bar{height:6px;background:var(--border);border-radius:4px;overflow:hidden}
+.budget-bar-fill{height:100%;border-radius:4px;transition:width .4s}
+
+/* ── Modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:grid;place-items:center;padding:16px;backdrop-filter:blur(4px)}
+.modal{background:var(--panel);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow:auto;box-shadow:0 40px 100px rgba(0,0,0,.6)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);z-index:1}
+.modal-header h2{font-size:18px;margin:0}
+.modal-body{padding:22px}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--panel)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:12px 22px;border-radius:30px;font-weight:600;font-size:14px;z-index:300;box-shadow:var(--shadow);animation:toastIn .25s ease-out}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ── Category colors ── */
+.cat-flight{background:rgba(74,144,226,.15);color:#7ab4f0}
+.cat-hotel{background:rgba(167,139,250,.15);color:#c4b0fc}
+.cat-food{background:rgba(251,146,60,.15);color:#fca36a}
+.cat-activity{background:rgba(34,211,238,.15);color:#67e8f9}
+.cat-transport{background:rgba(52,211,153,.15);color:#6ee7b7}
+.cat-shopping{background:rgba(244,114,182,.15);color:#f9a8d4}
+.cat-sightseeing{background:rgba(245,197,66,.15);color:#fde68a}
+.cat-other{background:rgba(122,144,184,.15);color:#a0b4d0}
+.dot-flight{background:#4a90e2}.dot-hotel{background:#a78bfa}.dot-food{background:#fb923c}
+.dot-activity{background:#22d3ee}.dot-transport{background:#34d399}.dot-shopping{background:#f472b6}
+.dot-sightseeing{background:#f5c542}.dot-other{background:#7a90b8}
+
+/* ── Section head ── */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.section-head h2{font-size:20px}
+
+/* ── Color picker ── */
+.gradient-picker{display:flex;gap:8px;flex-wrap:wrap}
+.gp-swatch{width:36px;height:36px;border-radius:10px;cursor:pointer;border:2px solid transparent;transition:.15s}
+.gp-swatch.sel{border-color:#fff;transform:scale(1.1)}
+
+/* ── Responsive ── */
+@media(max-width:680px){
+  #appHeader{padding:0 14px}
+  #dashboard,#tripView{padding:16px 14px 60px}
+  .trip-hero{height:200px;padding:18px;border-radius:0 0 18px 18px}
+  .modal{border-radius:18px 18px 0 0;max-height:94vh}
+  .modal-bg{padding:0;align-items:flex-end}
+}
+@media print{
+  #appHeader,#headerActions,.btn,.trip-tabs{display:none!important}
+  body{background:#fff;color:#000}
+  .card,.booking-card,.event-card{box-shadow:none;border:1px solid #ddd}
+}
+</style>
+</head>
+<body>
+
+<header id="appHeader">
+  <div class="brand" onclick="goHome()">✈ Wanderplan<span>Travel Planner</span></div>
+  <div id="breadcrumb"></div>
+  <div id="headerActions"></div>
+</header>
+
+<div id="root"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE & STORAGE
+═══════════════════════════════════════════════ */
+function uid(){return Math.random().toString(36).slice(2,9)}
+const KEY='wanderplan_v1';
+let STATE={trips:[],events:[],stays:[],flights:[],packItems:[],budgetItems:[]};
+function load(){try{const r=localStorage.getItem(KEY);if(r)STATE=JSON.parse(r);}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(STATE));}catch(e){}}
+
+/* ═══════════════════════════════════════════════
+   ROUTER
+═══════════════════════════════════════════════ */
+let CUR={view:'dashboard',tripId:null,tab:'overview'};
+function goHome(){CUR={view:'dashboard',tripId:null,tab:'overview'};render();}
+function openTrip(id,tab='overview'){CUR={view:'trip',tripId:id,tab};render();}
+function setTab(tab){CUR.tab=tab;renderTripView();}
+
+/* ═══════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════ */
+function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function fmt(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+function fmtShort(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+function fmtDay(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))}
+function countdown(startIso){
+  const now=new Date(),start=new Date(startIso+'T00:00:00');
+  const diff=Math.ceil((start-now)/(1000*60*60*24));
+  if(diff>0)return`in ${diff} day${diff===1?'':'s'}`;
+  if(diff===0)return'Today!';
+  const end=STATE.trips.find(t=>t.startDate===startIso);
+  return`${Math.abs(diff)}d ago`;
+}
+function tripCountdown(trip){
+  const now=new Date();
+  const start=new Date(trip.startDate+'T00:00:00');
+  const end=new Date(trip.endDate+'T23:59:59');
+  if(now<start){const d=Math.ceil((start-now)/(864e5));return{label:`in ${d} day${d===1?'':'s'}`,status:'upcoming'}}
+  if(now<=end)return{label:'Happening now!',status:'active'};
+  return{label:'Completed',status:'past'};
+}
+function tripDays(trip){
+  if(!trip.startDate||!trip.endDate)return[];
+  const days=[];let d=new Date(trip.startDate+'T12:00:00');
+  const end=new Date(trip.endDate+'T12:00:00');
+  while(d<=end){days.push(d.toISOString().slice(0,10));d=new Date(d.getTime()+864e5);}
+  return days;
+}
+function formatCost(amt,currency){if(!amt)return'';return`${currency||'$'}${Number(amt).toLocaleString()}`}
+function toast(msg){
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.getElementById('toastRoot').appendChild(t);
+  setTimeout(()=>t.remove(),2200);
+}
+function $(s,r=document){return r.querySelector(s)}
+function $$(s,r=document){return [...r.querySelectorAll(s)]}
+
+/* ═══════════════════════════════════════════════
+   GRADIENTS
+═══════════════════════════════════════════════ */
+const GRADIENTS=[
+  'linear-gradient(135deg,#0f2027,#203a43,#2c5364)',
+  'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)',
+  'linear-gradient(135deg,#2d1b69,#11998e,#38ef7d)',
+  'linear-gradient(135deg,#642b73,#c6426e)',
+  'linear-gradient(135deg,#1a3a4a,#0d6efd,#00c6ff)',
+  'linear-gradient(135deg,#2c1654,#a83279)',
+  'linear-gradient(135deg,#134e5e,#71b280)',
+  'linear-gradient(135deg,#373b44,#4286f4)',
+  'linear-gradient(135deg,#4a1942,#c74b50)',
+  'linear-gradient(135deg,#0f0c29,#302b63,#24243e)',
+  'linear-gradient(135deg,#1f4037,#99f2c8)',
+  'linear-gradient(135deg,#4b1248,#f10711)',
+];
+
+/* ═══════════════════════════════════════════════
+   CATEGORIES
+═══════════════════════════════════════════════ */
+const CATS={
+  flight:{icon:'✈️',label:'Flight',cls:'cat-flight',dot:'dot-flight'},
+  hotel:{icon:'🏨',label:'Hotel/Stay',cls:'cat-hotel',dot:'dot-hotel'},
+  food:{icon:'🍽️',label:'Food & Dining',cls:'cat-food',dot:'dot-food'},
+  activity:{icon:'🎭',label:'Activity',cls:'cat-activity',dot:'dot-activity'},
+  transport:{icon:'🚗',label:'Transport',cls:'cat-transport',dot:'dot-transport'},
+  shopping:{icon:'🛍️',label:'Shopping',cls:'cat-shopping',dot:'dot-shopping'},
+  sightseeing:{icon:'🏛️',label:'Sightseeing',cls:'cat-sightseeing',dot:'dot-sightseeing'},
+  other:{icon:'📌',label:'Other',cls:'cat-other',dot:'dot-other'},
+};
+const PACK_CATS=['Clothing','Toiletries','Electronics','Documents','Health','Snacks','Entertainment','Misc'];
+const BUDGET_CATS=['Flights','Accommodation','Food & Drink','Activities','Transport','Shopping','Misc'];
+const CURRENCIES=['$','€','£','¥','₩','A$','C$','CHF','SEK','NOK','DKK','SGD','HKD','฿','₹'];
+const TRAVELER_COLORS=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171'];
+
+/* ═══════════════════════════════════════════════
+   RENDER ROOT
+═══════════════════════════════════════════════ */
+function render(){
+  if(CUR.view==='dashboard')renderDashboard();
+  else if(CUR.view==='trip')renderTripView();
+}
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════ */
+function renderDashboard(){
+  document.getElementById('breadcrumb').innerHTML='';
+  document.getElementById('headerActions').innerHTML=`<button class="btn primary" onclick="modalTrip()">＋ New Trip</button>`;
+  const trips=STATE.trips;
+  document.getElementById('root').innerHTML=`
+  <div id="dashboard">
+    <div class="dash-hero">
+      <h1>Your Adventures</h1>
+      <p class="muted">${trips.length?`${trips.length} trip${trips.length>1?'s':''} planned — where to next?`:'Start planning your first adventure.'}</p>
+    </div>
+    ${trips.length?`<div class="trip-grid">${trips.map(tripCard).join('')}</div>`:`
+    <div class="empty">
+      <div class="icon">🌍</div>
+      <h3 style="margin-bottom:8px">No trips yet</h3>
+      <p class="muted" style="margin-bottom:20px">Create your first trip and start building the perfect itinerary.</p>
+      <button class="btn gold" onclick="modalTrip()">＋ Plan a Trip</button>
+    </div>`}
+  </div>`;
+}
+
+function tripCard(t){
+  const cd=tripCountdown(t);
+  const days=t.startDate&&t.endDate?diffDays(t.startDate,t.endDate)+1:0;
+  const evCount=STATE.events.filter(e=>e.tripId===t.id).length;
+  const statusColor=cd.status==='active'?'rgba(52,211,153,.8)':cd.status==='upcoming'?'rgba(74,144,226,.8)':'rgba(122,144,184,.6)';
+  const budget=STATE.budgetItems.filter(b=>b.tripId===t.id).reduce((a,b)=>a+(+b.planned||0),0);
+  return`<div class="trip-card" onclick="openTrip('${t.id}')">
+    <div class="trip-card-cover" style="background:${GRADIENTS[t.gradientIdx||0]}">
+      <div class="dest-emoji">${t.emoji||'🌍'}</div>
+      <span class="status-badge" style="background:${statusColor};color:#fff">${cd.label}</span>
+    </div>
+    <div class="trip-card-body">
+      <h3>${esc(t.name)}</h3>
+      <div class="subtitle">${esc(t.destination)}${t.country?' · '+esc(t.country):''}</div>
+      <div class="trip-meta">
+        ${t.startDate?`<div class="trip-meta-item">📅 ${fmtShort(t.startDate)}${t.endDate?' – '+fmtShort(t.endDate):''}${days?` (${days}d)`:''}</div>`:''}
+        ${evCount?`<div class="trip-meta-item">🗓 ${evCount} event${evCount>1?'s':''}</div>`:''}
+        ${budget?`<div class="trip-meta-item">💰 ${formatCost(budget,t.currency)}</div>`:''}
+        ${t.travelers&&t.travelers.length?`<div class="trip-meta-item">👥 ${t.travelers.length} traveler${t.travelers.length>1?'s':''}</div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   TRIP VIEW
+═══════════════════════════════════════════════ */
+function renderTripView(){
+  const t=STATE.trips.find(x=>x.id===CUR.tripId);if(!t){goHome();return;}
+  const cd=tripCountdown(t);
+  const days=t.startDate&&t.endDate?diffDays(t.startDate,t.endDate)+1:0;
+
+  document.getElementById('breadcrumb').innerHTML=`
+    <span class="sep" style="cursor:pointer;color:var(--muted)" onclick="goHome()">Trips</span>
+    <span class="sep">›</span>
+    <span class="crumb">${esc(t.name)}</span>`;
+  document.getElementById('headerActions').innerHTML=`
+    <button class="btn sm ghost" onclick="window.print()" title="Print itinerary">🖨 Print</button>
+    <button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>
+    <button class="btn sm danger" onclick="deleteTrip('${t.id}')">🗑</button>`;
+
+  const TABS=[
+    {id:'overview',icon:'📋',label:'Overview'},
+    {id:'itinerary',icon:'🗓',label:'Itinerary'},
+    {id:'flights',icon:'✈️',label:'Flights'},
+    {id:'stays',icon:'🏨',label:'Stays'},
+    {id:'activities',icon:'🎭',label:'Activities'},
+    {id:'packing',icon:'🧳',label:'Packing'},
+    {id:'budget',icon:'💰',label:'Budget'},
+  ];
+
+  document.getElementById('root').innerHTML=`
+  <div id="tripView">
+    <div class="trip-hero" style="background:${GRADIENTS[t.gradientIdx||0]}">
+      <div class="trip-hero-emoji">${t.emoji||'🌍'}</div>
+      <div class="trip-hero-content">
+        <h1>${esc(t.name)}</h1>
+        <div class="trip-dates">
+          <span>📍 ${esc(t.destination)}${t.country?' · '+esc(t.country):''}</span>
+          ${t.startDate?`<span>📅 ${fmt(t.startDate)}${t.endDate?' → '+fmt(t.endDate):''}${days?' ('+days+' days)':''}</span>`:''}
+          <span>${cd.label}</span>
+        </div>
+      </div>
+    </div>
+    <div class="trip-tabs">
+      ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+    </div>
+    <div id="tabContent"></div>
+  </div>`;
+
+  renderTab();
+}
+
+function renderTab(){
+  const t=STATE.trips.find(x=>x.id===CUR.tripId);if(!t)return;
+  const el=document.getElementById('tabContent');if(!el)return;
+  if(CUR.tab==='overview')el.innerHTML=renderOverview(t);
+  else if(CUR.tab==='itinerary')el.innerHTML=renderItinerary(t);
+  else if(CUR.tab==='flights')el.innerHTML=renderFlights(t);
+  else if(CUR.tab==='stays')el.innerHTML=renderStays(t);
+  else if(CUR.tab==='activities')el.innerHTML=renderActivities(t);
+  else if(CUR.tab==='packing')el.innerHTML=renderPacking(t);
+  else if(CUR.tab==='budget')el.innerHTML=renderBudget(t);
+}
+
+/* ── Overview ── */
+function renderOverview(t){
+  const days=t.startDate&&t.endDate?diffDays(t.startDate,t.endDate)+1:0;
+  const evCount=STATE.events.filter(e=>e.tripId===t.id).length;
+  const flCount=STATE.flights.filter(f=>f.tripId===t.id).length;
+  const stCount=STATE.stays.filter(s=>s.tripId===t.id).length;
+  const totalBudget=STATE.budgetItems.filter(b=>b.tripId===t.id).reduce((a,b)=>a+(+b.planned||0),0);
+  const totalActual=STATE.budgetItems.filter(b=>b.tripId===t.id).reduce((a,b)=>a+(+b.actual||0),0);
+  const travelers=t.travelers||[];
+  return`
+  <div class="overview-grid">
+    <div class="stat-card"><div class="stat-val">${days||'—'}</div><div class="stat-label">Days</div></div>
+    <div class="stat-card"><div class="stat-val">${evCount}</div><div class="stat-label">Events Planned</div></div>
+    <div class="stat-card"><div class="stat-val">${flCount}</div><div class="stat-label">Flights</div></div>
+    <div class="stat-card"><div class="stat-val">${stCount}</div><div class="stat-label">Stays</div></div>
+    ${totalBudget?`<div class="stat-card"><div class="stat-val" style="font-size:20px">${formatCost(totalBudget,t.currency)}</div><div class="stat-label">Budget</div></div>`:''}
+    ${totalActual?`<div class="stat-card"><div class="stat-val" style="font-size:20px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="stat-label">Spent</div></div>`:''}
+  </div>
+  ${travelers.length?`
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-head"><h2 style="font-size:16px">👥 Travelers</h2>
+      <button class="btn sm ghost" onclick="modalTrip('${t.id}')">Edit</button></div>
+    <div class="travelers-list">
+      ${travelers.map((tv,i)=>`<div class="traveler-chip">
+        <div class="traveler-avatar" style="background:${TRAVELER_COLORS[i%TRAVELER_COLORS.length]}20;color:${TRAVELER_COLORS[i%TRAVELER_COLORS.length]}">${(tv.name||'?')[0].toUpperCase()}</div>
+        <div><div style="font-size:13px;font-weight:600">${esc(tv.name)}</div>${tv.role?`<div style="font-size:11px;color:var(--muted)">${esc(tv.role)}</div>`:''}</div>
+      </div>`).join('')}
+    </div>
+  </div>`:''}
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-head"><h2 style="font-size:16px">📝 Trip Notes</h2></div>
+    <textarea class="notes-area" placeholder="Visa requirements, packing reminders, emergency contacts, local tips..."
+      oninput="updateTripNotes('${t.id}',this.value)">${esc(t.notes||'')}</textarea>
+  </div>
+  ${t.emergencyContacts?`<div class="card">
+    <h2 style="font-size:16px;margin-bottom:10px">🆘 Emergency Info</h2>
+    <pre style="font-size:13px;color:var(--muted);white-space:pre-wrap;font-family:inherit">${esc(t.emergencyContacts)}</pre>
+  </div>`:''}`;
+}
+
+/* ── Itinerary ── */
+function renderItinerary(t){
+  const days=tripDays(t);
+  if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
+  const events=STATE.events.filter(e=>e.tripId===t.id);
+  const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
+  return`<div>
+    ${days.map((date,idx)=>{
+      const dayEvents=events.filter(e=>e.date===date).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
+      const color=dayColors[idx%dayColors.length];
+      return`<div class="day-block">
+        <div class="day-header">
+          <div class="day-label">
+            <div class="day-num" style="background:${color}20;color:${color}">D${idx+1}</div>
+            <div class="day-info">
+              <h3>${fmtDay(date)}</h3>
+              <div class="day-date">${dayEvents.length} event${dayEvents.length!==1?'s':''}</div>
+            </div>
+          </div>
+          <button class="btn sm primary" onclick="modalEvent('${t.id}','${date}')">＋ Add Event</button>
+        </div>
+        <div class="timeline">
+          ${dayEvents.length?dayEvents.map(ev=>eventCard(ev)).join(''):`
+          <div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No events — click + Add Event to plan this day.</div>`}
+        </div>
+      </div>`;
+    }).join('')}
+    <button class="btn primary" style="margin-top:8px" onclick="modalEvent('${t.id}')">＋ Add Event</button>
+  </div>`;
+}
+
+function eventCard(ev){
+  const cat=CATS[ev.category]||CATS.other;
+  return`<div class="tl-event" onclick="modalEvent('${ev.tripId}',ev=>'${ev.id}',null,'${ev.id}')">
+    <div class="tl-dot ${cat.dot}"></div>
+    <div class="event-card ${ev.confirmed?'confirmed':''}">
+      <div class="event-icon ${cat.cls}">${cat.icon}</div>
+      <div class="event-body">
+        <div class="event-title">${esc(ev.title)}</div>
+        <div class="event-meta">
+          ${ev.time?`<span>🕐 ${ev.time}${ev.duration?' · '+ev.duration+'m':''}</span>`:''}
+          ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
+          ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
+          ${ev.notes?`<span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📝 ${esc(ev.notes)}</span>`:''}
+        </div>
+      </div>
+      ${ev.cost?`<div class="event-cost">${formatCost(ev.cost,ev.currency)}</div>`:''}
+    </div>
+  </div>`;
+}
+
+/* ── Flights ── */
+function renderFlights(t){
+  const flights=STATE.flights.filter(f=>f.tripId===t.id);
+  return`<div>
+    <div class="section-head"><h2>✈️ Flights</h2>
+      <button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add Flight</button>
+    </div>
+    ${flights.length?flights.map(f=>`
+    <div class="booking-card" onclick="modalFlight('${t.id}','${f.id}')">
+      <div class="booking-header">
+        <div class="booking-icon cat-flight">✈️</div>
+        <div class="flex1">
+          <div class="booking-title">${esc(f.from)} → ${esc(f.to)}</div>
+          <div class="booking-sub">${esc(f.airline||'')}${f.flightNum?' · '+esc(f.flightNum):''}</div>
+        </div>
+        <span class="conf-badge ${f.confirmed?'confirmed':'pending'}">${f.confirmed?'CONFIRMED':'PENDING'}</span>
+      </div>
+      <div class="booking-detail-grid">
+        ${f.departDate?`<div class="booking-detail"><div class="bd-label">Departure</div><div class="bd-val">${fmtDay(f.departDate)}${f.departTime?' '+f.departTime:''}</div></div>`:''}
+        ${f.arriveDate?`<div class="booking-detail"><div class="bd-label">Arrival</div><div class="bd-val">${fmtDay(f.arriveDate)}${f.arriveTime?' '+f.arriveTime:''}</div></div>`:''}
+        ${f.seat?`<div class="booking-detail"><div class="bd-label">Seat</div><div class="bd-val">${esc(f.seat)}</div></div>`:''}
+        ${f.cost?`<div class="booking-detail"><div class="bd-label">Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(f.cost,t.currency)}</div></div>`:''}
+        ${f.confirmNum?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(f.confirmNum)}</div></div>`:''}
+        ${f.terminal?`<div class="booking-detail"><div class="bd-label">Terminal/Gate</div><div class="bd-val">${esc(f.terminal)}</div></div>`:''}
+      </div>
+    </div>`).join(''):`<div class="empty"><div class="icon">✈️</div><p>No flights added yet.</p></div>`}
+  </div>`;
+}
+
+/* ── Stays ── */
+function renderStays(t){
+  const stays=STATE.stays.filter(s=>s.tripId===t.id);
+  return`<div>
+    <div class="section-head"><h2>🏨 Accommodation</h2>
+      <button class="btn primary" onclick="modalStay('${t.id}')">＋ Add Stay</button>
+    </div>
+    ${stays.length?stays.map(s=>`
+    <div class="booking-card" onclick="modalStay('${t.id}','${s.id}')">
+      <div class="booking-header">
+        <div class="booking-icon cat-hotel">🏨</div>
+        <div class="flex1">
+          <div class="booking-title">${esc(s.name)}</div>
+          <div class="booking-sub">${esc(s.address||'')}${s.type?' · '+esc(s.type):''}</div>
+        </div>
+        <span class="conf-badge ${s.confirmed?'confirmed':'pending'}">${s.confirmed?'CONFIRMED':'PENDING'}</span>
+      </div>
+      <div class="booking-detail-grid">
+        ${s.checkIn?`<div class="booking-detail"><div class="bd-label">Check-in</div><div class="bd-val">${fmtDay(s.checkIn)}${s.checkInTime?' '+s.checkInTime:''}</div></div>`:''}
+        ${s.checkOut?`<div class="booking-detail"><div class="bd-label">Check-out</div><div class="bd-val">${fmtDay(s.checkOut)}${s.checkOutTime?' '+s.checkOutTime:''}</div></div>`:''}
+        ${s.checkIn&&s.checkOut?`<div class="booking-detail"><div class="bd-label">Nights</div><div class="bd-val">${diffDays(s.checkIn,s.checkOut)}</div></div>`:''}
+        ${s.cost?`<div class="booking-detail"><div class="bd-label">Total Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(s.cost,t.currency)}</div></div>`:''}
+        ${s.confirmNum?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirmNum)}</div></div>`:''}
+        ${s.phone?`<div class="booking-detail"><div class="bd-label">Phone</div><div class="bd-val">${esc(s.phone)}</div></div>`:''}
+      </div>
+    </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No accommodation added yet.</p></div>`}
+  </div>`;
+}
+
+/* ── Activities ── */
+function renderActivities(t){
+  const cats=['activity','sightseeing','food','shopping'];
+  const events=STATE.events.filter(e=>e.tripId===t.id);
+  return`<div>
+    <div class="section-head"><h2>🎭 All Activities</h2>
+      <button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add Event</button>
+    </div>
+    ${cats.map(catId=>{
+      const catEvents=events.filter(e=>e.category===catId);
+      if(!catEvents.length)return'';
+      const cat=CATS[catId];
+      return`<div style="margin-bottom:24px">
+        <h3 style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.icon} ${cat.label}</h3>
+        ${catEvents.map(ev=>`
+        <div class="event-card" style="margin-bottom:8px;border-radius:12px" onclick="modalEvent('${t.id}',null,null,'${ev.id}')">
+          <div class="event-icon ${cat.cls}">${cat.icon}</div>
+          <div class="event-body">
+            <div class="event-title">${esc(ev.title)}</div>
+            <div class="event-meta">
+              ${ev.date?`<span>📅 ${fmtDay(ev.date)}</span>`:''}
+              ${ev.time?`<span>🕐 ${ev.time}</span>`:''}
+              ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
+              ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
+            </div>
+          </div>
+          ${ev.cost?`<div class="event-cost">${formatCost(ev.cost,ev.currency||t.currency)}</div>`:''}
+        </div>`).join('')}
+      </div>`;
+    }).join('')}
+    ${events.length===0?`<div class="empty"><div class="icon">🎭</div><p>No activities planned yet.</p></div>`:''}
+  </div>`;
+}
+
+/* ── Packing ── */
+function renderPacking(t){
+  const items=STATE.packItems.filter(p=>p.tripId===t.id);
+  const total=items.length,packed=items.filter(i=>i.packed).length;
+  const byCategory={};
+  items.forEach(i=>{(byCategory[i.category]=byCategory[i.category]||[]).push(i);});
+  PACK_CATS.forEach(c=>{if(!byCategory[c])byCategory[c]=[];});
+  return`<div>
+    <div class="section-head">
+      <h2>🧳 Packing List</h2>
+      <div class="row">
+        <span class="muted" style="align-self:center;font-size:13px">${packed}/${total} packed</span>
+        <button class="btn primary" onclick="modalPackItem('${t.id}')">＋ Add Item</button>
+      </div>
+    </div>
+    ${total?`<div style="height:6px;background:var(--border);border-radius:4px;margin-bottom:20px;overflow:hidden">
+      <div style="height:100%;width:${total?Math.round(packed/total*100):0}%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:4px;transition:width .4s"></div>
+    </div>`:''}
+    ${Object.entries(byCategory).filter(([,items])=>items.length).map(([cat,catItems])=>{
+      const catPacked=catItems.filter(i=>i.packed).length;
+      return`<div class="pack-section">
+        <div class="pack-section-header">
+          <div class="pack-section-title">${cat} <span style="color:var(--dim)">(${catPacked}/${catItems.length})</span></div>
+          <div class="pack-progress"><div class="pack-progress-fill" style="width:${catItems.length?Math.round(catPacked/catItems.length*100):0}%"></div></div>
+        </div>
+        ${catItems.map(item=>`
+        <div class="pack-item ${item.packed?'packed':''}" onclick="togglePack('${item.id}')">
+          <div class="pack-check">${item.packed?'✓':''}</div>
+          <div class="pack-name">${esc(item.name)}</div>
+          ${item.qty>1?`<div class="pack-qty">×${item.qty}</div>`:''}
+          ${item.notes?`<div class="muted" style="font-size:11px">${esc(item.notes)}</div>`:''}
+          <button class="pack-del" onclick="event.stopPropagation();deletePackItem('${item.id}')" title="Remove">✕</button>
+        </div>`).join('')}
+      </div>`;
+    }).join('')}
+    ${!total?`<div class="empty"><div class="icon">🧳</div><p>Nothing packed yet. Add items to track what to bring.</p>
+      <button class="btn gold" style="margin-top:16px" onclick="seedPackItems('${t.id}')">📋 Load Starter List</button>
+    </div>`:''}
+  </div>`;
+}
+
+/* ── Budget ── */
+function renderBudget(t){
+  const items=STATE.budgetItems.filter(b=>b.tripId===t.id);
+  const totalPlanned=items.reduce((a,b)=>a+(+b.planned||0),0);
+  const totalActual=items.reduce((a,b)=>a+(+b.actual||0),0);
+  const over=totalActual>totalPlanned&&totalPlanned>0;
+  const pct=totalPlanned?Math.min(100,Math.round(totalActual/totalPlanned*100)):0;
+  const byCategory={};
+  items.forEach(i=>{(byCategory[i.category]=byCategory[i.category]||[]).push(i);});
+  return`<div>
+    <div class="section-head"><h2>💰 Budget Tracker</h2>
+      <button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add Item</button>
+    </div>
+    ${items.length?`
+    <div class="budget-summary">
+      <div class="budget-stat">
+        <div class="bv" style="color:var(--blue)">${formatCost(totalPlanned,t.currency)}</div>
+        <div class="bl">Total Budget</div>
+      </div>
+      <div class="budget-stat">
+        <div class="bv" style="color:${over?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div>
+        <div class="bl">Total Spent</div>
+      </div>
+      <div class="budget-stat">
+        <div class="bv" style="color:${over?'var(--coral)':'var(--muted)'}">${over?'−':''}${formatCost(Math.abs(totalPlanned-totalActual),t.currency)}</div>
+        <div class="bl">${over?'Over Budget':'Remaining'}</div>
+      </div>
+    </div>
+    <div style="height:8px;background:var(--border);border-radius:4px;margin-bottom:24px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${over?'var(--coral)':'linear-gradient(90deg,var(--blue),var(--cyan))'};border-radius:4px;transition:width .4s"></div>
+    </div>
+    ${Object.entries(byCategory).map(([cat,citems])=>{
+      const cp=citems.reduce((a,b)=>a+(+b.planned||0),0);
+      const ca=citems.reduce((a,b)=>a+(+b.actual||0),0);
+      const over=ca>cp&&cp>0;
+      const pct=cp?Math.min(100,Math.round(ca/cp*100)):0;
+      return`<div style="margin-bottom:16px">
+        <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${cat}</h3>
+        ${citems.map(item=>`
+        <div class="budget-item" onclick="modalBudgetItem('${t.id}','${item.id}')">
+          <div class="budget-item-header">
+            <div class="budget-item-name">${esc(item.name)}</div>
+            ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
+          </div>
+          <div class="budget-amounts">
+            <span class="budget-planned">Budget: ${formatCost(item.planned,t.currency)}</span>
+            ${item.actual?`<span class="budget-actual" style="color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,t.currency)}</span>`:'<span class="muted">Not spent yet</span>'}
+          </div>
+          ${item.planned?`<div class="budget-bar"><div class="budget-bar-fill" style="width:${item.actual?Math.min(100,Math.round(item.actual/item.planned*100)):0}%;background:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}"></div></div>`:''}
+        </div>`).join('')}
+      </div>`;
+    }).join('')}`
+    :`<div class="empty"><div class="icon">💰</div><p>No budget items yet. Track your planned and actual spending.</p></div>`}
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   MODAL SYSTEM
+═══════════════════════════════════════════════ */
+function modal(title,body,onMount){
+  document.getElementById('modalRoot').innerHTML=`
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>${title}</h2>
+        <button class="btn sm ghost" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">${body}</div>
+    </div>
+  </div>`;
+  if(onMount)onMount();
+}
+function closeModal(){document.getElementById('modalRoot').innerHTML='';}
+
+/* ── Trip Modal ── */
+function modalTrip(id){
+  const t=id?STATE.trips.find(x=>x.id===id):{};
+  const travelers=t&&t.travelers?t.travelers:[];
+  modal(id?'Edit Trip':'Plan a New Trip',`
+  <div class="row">
+    <div class="field flex1"><label>Trip Name</label><input id="t_name" value="${esc(t.name||'')}" placeholder="e.g. Japan Spring 2025"></div>
+    <div class="field" style="width:80px"><label>Emoji</label><input id="t_emoji" value="${esc(t.emoji||'')}" placeholder="🗼"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Destination</label><input id="t_dest" value="${esc(t.destination||'')}" placeholder="Tokyo, Japan"></div>
+    <div class="field flex1"><label>Country</label><input id="t_country" value="${esc(t.country||'')}" placeholder="Japan"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.startDate||''}"></div>
+    <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.endDate||''}"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Currency</label><select id="t_currency">${CURRENCIES.map(c=>`<option${c===(t.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field flex1"><label>Cover Style</label>
+      <div class="gradient-picker" id="gpicker">
+        ${GRADIENTS.map((g,i)=>`<div class="gp-swatch${(t.gradientIdx||0)===i?' sel':''}" style="background:${g}" onclick="selectGradient(${i})" data-idx="${i}"></div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="field">
+    <label>Travelers</label>
+    <div id="travelerList" style="margin-bottom:8px">
+      ${travelers.map((tv,i)=>`<div class="row" style="margin-bottom:6px">
+        <input placeholder="Name" value="${esc(tv.name)}" oninput="updateTraveler(${i},'name',this.value)" style="flex:2">
+        <input placeholder="Role (e.g. Partner)" value="${esc(tv.role||'')}" oninput="updateTraveler(${i},'role',this.value)" style="flex:1">
+        <button class="btn sm danger" onclick="removeTraveler(${i})">✕</button>
+      </div>`).join('')}
+    </div>
+    <button class="btn sm ghost" onclick="addTraveler()">＋ Add Traveler</button>
+  </div>
+  <div class="field"><label>Emergency Contacts / Visa Info</label>
+    <textarea id="t_emergency" rows="3" placeholder="Embassy: +1-xxx, Travel insurance: policy#xxx, Local emergency: 119">${esc(t.emergencyContacts||'')}</textarea>
+  </div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${id?`<button class="btn danger" onclick="deleteTrip('${id}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveTrip('${id||''}')">Save Trip</button>
+  </div>`,
+  ()=>{window._editTravelers=JSON.parse(JSON.stringify(travelers));window._editGradient=t.gradientIdx||0;});
+}
+
+let _editTravelers=[];let _editGradient=0;
+function selectGradient(i){
+  window._editGradient=i;
+  $$('#gpicker .gp-swatch').forEach(s=>s.classList.toggle('sel',+s.dataset.idx===i));
+}
+function addTraveler(){
+  window._editTravelers=window._editTravelers||[];
+  window._editTravelers.push({name:'',role:''});
+  const i=window._editTravelers.length-1;
+  const row=document.createElement('div');row.className='row';row.style.marginBottom='6px';
+  row.innerHTML=`<input placeholder="Name" oninput="updateTraveler(${i},'name',this.value)" style="flex:2">
+    <input placeholder="Role" oninput="updateTraveler(${i},'role',this.value)" style="flex:1">
+    <button class="btn sm danger" onclick="removeTraveler(${i})">✕</button>`;
+  document.getElementById('travelerList').appendChild(row);
+}
+function updateTraveler(i,k,v){if(window._editTravelers)window._editTravelers[i][k]=v;}
+function removeTraveler(i){if(window._editTravelers){window._editTravelers.splice(i,1);} const rows=$$('#travelerList .row');if(rows[i])rows[i].remove();}
+
+function saveTrip(id){
+  const name=$('#t_name').value.trim();if(!name){toast('Trip name is required');return;}
+  const travelers=(window._editTravelers||[]).filter(t=>t.name.trim());
+  const data={
+    name,emoji:$('#t_emoji').value.trim(),
+    destination:$('#t_dest').value.trim(),country:$('#t_country').value.trim(),
+    startDate:$('#t_start').value,endDate:$('#t_end').value,
+    currency:$('#t_currency').value,
+    gradientIdx:window._editGradient||0,
+    travelers,
+    emergencyContacts:$('#t_emergency').value.trim(),
+  };
+  if(id){Object.assign(STATE.trips.find(t=>t.id===id),data);}
+  else{STATE.trips.push({id:uid(),...data,notes:''});}
+  save();closeModal();
+  if(id&&CUR.tripId===id)renderTripView();else renderDashboard();
+  toast(id?'Trip updated ✓':'Trip created! 🎉');
+}
+
+/* ── Event Modal ── */
+function modalEvent(tripId,date,_,evId){
+  const ev=evId?STATE.events.find(e=>e.id===evId):{};
+  const t=STATE.trips.find(x=>x.id===tripId);
+  const days=t?tripDays(t):[];
+  modal(evId?'Edit Event':'Add Event',`
+  <div class="field"><label>Title</label><input id="ev_title" value="${esc(ev.title||'')}" placeholder="e.g. Tsukiji Fish Market Tour"></div>
+  <div class="row">
+    <div class="field flex1"><label>Category</label>
+      <select id="ev_cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}"${k===(ev.category||'activity')?' selected':''}>${v.icon} ${v.label}</option>`).join('')}</select>
+    </div>
+    <div class="field flex1"><label>Date</label>
+      <select id="ev_date">
+        <option value="">— no date —</option>
+        ${days.map(d=>`<option value="${d}"${d===(ev.date||date||'')?' selected':''}>${fmtDay(d)}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Start Time</label><input id="ev_time" type="time" value="${ev.time||''}"></div>
+    <div class="field flex1"><label>Duration (minutes)</label><input id="ev_dur" type="number" value="${ev.duration||''}" placeholder="e.g. 120"></div>
+  </div>
+  <div class="field"><label>Location / Venue</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="e.g. Toyosu Market, Tokyo"></div>
+  <div class="field"><label>Address</label><input id="ev_addr" value="${esc(ev.address||'')}" placeholder="Street address"></div>
+  <div class="row">
+    <div class="field flex1"><label>Cost</label><input id="ev_cost" type="number" value="${ev.cost||''}" placeholder="0"></div>
+    <div class="field" style="width:80px"><label>Currency</label><select id="ev_cur">${CURRENCIES.map(c=>`<option${c===(ev.currency||t?.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field flex1" style="display:flex;align-items:flex-end;padding-bottom:2px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px">
+        <input type="checkbox" id="ev_conf"${ev.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Confirmed
+      </label>
+    </div>
+  </div>
+  <div class="field"><label>Confirmation # / Booking Ref</label><input id="ev_confnum" value="${esc(ev.confirmNum||'')}" placeholder="Optional"></div>
+  <div class="field"><label>Website / URL</label><input id="ev_url" value="${esc(ev.url||'')}" placeholder="https://"></div>
+  <div class="field"><label>Notes</label><textarea id="ev_notes" rows="3" placeholder="Tips, reminders, what to bring...">${esc(ev.notes||'')}</textarea></div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${evId?`<button class="btn danger" onclick="deleteEvent('${evId}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveEvent('${tripId}','${evId||''}')">Save</button>
+  </div>`);
+}
+
+function saveEvent(tripId,evId){
+  const title=$('#ev_title').value.trim();if(!title){toast('Title required');return;}
+  const data={tripId,title,category:$('#ev_cat').value,date:$('#ev_date').value,
+    time:$('#ev_time').value,duration:$('#ev_dur').value,
+    location:$('#ev_loc').value.trim(),address:$('#ev_addr').value.trim(),
+    cost:$('#ev_cost').value,currency:$('#ev_cur').value,
+    confirmed:$('#ev_conf').checked,confirmNum:$('#ev_confnum').value.trim(),
+    url:$('#ev_url').value.trim(),notes:$('#ev_notes').value.trim()};
+  if(evId){Object.assign(STATE.events.find(e=>e.id===evId),data);}
+  else{STATE.events.push({id:uid(),...data});}
+  save();closeModal();renderTab();toast(evId?'Event updated':'Event added ✓');
+}
+function deleteEvent(id){if(!confirm('Delete this event?'))return;
+  STATE.events=STATE.events.filter(e=>e.id!==id);save();closeModal();renderTab();toast('Deleted');}
+
+/* ── Flight Modal ── */
+function modalFlight(tripId,flId){
+  const f=flId?STATE.flights.find(x=>x.id===flId):{};
+  const t=STATE.trips.find(x=>x.id===tripId);
+  modal(flId?'Edit Flight':'Add Flight',`
+  <div class="row">
+    <div class="field flex1"><label>From</label><input id="fl_from" value="${esc(f.from||'')}" placeholder="SFO"></div>
+    <div class="field flex1"><label>To</label><input id="fl_to" value="${esc(f.to||'')}" placeholder="NRT"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Airline</label><input id="fl_airline" value="${esc(f.airline||'')}" placeholder="Japan Airlines"></div>
+    <div class="field flex1"><label>Flight #</label><input id="fl_num" value="${esc(f.flightNum||'')}" placeholder="JL001"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Depart Date</label><input id="fl_ddate" type="date" value="${f.departDate||''}"></div>
+    <div class="field flex1"><label>Depart Time</label><input id="fl_dtime" type="time" value="${f.departTime||''}"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Arrive Date</label><input id="fl_adate" type="date" value="${f.arriveDate||''}"></div>
+    <div class="field flex1"><label>Arrive Time</label><input id="fl_atime" type="time" value="${f.arriveTime||''}"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Seat</label><input id="fl_seat" value="${esc(f.seat||'')}" placeholder="12A"></div>
+    <div class="field flex1"><label>Terminal / Gate</label><input id="fl_terminal" value="${esc(f.terminal||'')}" placeholder="T2 · Gate 44"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Confirmation #</label><input id="fl_conf" value="${esc(f.confirmNum||'')}" placeholder="ABC123"></div>
+    <div class="field flex1"><label>Cost (${t?.currency||'$'})</label><input id="fl_cost" type="number" value="${f.cost||''}"></div>
+  </div>
+  <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
+    <input type="checkbox" id="fl_confirmed"${f.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Flight confirmed
+  </label></div>
+  <div class="field"><label>Notes</label><textarea id="fl_notes" rows="2">${esc(f.notes||'')}</textarea></div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${flId?`<button class="btn danger" onclick="deleteFlight('${flId}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveFlight('${tripId}','${flId||''}')">Save</button>
+  </div>`);
+}
+function saveFlight(tripId,flId){
+  const from=$('#fl_from').value.trim();if(!from){toast('Origin required');return;}
+  const data={tripId,from,to:$('#fl_to').value.trim(),airline:$('#fl_airline').value.trim(),
+    flightNum:$('#fl_num').value.trim(),departDate:$('#fl_ddate').value,departTime:$('#fl_dtime').value,
+    arriveDate:$('#fl_adate').value,arriveTime:$('#fl_atime').value,
+    seat:$('#fl_seat').value.trim(),terminal:$('#fl_terminal').value.trim(),
+    confirmNum:$('#fl_conf').value.trim(),cost:$('#fl_cost').value,
+    confirmed:$('#fl_confirmed').checked,notes:$('#fl_notes').value.trim()};
+  if(flId){Object.assign(STATE.flights.find(f=>f.id===flId),data);}
+  else{STATE.flights.push({id:uid(),...data});}
+  save();closeModal();renderTab();toast(flId?'Flight updated':'Flight added ✓');
+}
+function deleteFlight(id){if(!confirm('Delete this flight?'))return;
+  STATE.flights=STATE.flights.filter(f=>f.id!==id);save();closeModal();renderTab();}
+
+/* ── Stay Modal ── */
+function modalStay(tripId,stId){
+  const s=stId?STATE.stays.find(x=>x.id===stId):{};
+  const t=STATE.trips.find(x=>x.id===tripId);
+  modal(stId?'Edit Stay':'Add Accommodation',`
+  <div class="field"><label>Property Name</label><input id="st_name" value="${esc(s.name||'')}" placeholder="Park Hyatt Tokyo"></div>
+  <div class="row">
+    <div class="field flex1"><label>Type</label>
+      <select id="st_type"><option${(s.type||'Hotel')==='Hotel'?' selected':''}>Hotel</option>
+        <option${s.type==='Hostel'?' selected':''}>Hostel</option><option${s.type==='Airbnb'?' selected':''}>Airbnb</option>
+        <option${s.type==='Resort'?' selected':''}>Resort</option><option${s.type==='Apartment'?' selected':''}>Apartment</option>
+        <option${s.type==='Other'?' selected':''}>Other</option></select>
+    </div>
+    <div class="field flex1"><label>Cost (${t?.currency||'$'})</label><input id="st_cost" type="number" value="${s.cost||''}"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.checkIn||''}"></div>
+    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.checkInTime||''}"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Check-out Date</label><input id="st_co" type="date" value="${s.checkOut||''}"></div>
+    <div class="field flex1"><label>Check-out Time</label><input id="st_cot" type="time" value="${s.checkOutTime||''}"></div>
+  </div>
+  <div class="field"><label>Address</label><input id="st_addr" value="${esc(s.address||'')}" placeholder="2-1-1 Nishi-Shinjuku, Tokyo"></div>
+  <div class="row">
+    <div class="field flex1"><label>Confirmation #</label><input id="st_conf" value="${esc(s.confirmNum||'')}" placeholder="HYA-12345"></div>
+    <div class="field flex1"><label>Phone</label><input id="st_phone" value="${esc(s.phone||'')}" placeholder="+81-3-xxxx-xxxx"></div>
+  </div>
+  <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
+    <input type="checkbox" id="st_confirmed"${s.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Booking confirmed
+  </label></div>
+  <div class="field"><label>Notes</label><textarea id="st_notes" rows="2" placeholder="Breakfast included, parking, pool hours...">${esc(s.notes||'')}</textarea></div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${stId?`<button class="btn danger" onclick="deleteStay('${stId}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveStay('${tripId}','${stId||''}')">Save</button>
+  </div>`);
+}
+function saveStay(tripId,stId){
+  const name=$('#st_name').value.trim();if(!name){toast('Property name required');return;}
+  const data={tripId,name,type:$('#st_type').value,cost:$('#st_cost').value,
+    checkIn:$('#st_ci').value,checkInTime:$('#st_cit').value,
+    checkOut:$('#st_co').value,checkOutTime:$('#st_cot').value,
+    address:$('#st_addr').value.trim(),confirmNum:$('#st_conf').value.trim(),
+    phone:$('#st_phone').value.trim(),confirmed:$('#st_confirmed').checked,
+    notes:$('#st_notes').value.trim()};
+  if(stId){Object.assign(STATE.stays.find(s=>s.id===stId),data);}
+  else{STATE.stays.push({id:uid(),...data});}
+  save();closeModal();renderTab();toast(stId?'Stay updated':'Stay added ✓');
+}
+function deleteStay(id){if(!confirm('Delete this stay?'))return;
+  STATE.stays=STATE.stays.filter(s=>s.id!==id);save();closeModal();renderTab();}
+
+/* ── Packing Modal ── */
+function modalPackItem(tripId){
+  modal('Add Packing Item',`
+  <div class="field"><label>Item Name</label><input id="pk_name" placeholder="e.g. Passport, Sunscreen, Adapter"></div>
+  <div class="row">
+    <div class="field flex1"><label>Category</label>
+      <select id="pk_cat">${PACK_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+    </div>
+    <div class="field flex1"><label>Quantity</label><input id="pk_qty" type="number" value="1" min="1"></div>
+  </div>
+  <div class="field"><label>Notes</label><input id="pk_notes" placeholder="Optional note"></div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="savePackItem('${tripId}')">Add Item</button>
+  </div>`);
+  setTimeout(()=>$('#pk_name')&&$('#pk_name').focus(),50);
+}
+function savePackItem(tripId){
+  const name=$('#pk_name').value.trim();if(!name){toast('Item name required');return;}
+  STATE.packItems.push({id:uid(),tripId,name,category:$('#pk_cat').value,qty:+$('#pk_qty').value||1,notes:$('#pk_notes').value.trim(),packed:false});
+  save();closeModal();renderTab();toast('Item added ✓');
+}
+function togglePack(id){const i=STATE.packItems.find(x=>x.id===id);if(!i)return;i.packed=!i.packed;save();renderTab();}
+function deletePackItem(id){STATE.packItems=STATE.packItems.filter(x=>x.id!==id);save();renderTab();}
+
+/* ── Budget Modal ── */
+function modalBudgetItem(tripId,bId){
+  const b=bId?STATE.budgetItems.find(x=>x.id===bId):{};
+  const t=STATE.trips.find(x=>x.id===tripId);
+  modal(bId?'Edit Budget Item':'Add Budget Item',`
+  <div class="field"><label>Description</label><input id="b_name" value="${esc(b.name||'')}" placeholder="e.g. Round-trip flights, Hotel nights"></div>
+  <div class="field"><label>Category</label>
+    <select id="b_cat">${BUDGET_CATS.map(c=>`<option${c===(b.category||'Misc')?' selected':''}>${c}</option>`).join('')}</select>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Planned (${t?.currency||'$'})</label><input id="b_plan" type="number" value="${b.planned||''}" placeholder="0"></div>
+    <div class="field flex1"><label>Actual Spent (${t?.currency||'$'})</label><input id="b_actual" type="number" value="${b.actual||''}" placeholder="0"></div>
+  </div>
+  <div class="field"><label>Notes</label><input id="b_notes" value="${esc(b.notes||'')}" placeholder="e.g. Booked on Booking.com"></div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${bId?`<button class="btn danger" onclick="deleteBudgetItem('${bId}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveBudgetItem('${tripId}','${bId||''}')">Save</button>
+  </div>`);
+}
+function saveBudgetItem(tripId,bId){
+  const name=$('#b_name').value.trim();if(!name){toast('Description required');return;}
+  const data={tripId,name,category:$('#b_cat').value,planned:$('#b_plan').value,actual:$('#b_actual').value,notes:$('#b_notes').value.trim()};
+  if(bId){Object.assign(STATE.budgetItems.find(b=>b.id===bId),data);}
+  else{STATE.budgetItems.push({id:uid(),...data});}
+  save();closeModal();renderTab();toast(bId?'Updated':'Budget item added ✓');
+}
+function deleteBudgetItem(id){STATE.budgetItems=STATE.budgetItems.filter(x=>x.id!==id);save();closeModal();renderTab();}
+
+/* ═══════════════════════════════════════════════
+   MUTATIONS
+═══════════════════════════════════════════════ */
+function updateTripNotes(id,notes){const t=STATE.trips.find(x=>x.id===id);if(t)t.notes=notes;save();}
+function deleteTrip(id){
+  if(!confirm('Delete this trip and all its data?'))return;
+  STATE.trips=STATE.trips.filter(t=>t.id!==id);
+  STATE.events=STATE.events.filter(e=>e.tripId!==id);
+  STATE.flights=STATE.flights.filter(f=>f.tripId!==id);
+  STATE.stays=STATE.stays.filter(s=>s.tripId!==id);
+  STATE.packItems=STATE.packItems.filter(p=>p.tripId!==id);
+  STATE.budgetItems=STATE.budgetItems.filter(b=>b.tripId!==id);
+  save();closeModal();goHome();toast('Trip deleted');
+}
+
+/* ── Starter packing list ── */
+function seedPackItems(tripId){
+  const starter=[
+    {cat:'Documents',items:['Passport','Flight tickets','Hotel confirmations','Travel insurance','Visa','Driver\'s license','Emergency contacts']},
+    {cat:'Clothing',items:['T-shirts','Pants/Jeans','Underwear','Socks','Jacket','Comfortable walking shoes','Sandals','Swimwear','Pajamas']},
+    {cat:'Toiletries',items:['Toothbrush','Toothpaste','Deodorant','Shampoo','Conditioner','Face wash','Razor','Moisturizer','Sunscreen','Lip balm']},
+    {cat:'Electronics',items:['Phone charger','Power bank','Universal adapter','Camera','Earphones/AirPods','Laptop']},
+    {cat:'Health',items:['Prescription medication','Pain reliever','Antihistamine','Band-aids','Antidiarrheal','Hand sanitizer','Face masks','First aid kit']},
+    {cat:'Misc',items:['Reusable water bottle','Day bag/backpack','Neck pillow','Eye mask','Umbrella','Snacks for travel','Local currency','Luggage locks']},
+  ];
+  starter.forEach(({cat,items})=>items.forEach(name=>STATE.packItems.push({id:uid(),tripId,name,category:cat,qty:1,notes:'',packed:false})));
+  save();renderTab();toast('Starter packing list loaded ✓');
+}
+
+/* ═══════════════════════════════════════════════
+   SEED DEMO DATA
+═══════════════════════════════════════════════ */
+function seedDemo(){
+  const tId=uid();
+  STATE.trips=[{
+    id:tId,name:'Japan Spring Adventure',emoji:'🗼',destination:'Tokyo, Osaka, Kyoto',country:'Japan',
+    startDate:'2025-04-01',endDate:'2025-04-14',currency:'$',gradientIdx:0,
+    travelers:[{name:'Ryan',role:'Organizer'},{name:'Joy',role:'Co-pilot'}],
+    notes:'Remember to get JR Pass before departure!\nBook Sumo ticket in advance — sells out fast.\nSim card at airport: IIJmio or Ubigi eSIM.',
+    emergencyContacts:'US Embassy Tokyo: +81-3-3224-5000\nTravel Insurance: Allianz Policy #AL-2025-881234\nLocal emergency: 119 (ambulance) / 110 (police)'
+  }];
+  STATE.flights=[
+    {id:uid(),tripId:tId,from:'SFO',to:'NRT',airline:'Japan Airlines',flightNum:'JL001',departDate:'2025-04-01',departTime:'11:00',arriveDate:'2025-04-02',arriveTime:'15:30',seat:'22A',terminal:'T1 · Gate G10',confirmNum:'JL-9X8K2P',cost:1200,confirmed:true,notes:'Window seat booked!'},
+    {id:uid(),tripId:tId,from:'NRT',to:'SFO',airline:'Japan Airlines',flightNum:'JL002',departDate:'2025-04-14',departTime:'17:00',arriveDate:'2025-04-14',arriveTime:'10:30',seat:'22A',terminal:'T2',confirmNum:'JL-9X8K2Q',cost:1200,confirmed:true,notes:'Return flight'},
+  ];
+  STATE.stays=[
+    {id:uid(),tripId:tId,name:'Shinjuku Granbell Hotel',type:'Hotel',checkIn:'2025-04-02',checkInTime:'15:00',checkOut:'2025-04-07',checkOutTime:'11:00',address:'2-14-5 Kabukicho, Shinjuku, Tokyo',confirmNum:'SGB-44821',phone:'+81-3-5291-8080',cost:850,confirmed:true,notes:'Free WiFi, breakfast not included. 5 min walk from Shinjuku station east exit.'},
+    {id:uid(),tripId:tId,name:'The Millennials Kyoto',type:'Hotel',checkIn:'2025-04-07',checkInTime:'16:00',checkOut:'2025-04-11',checkOutTime:'10:00',address:'Karasuma-dori Ebisugawa, Kyoto',confirmNum:'MK-29931',phone:'+81-75-241-0510',cost:420,confirmed:true,notes:'Pod hotel. Locker included. Very central.'},
+    {id:uid(),tripId:tId,name:'Cross Hotel Osaka',type:'Hotel',checkIn:'2025-04-11',checkInTime:'15:00',checkOut:'2025-04-14',checkOutTime:'11:00',address:'2-5-15 Tanimachi, Chuo-ku, Osaka',confirmNum:'COS-77234',cost:360,confirmed:false,notes:'Near Namba. Confirm booking!'},
+  ];
+  const days=['2025-04-02','2025-04-03','2025-04-04','2025-04-05','2025-04-06','2025-04-07','2025-04-08','2025-04-09'];
+  STATE.events=[
+    {id:uid(),tripId:tId,date:'2025-04-02',time:'16:00',title:'Check in & explore Shinjuku',category:'sightseeing',location:'Shinjuku, Tokyo',duration:180,cost:'',confirmed:true,notes:'Walk around Kabukicho, grab ramen at Ichiran'},
+    {id:uid(),tripId:tId,date:'2025-04-03',time:'07:30',title:'Tsukiji Outer Market breakfast',category:'food',location:'Tsukiji Outer Market',duration:90,cost:25,currency:'$',confirmed:true,notes:'Fresh sushi breakfast! Get there early — lines form fast.'},
+    {id:uid(),tripId:tId,date:'2025-04-03',time:'10:00',title:'Shibuya Crossing & Harajuku',category:'sightseeing',location:'Shibuya, Tokyo',duration:240,cost:'',confirmed:true,notes:'Don\'t miss the scramble crossing view from Starbucks'},
+    {id:uid(),tripId:tId,date:'2025-04-03',time:'19:00',title:'Dinner at Ichiran Ramen',category:'food',location:'Ichiran Shibuya',duration:60,cost:18,currency:'$',confirmed:false,notes:'Solo booth ramen experience'},
+    {id:uid(),tripId:tId,date:'2025-04-04',time:'09:00',title:'TeamLab Borderless',category:'activity',location:'Azabudai Hills, Tokyo',duration:180,cost:32,currency:'$',confirmed:true,confirmNum:'TL-882291',notes:'Book tickets online! Sells out weeks ahead.'},
+    {id:uid(),tripId:tId,date:'2025-04-04',time:'14:00',title:'Asakusa & Senso-ji Temple',category:'sightseeing',location:'Asakusa, Tokyo',duration:150,cost:'',confirmed:true,notes:'Best at golden hour. Try ningyo-yaki sweets.'},
+    {id:uid(),tripId:tId,date:'2025-04-05',time:'06:00',title:'Day trip to Nikko',category:'activity',location:'Nikko, Tochigi',duration:480,cost:45,currency:'$',confirmed:false,notes:'JR Pass covers this! 2h train from Shinjuku.'},
+    {id:uid(),tripId:tId,date:'2025-04-06',time:'10:00',title:'Akihabara Electric Town',category:'shopping',location:'Akihabara, Tokyo',duration:240,cost:'',confirmed:true,notes:'Great for electronics and anime merch'},
+    {id:uid(),tripId:tId,date:'2025-04-06',time:'19:00',title:'Omakase dinner at Sushi Saito',category:'food',location:'Mita, Tokyo',duration:120,cost:180,currency:'$',confirmed:true,confirmNum:'SS-RYAN-APR6',notes:'Dress code: smart casual. Reservation under Ryan.'},
+    {id:uid(),tripId:tId,date:'2025-04-07',time:'09:00',title:'Shinkansen to Kyoto',category:'transport',location:'Tokyo Station → Kyoto Station',duration:140,cost:'',confirmed:true,notes:'JR Pass · Hikari 501 · Platform 14 · Reserved seat car 3'},
+    {id:uid(),tripId:tId,date:'2025-04-07',time:'14:00',title:'Fushimi Inari torii gates',category:'sightseeing',location:'Fushimi Inari-taisha, Kyoto',duration:180,cost:'',confirmed:true,notes:'Go up at least 30min — the crowds thin out higher up.'},
+    {id:uid(),tripId:tId,date:'2025-04-08',time:'07:00',title:'Arashiyama Bamboo Grove',category:'sightseeing',location:'Arashiyama, Kyoto',duration:120,cost:'',confirmed:true,notes:'Go at sunrise to beat tourists. Rent a bike!'},
+    {id:uid(),tripId:tId,date:'2025-04-08',time:'14:00',title:'Kinkaku-ji Golden Pavilion',category:'sightseeing',location:'Kinkakuji-cho, Kyoto',duration:90,cost:5,currency:'$',confirmed:true,notes:''},
+    {id:uid(),tripId:tId,date:'2025-04-09',time:'10:00',title:'Nishiki Market food walk',category:'food',location:'Nishiki Market, Kyoto',duration:120,cost:40,currency:'$',confirmed:true,notes:'Try tamagoyaki, matcha mochi, pickles, fresh tofu'},
+    {id:uid(),tripId:tId,date:'2025-04-09',time:'14:00',title:'Gion district & geisha spotting',category:'sightseeing',location:'Gion, Kyoto',duration:180,cost:'',confirmed:true,notes:'Walk Hanamikoji-dori around 5-6pm for best chance to see geiko'},
+  ];
+  STATE.budgetItems=[
+    {id:uid(),tripId:tId,category:'Flights',name:'Round-trip flights (×2)',planned:2400,actual:2400,notes:'JAL booked'},
+    {id:uid(),tripId:tId,category:'Accommodation',name:'Hotels — 12 nights',planned:1630,actual:1270,notes:'3 hotels'},
+    {id:uid(),tripId:tId,category:'Food & Drink',name:'Dining budget',planned:800,actual:350,notes:'~$60/day for two'},
+    {id:uid(),tripId:tId,category:'Activities',name:'Attractions & experiences',planned:400,actual:217,notes:''},
+    {id:uid(),tripId:tId,category:'Transport',name:'JR Pass (×2) + local transit',planned:600,actual:580,notes:'14-day JR Pass purchased'},
+    {id:uid(),tripId:tId,category:'Shopping',name:'Shopping & souvenirs',planned:500,actual:0,notes:''},
+    {id:uid(),tripId:tId,category:'Misc',name:'Sim card, tips, misc',planned:150,actual:40,notes:''},
+  ];
+  seedPackItems(tId);
+  save();
+}
+
+/* ═══════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+═══════════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+  if(e.key==='Escape')closeModal();
+  if(e.key==='n'&&CUR.view==='dashboard')modalTrip();
+});
+
+/* ═══════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════ */
+load();
+if(!STATE.trips.length)seedDemo();
+render();
+</script>
+</body>
+</html>
