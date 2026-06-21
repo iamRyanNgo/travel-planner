@@ -1,4 +1,4 @@
--- WhereToNext — Supabase schema
+-- WhereToNext — Supabase schema (single file, ordered to avoid forward references)
 -- Run in: Supabase Dashboard → SQL Editor
 
 -- ── Profiles ─────────────────────────────────────────────────
@@ -95,16 +95,6 @@ do $$ begin
   if not exists (select 1 from pg_policies where policyname='wtn_trips_owner' and tablename='wtn_trips') then
     create policy wtn_trips_owner on wtn_trips for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
   end if;
-  if not exists (select 1 from pg_policies where policyname='wtn_trips_member_read' and tablename='wtn_trips') then
-    create policy wtn_trips_member_read on wtn_trips for select using (
-      exists (select 1 from wtn_trip_members m where m.trip_id = id and m.user_id = auth.uid())
-    );
-  end if;
-  if not exists (select 1 from pg_policies where policyname='wtn_trips_editor_update' and tablename='wtn_trips') then
-    create policy wtn_trips_editor_update on wtn_trips for update using (
-      exists (select 1 from wtn_trip_members m where m.trip_id = id and m.user_id = auth.uid() and m.role = 'editor')
-    );
-  end if;
 end $$;
 
 -- ── Trip members ──────────────────────────────────────────────
@@ -129,6 +119,30 @@ do $$ begin
       user_id = auth.uid() or
       exists (select 1 from wtn_trips t where t.id = trip_id and t.owner_id = auth.uid()) or
       exists (select 1 from wtn_trip_members m2 where m2.trip_id = trip_id and m2.user_id = auth.uid())
+    );
+  end if;
+end $$;
+
+-- ── Trip policies that reference wtn_trip_members (added after table exists) ──
+do $$ begin
+  if not exists (select 1 from pg_policies where policyname='wtn_trips_member_read' and tablename='wtn_trips') then
+    create policy wtn_trips_member_read on wtn_trips for select using (
+      exists (select 1 from wtn_trip_members m where m.trip_id = id and m.user_id = auth.uid())
+    );
+  end if;
+  if not exists (select 1 from pg_policies where policyname='wtn_trips_editor_update' and tablename='wtn_trips') then
+    create policy wtn_trips_editor_update on wtn_trips for update using (
+      exists (select 1 from wtn_trip_members m where m.trip_id = id and m.user_id = auth.uid() and m.role = 'editor')
+    );
+  end if;
+  -- Profile visibility across shared trips
+  if not exists (select 1 from pg_policies where policyname='wtn_profiles_member_read' and tablename='wtn_profiles') then
+    create policy wtn_profiles_member_read on wtn_profiles for select using (
+      exists (
+        select 1 from wtn_trip_members a
+        join wtn_trip_members b on b.trip_id = a.trip_id
+        where a.user_id = auth.uid() and b.user_id = id
+      )
     );
   end if;
 end $$;
