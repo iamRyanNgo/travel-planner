@@ -224,6 +224,8 @@ select option{background:var(--panel)}
 .gradient-picker{display:flex;gap:8px;flex-wrap:wrap}
 .gp-swatch{width:36px;height:36px;border-radius:10px;cursor:pointer;border:2px solid transparent;transition:.15s}
 .gp-swatch.sel{border-color:#fff;transform:scale(1.1)}
+.banner-preview{width:100%;height:110px;border-radius:10px;background:var(--border2);background-size:cover;background-position:center;margin-bottom:8px}
+.trip-card-cover.has-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.45),transparent)}
 
 @media(max-width:680px){
   #appHeader{padding:0 14px}
@@ -650,7 +652,7 @@ function tripCard(t){
   const statusColor=cd.status==='active'?'rgba(52,211,153,.8)':cd.status==='upcoming'?'rgba(74,144,226,.8)':'rgba(122,144,184,.6)';
   const isShared=t.owner_id!==ME?.id;
   return`<div class="trip-card" onclick="openTrip('${t.id}')">
-    <div class="trip-card-cover" style="background:${GRADIENTS[t.gradient_idx||0]}">
+    <div class="trip-card-cover${t.banner_url?' has-banner':''}" style="${t.banner_url?`background-image:url('${esc(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
       <div class="dest-emoji">${t.emoji||'🌍'}</div>
       <span class="status-badge" style="background:${statusColor};color:#fff">${cd.label}</span>
     </div>
@@ -710,7 +712,7 @@ function renderTripShell(){
 
   document.getElementById('root').innerHTML=`
   <div id="tripView">
-    <div class="trip-hero" style="background:${GRADIENTS[t.gradient_idx||0]}">
+    <div class="trip-hero" style="${t.banner_url?`background-image:url('${esc(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
       <div class="trip-hero-emoji">${t.emoji||'🌍'}</div>
       <div class="trip-hero-content">
         <h1>${esc(t.name)}</h1>
@@ -1167,6 +1169,14 @@ function modalTrip(id){
       </div>
     </div>
   </div>
+  <div class="field"><label>Banner Image</label>
+    <div id="bannerPreviewBox" class="banner-preview" style="${t.banner_url?`background-image:url('${esc(t.banner_url||'')}');display:block`:'display:none'}"></div>
+    <div class="row" style="gap:8px">
+      <input id="t_banner_url" placeholder="Paste image URL…" value="${esc(t.banner_url||'')}" oninput="previewBanner(this.value)" style="flex:1">
+      <label class="btn sm ghost" style="cursor:pointer;margin:0">📷 Upload<input type="file" accept="image/*" style="display:none" onchange="handleBannerUpload(this)"></label>
+      ${t.banner_url?`<button class="btn sm danger" onclick="clearBanner()">✕</button>`:''}
+    </div>
+  </div>
   <div class="field"><label>Travelers</label>
     <div id="travelerList" style="margin-bottom:8px">
       ${travelers.map((tv,i)=>`<div class="row" style="margin-bottom:6px">
@@ -1187,6 +1197,36 @@ function modalTrip(id){
 function selectGradient(i){
   window._editGradient=i;
   $$('#gpicker .gp-swatch').forEach(s=>s.classList.toggle('sel',+s.dataset.idx===i));
+}
+function previewBanner(url){
+  const box=document.getElementById('bannerPreviewBox');if(!box)return;
+  if(url){box.style.backgroundImage=`url('${url}')`;box.style.display='block';}
+  else{box.style.display='none';box.style.backgroundImage='';}
+}
+function clearBanner(){
+  const inp=document.getElementById('t_banner_url');if(inp)inp.value='';
+  previewBanner('');
+}
+function handleBannerUpload(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const maxW=1400,maxH=520;
+      let w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+      if(h>maxH){w=Math.round(w*maxH/h);h=maxH;}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const url=canvas.toDataURL('image/jpeg',0.82);
+      const inp=document.getElementById('t_banner_url');if(inp)inp.value=url;
+      previewBanner(url);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 function addTraveler(){
   window._editTravelers=window._editTravelers||[];
@@ -1209,6 +1249,7 @@ async function saveTrip(id){
     country:$('#t_country').value.trim(),start_date:$('#t_start').value||null,
     end_date:$('#t_end').value||null,currency:$('#t_currency').value,
     gradient_idx:window._editGradient||0,travelers,
+    banner_url:$('#t_banner_url')?.value.trim()||null,
   };
   if(id){
     await DB.from('wtn_trips').update(data).eq('id',id);
