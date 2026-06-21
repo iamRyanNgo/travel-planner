@@ -226,43 +226,32 @@ select option{background:var(--panel)}
   .modal{border-radius:18px 18px 0 0;max-height:94vh}
   .modal-bg{padding:0;align-items:flex-end}
 }
-/* ── Trip layout with left sidebar ── */
-.trip-body{display:flex;gap:20px;align-items:flex-start}
-.trip-sidebar{width:220px;flex-shrink:0;position:sticky;top:74px;max-height:calc(100vh - 90px);overflow-y:auto;scrollbar-width:none}
-.trip-sidebar::-webkit-scrollbar{display:none}
-.trip-main{flex:1;min-width:0}
-
-/* Sidebar card */
-.sbar-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
-.sbar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px}
+/* ── People dropdown (nav bar) ── */
+.ppl-wrap{position:relative}
+.ppl-btn{display:inline-flex;align-items:center;gap:6px}
+.ppl-count{background:var(--border2);border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;color:var(--muted)}
+.ppl-dropdown{position:absolute;top:calc(100% + 10px);right:0;width:252px;background:var(--panel);border:1px solid var(--border2);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.7);z-index:150;padding:14px;animation:pplIn .15s ease-out}
+.ppl-dropdown.hidden{display:none}
+@keyframes pplIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.sbar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .sbar-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;font-family:'DM Sans',sans-serif}
-.sbar-member{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border)}
+.sbar-member{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--border)}
 .sbar-member:first-of-type{border-top:none;padding-top:0}
-.sbar-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;object-fit:cover;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.sbar-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;object-fit:cover;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
 .sbar-info{flex:1;min-width:0}
-.sbar-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbar-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sbar-role{font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-top:1px}
 .sbar-remove{color:var(--dim);background:none;border:none;font-size:12px;cursor:pointer;padding:2px 5px;border-radius:4px;transition:.15s;flex-shrink:0;opacity:0}
 .sbar-member:hover .sbar-remove{opacity:1;color:var(--coral)}
 
-/* Mobile: sidebar becomes compact horizontal member strip */
-@media(max-width:768px){
-  .trip-body{flex-direction:column;gap:10px}
-  .trip-sidebar{width:100%;position:static;max-height:none}
-  .sbar-card{padding:10px 14px;margin-bottom:0}
-  .sbar-head{margin-bottom:6px}
-  .sbar-members-wrap{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-  .sbar-members-wrap::-webkit-scrollbar{display:none}
-  .sbar-member{flex-direction:column;align-items:center;text-align:center;border-top:none;padding:0;min-width:50px;flex-shrink:0;gap:3px}
-  .sbar-role{display:none}
-  .sbar-remove{display:none}
-  .sbar-name{font-size:10px;max-width:54px;line-height:1.3}
+@media(max-width:680px){
   .trip-tab{padding:8px 11px;font-size:12px}
   .trip-tabs{-webkit-overflow-scrolling:touch}
+  .ppl-dropdown{right:auto;left:50%;transform:translateX(-50%)}
 }
 
 @media print{
-  #appHeader,#headerActions,.btn,.trip-tabs,.trip-sidebar{display:none!important}
+  #appHeader,#headerActions,.btn,.trip-tabs{display:none!important}
   body{background:#fff;color:#000}
   .card,.booking-card,.event-card{box-shadow:none;border:1px solid #ddd}
 }
@@ -690,6 +679,10 @@ function renderTripShell(){
     <button class="btn sm ghost" onclick="window.print()">🖨 Print</button>
     ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>`:''}
     ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')">🗑</button>`:''}
+    <div class="ppl-wrap" id="peopleBtnWrap">
+      <button class="btn sm ppl-btn" onclick="togglePeople(event)">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
+      <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
+    </div>
     <div class="user-chip">
       ${ME?.picture?`<img src="${esc(ME.picture)}" alt="">`:
         `<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`}
@@ -722,17 +715,10 @@ function renderTripShell(){
         </div>
       </div>
     </div>
-    <div class="trip-body">
-      <aside class="trip-sidebar" id="tripSidebar">
-        <div class="sbar-card" style="padding:20px 14px;text-align:center"><div class="spinner" style="width:20px;height:20px;margin:0 auto"></div></div>
-      </aside>
-      <div class="trip-main">
-        <div class="trip-tabs">
-          ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
-        </div>
-        <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
-      </div>
+    <div class="trip-tabs">
+      ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
     </div>
+    <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
   </div>`;
 }
 
@@ -1105,14 +1091,16 @@ async function updateMemberRole(tripId, userId, role){
 
 /* ── Collaboration Sidebar ── */
 function renderSidebar(tripId){
-  const el=document.getElementById('tripSidebar');
-  if(!el)return;
+  const dropdown=document.getElementById('peopleDropdown');
+  const countEl=document.getElementById('peopleBtnCount');
+  if(!dropdown)return;
   const t=TRIPS.find(x=>x.id===tripId);
   if(!t)return;
   const d=TD[tripId]||{members:[],ownerProfile:null};
   const isOwner=t.owner_id===ME?.id;
   const ownerProf=d.ownerProfile||(t.owner_id===ME?.id?{id:ME.id,name:ME.name,email:ME.email,picture:ME.picture}:{id:t.owner_id,name:'Owner',email:'',picture:null});
   const all=[{user_id:t.owner_id,role:'owner',profile:ownerProf},...(d.members||[])];
+  if(countEl)countEl.textContent=all.length;
 
   function mrow(m){
     const p=m.profile||{};
@@ -1130,14 +1118,17 @@ function renderSidebar(tripId){
     </div>`;
   }
 
-  el.innerHTML=`
-  <div class="sbar-card">
-    <div class="sbar-head">
-      <span class="sbar-label">👥 People <span style="color:var(--dim);font-weight:400">${all.length}</span></span>
-      ${isOwner?`<button class="btn sm primary" style="font-size:11px;padding:5px 10px" onclick="modalInvite('${tripId}')">＋ Invite</button>`:''}
-    </div>
-    <div class="sbar-members-wrap">${all.map(mrow).join('')}</div>
-  </div>`;
+  dropdown.innerHTML=`
+  <div class="sbar-head">
+    <span class="sbar-label">People</span>
+    ${isOwner?`<button class="btn sm primary" style="font-size:11px;padding:5px 10px" onclick="modalInvite('${tripId}')">＋ Invite</button>`:''}
+  </div>
+  ${all.map(mrow).join('')}`;
+}
+
+function togglePeople(e){
+  e&&e.stopPropagation();
+  document.getElementById('peopleDropdown')?.classList.toggle('hidden');
 }
 
 /* ── Trip Modal ── */
@@ -1487,8 +1478,12 @@ async function deleteBudgetItem(tripId,id){
 ═══════════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  if(e.key==='Escape')closeModal();
+  if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');}
   if(e.key==='n'&&CUR.view==='dashboard')modalTrip();
+});
+document.addEventListener('click',e=>{
+  const wrap=document.getElementById('peopleBtnWrap');
+  if(wrap&&!wrap.contains(e.target))document.getElementById('peopleDropdown')?.classList.add('hidden');
 });
 
 /* ═══════════════════════════════════════════════
