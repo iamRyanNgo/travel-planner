@@ -115,10 +115,12 @@ do $$ begin
     );
   end if;
   if not exists (select 1 from pg_policies where policyname='wtn_members_read' and tablename='wtn_trip_members') then
+    -- wtn_can_read is SECURITY DEFINER so it bypasses RLS — no infinite recursion.
+    -- Do NOT use a sub-SELECT on wtn_trip_members here; that causes infinite recursion
+    -- when wtn_profiles_member_read joins this table.
     create policy wtn_members_read on wtn_trip_members for select using (
       user_id = auth.uid() or
-      exists (select 1 from wtn_trips t where t.id = trip_id and t.owner_id = auth.uid()) or
-      exists (select 1 from wtn_trip_members m2 where m2.trip_id = trip_id and m2.user_id = auth.uid())
+      wtn_can_read(trip_id)
     );
   end if;
 end $$;
