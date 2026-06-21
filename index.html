@@ -547,7 +547,7 @@ async function signOut(){
 ═══════════════════════════════════════════════ */
 async function loadTrips(){
   const {data:owned} = await DB.from('wtn_trips').select('*').eq('owner_id',ME.id).order('created_at',{ascending:false});
-  const {data:memberships} = await DB.from('wtn_trip_members').select('trip_id, role, wtn_trips(*)').eq('user_id',ME.id);
+  const {data:memberships} = await DB.from('wtn_trip_members').select('trip_id, role, wtn_trips!trip_id(*)').eq('user_id',ME.id);
   const memberTrips = (memberships||[]).map(m=>({...m.wtn_trips, _role:m.role})).filter(Boolean);
   const seen=new Set((owned||[]).map(t=>t.id));
   const all=[...(owned||[]),...memberTrips.filter(t=>!seen.has(t.id))];
@@ -564,7 +564,7 @@ async function loadTripDetail(id){
     DB.from('wtn_stays').select('*').eq('trip_id',id).order('check_in'),
     DB.from('wtn_pack_items').select('*').eq('trip_id',id).order('category').order('created_at'),
     DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at'),
-    DB.from('wtn_trip_members').select('*, wtn_profiles(id,name,email,picture)').eq('trip_id',id),
+    DB.from('wtn_trip_members').select('*, wtn_profiles!user_id(id,name,email,picture)').eq('trip_id',id),
     DB.from('wtn_profiles').select('id,name,email,picture').eq('id',trip?.owner_id||'').single(),
   ]);
   TD[id]={
