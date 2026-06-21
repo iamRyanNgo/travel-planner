@@ -6,7 +6,6 @@
 <title>WhereToNext</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root {
   --bg:#080e1c; --bg2:#0d1526; --panel:#111b2e; --panel2:#172036;
@@ -30,12 +29,11 @@ select option{background:var(--panel)}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .flex1{flex:1;min-width:0}
 .muted{color:var(--muted)}
-.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:var(--panel2);border:1px solid var(--border2);color:var(--muted);font-weight:500}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid var(--border2);background:var(--panel2);color:var(--text);cursor:pointer;transition:.15s;white-space:nowrap}
 .btn:hover{background:var(--panel);transform:translateY(-1px)}
 .btn.primary{background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff;box-shadow:0 4px 16px rgba(59,111,212,.35)}
 .btn.primary:hover{background:linear-gradient(135deg,#4a7fe4,#2f5fc0)}
-.btn.gold{background:linear-gradient(135deg,#e8a800,#c47f00);border-color:#e8a800;color:#1a0f00;box-shadow:0 4px 16px rgba(245,197,66,.3)}
+.btn.gold{background:linear-gradient(135deg,#e8a800,#c47f00);border-color:#e8a800;color:#1a0f00}
 .btn.danger{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.3);color:var(--coral)}
 .btn.sm{padding:6px 12px;font-size:12px;border-radius:8px}
 .btn.ghost{background:transparent;border-color:transparent}
@@ -43,6 +41,24 @@ select option{background:var(--panel)}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
 .empty{text-align:center;padding:48px 24px;color:var(--muted);border:1px dashed var(--border2);border-radius:var(--radius)}
 .empty .icon{font-size:48px;margin-bottom:12px}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;background:var(--panel2);border:1px solid var(--border2);color:var(--muted);font-weight:500}
+
+/* ── Spinner ── */
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--muted)}
+.loading-screen .brand-lg{font-family:'Playfair Display',serif;font-size:28px;font-weight:900;background:linear-gradient(135deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ── Auth screens ── */
+.auth-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+.auth-card{background:var(--panel);border:1px solid var(--border2);border-radius:20px;padding:36px 32px;width:100%;max-width:420px;box-shadow:var(--shadow)}
+.auth-icon{font-size:56px;margin-bottom:12px}
+.auth-card h1{font-size:32px;margin-bottom:6px;background:linear-gradient(135deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+.auth-card p{color:var(--muted);font-size:15px;line-height:1.6;margin-bottom:24px}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:13px 20px;background:#fff;color:#1a1a1a;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:.15s;font-family:inherit}
+.google-btn:hover{background:#f0f0f0;transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.google-btn svg{width:20px;height:20px;flex-shrink:0}
+.divider{height:1px;background:var(--border);margin:20px 0}
 
 /* ── Header ── */
 #appHeader{position:sticky;top:0;z-index:50;background:rgba(8,14,28,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:16px}
@@ -51,7 +67,11 @@ select option{background:var(--panel)}
 #breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex:1;min-width:0}
 #breadcrumb .sep{color:var(--dim)}
 #breadcrumb .crumb{color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#headerActions{display:flex;gap:8px;flex-shrink:0}
+#headerActions{display:flex;gap:8px;flex-shrink:0;align-items:center}
+.user-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;background:var(--panel2);border:1px solid var(--border2);border-radius:30px}
+.user-chip img{width:26px;height:26px;border-radius:50%}
+.user-chip span{font-size:13px;font-weight:500;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--coral);border:2px solid var(--bg)}
 
 /* ── Dashboard ── */
 #dashboard{max-width:1300px;margin:0 auto;padding:32px 24px}
@@ -69,34 +89,41 @@ select option{background:var(--panel)}
 .trip-card-body .subtitle{font-size:12px;color:var(--muted);margin-bottom:12px}
 .trip-meta{display:flex;gap:12px;flex-wrap:wrap}
 .trip-meta-item{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.shared-badge{font-size:10px;padding:2px 8px;background:rgba(74,144,226,.15);color:var(--blue);border:1px solid rgba(74,144,226,.25);border-radius:8px;font-weight:600}
 
-/* ── Trip View ── */
+/* ── Trip view ── */
 #tripView{max-width:1300px;margin:0 auto;padding:0 24px 48px}
-.trip-hero{height:260px;border-radius:0 0 24px 24px;display:flex;align-items:flex-end;padding:28px;position:relative;overflow:hidden;margin-bottom:0}
+.trip-hero{height:260px;border-radius:0 0 24px 24px;display:flex;align-items:flex-end;padding:28px;position:relative;overflow:hidden}
 .trip-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(8,14,28,.95) 0%,rgba(8,14,28,.4) 60%,transparent 100%)}
 .trip-hero-content{position:relative;z-index:1}
 .trip-hero-content h1{font-size:clamp(24px,4vw,40px);font-weight:900;margin-bottom:6px}
 .trip-hero-content .trip-dates{font-size:14px;color:rgba(255,255,255,.7);display:flex;gap:16px;flex-wrap:wrap}
 .trip-hero-emoji{position:absolute;top:24px;right:32px;font-size:80px;z-index:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
-
-/* ── Tabs ── */
 .trip-tabs{display:flex;gap:2px;padding:16px 0 0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;margin-bottom:24px}
 .trip-tabs::-webkit-scrollbar{display:none}
-.trip-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;transition:.15s;border-radius:0}
+.trip-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;transition:.15s}
 .trip-tab:hover{color:var(--text)}
 .trip-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
 
-/* ── Overview tab ── */
+/* ── Overview ── */
 .overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
-.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
 .stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Playfair Display',serif;color:var(--gold)}
 .stat-card .stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
-.travelers-list{display:flex;flex-wrap:wrap;gap:10px}
-.traveler-chip{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border2);border-radius:30px;padding:6px 14px 6px 6px;font-size:13px}
-.traveler-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
 .notes-area{width:100%;resize:vertical;min-height:100px;font-size:14px;line-height:1.6}
 
-/* ── Itinerary / Timeline ── */
+/* ── Members ── */
+.member-card{display:flex;align-items:center;gap:12px;padding:12px;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;margin-bottom:8px}
+.member-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;flex-shrink:0;background:var(--border2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px}
+.member-info{flex:1;min-width:0}
+.member-name{font-weight:600;font-size:14px}
+.member-email{font-size:12px;color:var(--muted)}
+.role-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase}
+.role-badge.owner{background:rgba(245,197,66,.15);color:var(--gold);border:1px solid rgba(245,197,66,.3)}
+.role-badge.editor{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.role-badge.viewer{background:rgba(122,144,184,.12);color:var(--muted);border:1px solid var(--border2)}
+
+/* ── Timeline / Events ── */
 .day-block{margin-bottom:32px}
 .day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
 .day-label{display:flex;align-items:center;gap:12px}
@@ -114,10 +141,9 @@ select option{background:var(--panel)}
 .event-body{flex:1;min-width:0}
 .event-title{font-weight:600;font-size:14px;margin-bottom:3px}
 .event-meta{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
-.event-meta span{display:flex;align-items:center;gap:3px}
 .event-cost{font-size:13px;font-weight:700;color:var(--gold);margin-left:auto;flex-shrink:0}
 
-/* ── Stays / Flights ── */
+/* ── Bookings ── */
 .booking-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:12px;cursor:pointer;transition:.15s}
 .booking-card:hover{border-color:var(--border2)}
 .booking-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:10px}
@@ -125,7 +151,6 @@ select option{background:var(--panel)}
 .booking-title{font-weight:700;font-size:15px;margin-bottom:3px}
 .booking-sub{font-size:13px;color:var(--muted)}
 .booking-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;padding-top:10px;border-top:1px solid var(--border)}
-.booking-detail{font-size:12px}
 .booking-detail .bd-label{color:var(--muted);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px;font-size:10px}
 .booking-detail .bd-val{font-weight:600;font-size:13px}
 .conf-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.5px}
@@ -155,13 +180,16 @@ select option{background:var(--panel)}
 .budget-stat .bl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .budget-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:.15s}
 .budget-item:hover{border-color:var(--border2)}
-.budget-item-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.budget-item-name{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
-.budget-amounts{display:flex;gap:16px;font-size:13px;margin-bottom:8px}
-.budget-planned{color:var(--muted)}
-.budget-actual{font-weight:600}
-.budget-bar{height:6px;background:var(--border);border-radius:4px;overflow:hidden}
+.budget-bar{height:6px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
 .budget-bar-fill{height:100%;border-radius:4px;transition:width .4s}
+
+/* ── Admin panel ── */
+.admin-panel{background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.2);border-radius:14px;padding:18px;margin-bottom:20px}
+.admin-panel h3{font-size:14px;font-weight:700;color:var(--coral);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.req-card{background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px}
+.req-card .req-name{font-weight:600;margin-bottom:2px}
+.req-card .req-meta{font-size:12px;color:var(--muted);margin-bottom:8px}
+.req-card .req-msg{font-size:13px;color:var(--text);background:var(--panel);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-style:italic}
 
 /* ── Modal ── */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:grid;place-items:center;padding:16px;backdrop-filter:blur(4px)}
@@ -176,28 +204,20 @@ select option{background:var(--panel)}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 
 /* ── Category colors ── */
-.cat-flight{background:rgba(74,144,226,.15);color:#7ab4f0}
-.cat-hotel{background:rgba(167,139,250,.15);color:#c4b0fc}
-.cat-food{background:rgba(251,146,60,.15);color:#fca36a}
-.cat-activity{background:rgba(34,211,238,.15);color:#67e8f9}
-.cat-transport{background:rgba(52,211,153,.15);color:#6ee7b7}
-.cat-shopping{background:rgba(244,114,182,.15);color:#f9a8d4}
-.cat-sightseeing{background:rgba(245,197,66,.15);color:#fde68a}
-.cat-other{background:rgba(122,144,184,.15);color:#a0b4d0}
+.cat-flight{background:rgba(74,144,226,.15);color:#7ab4f0}.cat-hotel{background:rgba(167,139,250,.15);color:#c4b0fc}
+.cat-food{background:rgba(251,146,60,.15);color:#fca36a}.cat-activity{background:rgba(34,211,238,.15);color:#67e8f9}
+.cat-transport{background:rgba(52,211,153,.15);color:#6ee7b7}.cat-shopping{background:rgba(244,114,182,.15);color:#f9a8d4}
+.cat-sightseeing{background:rgba(245,197,66,.15);color:#fde68a}.cat-other{background:rgba(122,144,184,.15);color:#a0b4d0}
 .dot-flight{background:#4a90e2}.dot-hotel{background:#a78bfa}.dot-food{background:#fb923c}
 .dot-activity{background:#22d3ee}.dot-transport{background:#34d399}.dot-shopping{background:#f472b6}
 .dot-sightseeing{background:#f5c542}.dot-other{background:#7a90b8}
 
-/* ── Section head ── */
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px}
 .section-head h2{font-size:20px}
-
-/* ── Color picker ── */
 .gradient-picker{display:flex;gap:8px;flex-wrap:wrap}
 .gp-swatch{width:36px;height:36px;border-radius:10px;cursor:pointer;border:2px solid transparent;transition:.15s}
 .gp-swatch.sel{border-color:#fff;transform:scale(1.1)}
 
-/* ── Responsive ── */
 @media(max-width:680px){
   #appHeader{padding:0 14px}
   #dashboard,#tripView{padding:16px 14px 60px}
@@ -224,146 +244,66 @@ select option{background:var(--panel)}
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
-   GOOGLE OAUTH
+   CONFIG
 ═══════════════════════════════════════════════ */
-const GOOGLE_CLIENT_ID = '823726634509-gglt0bbfhcn67gscifsmrj6p4h7blnmi.apps.googleusercontent.com';
-let GUSER = null;
-
-function initGoogleAuth() {
-  const saved = localStorage.getItem('wtn_guser');
-  if (saved) { try { GUSER = JSON.parse(saved); } catch(e){} }
-
-  if (!GUSER) { showAuthWall(); return; }
-  renderAuthHeader();
-  bootApp();
-}
-
-function showAuthWall() {
-  document.getElementById('root').innerHTML = `
-  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
-    <div style="font-size:72px;margin-bottom:16px">✈</div>
-    <h1 style="font-size:36px;font-weight:900;margin-bottom:8px;background:linear-gradient(135deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent">WhereToNext</h1>
-    <p style="color:var(--muted);font-size:16px;margin-bottom:40px;max-width:380px">Plan every detail of your adventures — flights, stays, day-by-day itineraries, packing & budget.</p>
-    <div id="googleSignInBtn"></div>
-    <p style="color:var(--dim);font-size:12px;margin-top:24px">Your trips are saved locally on this device.</p>
-  </div>`;
-
-  if (typeof google !== 'undefined') renderGoogleBtn();
-  else { document.querySelector('script[src*="gsi"]').addEventListener('load', renderGoogleBtn); }
-}
-
-function renderGoogleBtn() {
-  google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleSignIn,
-    auto_select: false,
-  });
-  google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {
-    theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill', width: 280,
-  });
-}
-
-function handleGoogleSignIn(response) {
-  const payload = parseJwt(response.credential);
-  GUSER = { name: payload.name, email: payload.email, picture: payload.picture, sub: payload.sub };
-  localStorage.setItem('wtn_guser', JSON.stringify(GUSER));
-  renderAuthHeader();
-  bootApp();
-}
-
-function parseJwt(token) {
-  const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-  return JSON.parse(atob(base64));
-}
-
-function signOut() {
-  if (typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
-  GUSER = null;
-  localStorage.removeItem('wtn_guser');
-  document.getElementById('root').innerHTML = '';
-  showAuthWall();
-  document.getElementById('headerActions').innerHTML = '';
-  document.getElementById('breadcrumb').innerHTML = '';
-}
-
-function renderAuthHeader() {
-  if (!GUSER) return;
-  document.getElementById('headerActions').innerHTML = `
-  <div style="display:flex;align-items:center;gap:10px">
-    <img src="${GUSER.picture}" alt="" style="width:30px;height:30px;border-radius:50%;border:2px solid var(--border2)">
-    <span style="font-size:13px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(GUSER.name.split(' ')[0])}</span>
-    <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
-  </div>`;
-}
-
-function bootApp() {
-  load();
-  if (!STATE.trips.length) seedDemo();
-  render();
-}
+const SUPABASE_URL  = 'https://qqxvwkdamxizuimzcjgx.supabase.co';
+const SUPABASE_KEY  = 'YOUR_SUPABASE_ANON_KEY';
+const ADMIN_EMAIL   = 'ryan.ngo94@gmail.com';
 
 /* ═══════════════════════════════════════════════
-   STATE & STORAGE
+   SUPABASE CLIENT
 ═══════════════════════════════════════════════ */
-function uid(){return Math.random().toString(36).slice(2,9)}
-const KEY='wanderplan_v1';
-let STATE={trips:[],events:[],stays:[],flights:[],packItems:[],budgetItems:[]};
-function load(){try{const r=localStorage.getItem(KEY);if(r)STATE=JSON.parse(r);}catch(e){}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(STATE));}catch(e){}}
+const DB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ═══════════════════════════════════════════════
-   ROUTER
+   STATE
 ═══════════════════════════════════════════════ */
-let CUR={view:'dashboard',tripId:null,tab:'overview'};
-function goHome(){CUR={view:'dashboard',tripId:null,tab:'overview'};render();}
-function openTrip(id,tab='overview'){CUR={view:'trip',tripId:id,tab};render();}
-function setTab(tab){CUR.tab=tab;renderTripView();}
+let ME      = null;   // current profile
+let TRIPS   = [];     // trip list
+let TD      = {};     // trip detail cache: {id: {events,flights,stays,packItems,budgetItems,members}}
+let CUR     = {view:'loading', tripId:null, tab:'overview'};
 
 /* ═══════════════════════════════════════════════
    UTILITIES
 ═══════════════════════════════════════════════ */
+function uid(){return Math.random().toString(36).slice(2,9)}
 function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function fmt(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
 function fmtShort(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
 function fmtDay(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
 function diffDays(a,b){return Math.round((new Date(b)-new Date(a))/(1000*60*60*24))}
-function countdown(startIso){
-  const now=new Date(),start=new Date(startIso+'T00:00:00');
-  const diff=Math.ceil((start-now)/(1000*60*60*24));
-  if(diff>0)return`in ${diff} day${diff===1?'':'s'}`;
-  if(diff===0)return'Today!';
-  const end=STATE.trips.find(t=>t.startDate===startIso);
-  return`${Math.abs(diff)}d ago`;
-}
-function tripCountdown(trip){
-  const now=new Date();
-  const start=new Date(trip.startDate+'T00:00:00');
-  const end=new Date(trip.endDate+'T23:59:59');
-  if(now<start){const d=Math.ceil((start-now)/(864e5));return{label:`in ${d} day${d===1?'':'s'}`,status:'upcoming'}}
-  if(now<=end)return{label:'Happening now!',status:'active'};
+function formatCost(amt,cur){if(!amt)return'';return`${cur||'$'}${Number(amt).toLocaleString()}`}
+function tripCountdown(t){
+  const now=new Date(),s=new Date(t.start_date+'T00:00:00'),e=new Date(t.end_date+'T23:59:59');
+  if(now<s){const d=Math.ceil((s-now)/864e5);return{label:`in ${d} day${d===1?'':'s'}`,status:'upcoming'}}
+  if(now<=e)return{label:'Happening now!',status:'active'};
   return{label:'Completed',status:'past'};
 }
-function tripDays(trip){
-  if(!trip.startDate||!trip.endDate)return[];
-  const days=[];let d=new Date(trip.startDate+'T12:00:00');
-  const end=new Date(trip.endDate+'T12:00:00');
+function tripDays(t){
+  if(!t.start_date||!t.end_date)return[];
+  const days=[];let d=new Date(t.start_date+'T12:00:00');
+  const end=new Date(t.end_date+'T12:00:00');
   while(d<=end){days.push(d.toISOString().slice(0,10));d=new Date(d.getTime()+864e5);}
   return days;
 }
-function formatCost(amt,currency){if(!amt)return'';return`${currency||'$'}${Number(amt).toLocaleString()}`}
 function toast(msg){
-  const t=document.createElement('div');t.className='toast';t.textContent=msg;
-  document.getElementById('toastRoot').appendChild(t);
-  setTimeout(()=>t.remove(),2200);
+  const el=document.createElement('div');el.className='toast';el.textContent=msg;
+  document.getElementById('toastRoot').appendChild(el);
+  setTimeout(()=>el.remove(),2400);
 }
 function $(s,r=document){return r.querySelector(s)}
-function $$(s,r=document){return [...r.querySelectorAll(s)]}
+function $$(s,r=document){return[...r.querySelectorAll(s)]}
+function isAdmin(){return ME&&ME.email===ADMIN_EMAIL}
+function canWrite(trip){
+  if(!ME||!trip)return false;
+  if(trip.owner_id===ME.id)return true;
+  const m=(TD[trip.id]?.members||[]).find(x=>x.user_id===ME.id);
+  return m?.role==='editor';
+}
 
-/* ═══════════════════════════════════════════════
-   GRADIENTS
-═══════════════════════════════════════════════ */
 const GRADIENTS=[
   'linear-gradient(135deg,#0f2027,#203a43,#2c5364)',
   'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)',
@@ -378,10 +318,6 @@ const GRADIENTS=[
   'linear-gradient(135deg,#1f4037,#99f2c8)',
   'linear-gradient(135deg,#4b1248,#f10711)',
 ];
-
-/* ═══════════════════════════════════════════════
-   CATEGORIES
-═══════════════════════════════════════════════ */
 const CATS={
   flight:{icon:'✈️',label:'Flight',cls:'cat-flight',dot:'dot-flight'},
   hotel:{icon:'🏨',label:'Hotel/Stay',cls:'cat-hotel',dot:'dot-hotel'},
@@ -394,31 +330,259 @@ const CATS={
 };
 const PACK_CATS=['Clothing','Toiletries','Electronics','Documents','Health','Snacks','Entertainment','Misc'];
 const BUDGET_CATS=['Flights','Accommodation','Food & Drink','Activities','Transport','Shopping','Misc'];
-const CURRENCIES=['$','€','£','¥','₩','A$','C$','CHF','SEK','NOK','DKK','SGD','HKD','฿','₹'];
+const CURRENCIES=['$','€','£','¥','₩','A$','C$','CHF','SEK','SGD','HKD','฿','₹'];
 const TRAVELER_COLORS=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171'];
 
 /* ═══════════════════════════════════════════════
-   RENDER ROOT
+   ROUTER
 ═══════════════════════════════════════════════ */
-function render(){
-  if(CUR.view==='dashboard')renderDashboard();
-  else if(CUR.view==='trip')renderTripView();
+function goHome(){CUR={view:'dashboard',tripId:null,tab:'overview'};renderDashboard();}
+async function openTrip(id,tab='overview'){
+  CUR={view:'trip',tripId:id,tab};
+  renderTripShell();
+  await loadTripDetail(id);
+  renderTab();
+}
+function setTab(tab){CUR.tab=tab;renderTab();}
+
+/* ═══════════════════════════════════════════════
+   AUTH FLOW
+═══════════════════════════════════════════════ */
+async function initApp(){
+  showLoading('Checking your session…');
+  const {data:{session}} = await DB.auth.getSession();
+  if(!session){showSignIn();return;}
+  await afterSignIn(session.user);
+}
+
+async function afterSignIn(user){
+  showLoading('Loading your profile…');
+  // Upsert profile (trigger handles insert; this updates name/pic)
+  await DB.from('wtn_profiles').upsert({
+    id:user.id, email:user.email,
+    name:user.user_metadata?.full_name||user.email,
+    picture:user.user_metadata?.avatar_url||null,
+  },{onConflict:'id',ignoreDuplicates:false});
+
+  const {data:profile} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
+  ME = profile;
+
+  if(!ME){showSignIn();return;}
+
+  // Ryan is always approved
+  if(ME.email===ADMIN_EMAIL && !ME.approved){
+    await DB.from('wtn_profiles').update({approved:true}).eq('id',ME.id);
+    ME.approved=true;
+  }
+
+  if(!ME.approved){
+    const {data:req} = await DB.from('wtn_access_requests').select('*').eq('user_id',ME.id).order('requested_at',{ascending:false}).limit(1).single();
+    if(!req){showRequestAccess();}
+    else{showPending(req);}
+    return;
+  }
+
+  renderAuthHeader();
+  await loadTrips();
+  renderDashboard();
+}
+
+function showLoading(msg='Loading…'){
+  document.getElementById('root').innerHTML=`<div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><div class="spinner"></div><p>${msg}</p></div>`;
+  document.getElementById('headerActions').innerHTML='';
+  document.getElementById('breadcrumb').innerHTML='';
+}
+
+function showSignIn(){
+  document.getElementById('breadcrumb').innerHTML='';
+  document.getElementById('headerActions').innerHTML='';
+  document.getElementById('root').innerHTML=`
+  <div class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-icon">✈</div>
+      <h1>WhereToNext</h1>
+      <p>Plan every detail of your adventures — flights, stays, day-by-day itineraries, packing & budget. All in sync.</p>
+      <button class="google-btn" onclick="signInWithGoogle()">
+        <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <p style="font-size:12px;color:var(--dim);margin-top:16px">Access is by approval only. You'll submit a brief request after signing in.</p>
+    </div>
+  </div>`;
+}
+
+function showRequestAccess(){
+  document.getElementById('breadcrumb').innerHTML='';
+  document.getElementById('root').innerHTML=`
+  <div class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-icon">👋</div>
+      <h1>Request Access</h1>
+      <p>Hi <strong>${esc(ME.name)}</strong>! WhereToNext is invite-only. Send a quick note and you'll be approved manually.</p>
+      <div class="field" style="text-align:left">
+        <label>Why do you want access? (optional)</label>
+        <textarea id="reqMsg" rows="3" placeholder="e.g. Planning a trip with Ryan and Joy..."></textarea>
+      </div>
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="submitRequest()">Send Request</button>
+      <div class="divider"></div>
+      <button class="btn ghost" style="width:100%;justify-content:center;color:var(--muted)" onclick="signOut()">Sign out</button>
+    </div>
+  </div>`;
+  renderAuthHeader();
+}
+
+function showPending(req){
+  document.getElementById('root').innerHTML=`
+  <div class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-icon">⏳</div>
+      <h1>Pending Approval</h1>
+      <p>Your request was submitted on <strong>${new Date(req.requested_at).toLocaleDateString('en-US',{month:'long',day:'numeric'})}</strong>. You'll have access as soon as it's approved.</p>
+      ${req.message?`<div style="background:var(--panel2);border-radius:10px;padding:12px;font-size:13px;color:var(--muted);margin-bottom:16px;text-align:left">Your message: <em>"${esc(req.message)}"</em></div>`:''}
+      <button class="btn ghost" style="width:100%;justify-content:center;color:var(--muted)" onclick="signOut()">Sign out</button>
+    </div>
+  </div>`;
+  renderAuthHeader();
+}
+
+async function submitRequest(){
+  const msg = $('#reqMsg')?.value?.trim()||'';
+  const {error} = await DB.from('wtn_access_requests').insert({user_id:ME.id,message:msg});
+  if(error){toast('Error submitting request');return;}
+  const {data:req} = await DB.from('wtn_access_requests').select('*').eq('user_id',ME.id).single();
+  toast('Request sent!');
+  showPending(req);
+}
+
+function renderAuthHeader(){
+  if(!ME)return;
+  document.getElementById('headerActions').innerHTML=`
+  <div style="display:flex;align-items:center;gap:8px">
+    ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" style="position:relative" id="adminBtn">🛡 Admin</button>`:''}
+    <div class="user-chip">
+      ${ME.picture?`<img src="${esc(ME.picture)}" alt="">`:
+        `<div class="member-avatar" style="background:var(--border2);font-size:12px">${(ME.name||'?')[0]}</div>`}
+      <span>${esc(ME.name?.split(' ')[0]||ME.email)}</span>
+    </div>
+    <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
+  </div>`;
+  if(isAdmin())checkPendingBadge();
+}
+
+async function checkPendingBadge(){
+  const {count} = await DB.from('wtn_access_requests').select('id',{count:'exact',head:true}).eq('status','pending');
+  const btn = document.getElementById('adminBtn');
+  if(btn&&count>0)btn.innerHTML=`🛡 Admin <span class="notif-dot" style="display:inline-block"></span>`;
+}
+
+async function signInWithGoogle(){
+  await DB.auth.signInWithOAuth({
+    provider:'google',
+    options:{redirectTo:window.location.origin}
+  });
+}
+
+async function signOut(){
+  await DB.auth.signOut();
+  ME=null;TRIPS=[];TD={};
+  document.getElementById('headerActions').innerHTML='';
+  showSignIn();
 }
 
 /* ═══════════════════════════════════════════════
-   DASHBOARD
+   DATA LOADING
+═══════════════════════════════════════════════ */
+async function loadTrips(){
+  const {data:owned} = await DB.from('wtn_trips').select('*').eq('owner_id',ME.id).order('created_at',{ascending:false});
+  const {data:memberships} = await DB.from('wtn_trip_members').select('trip_id, role, wtn_trips(*)').eq('user_id',ME.id);
+  const memberTrips = (memberships||[]).map(m=>({...m.wtn_trips, _role:m.role})).filter(Boolean);
+  const seen=new Set((owned||[]).map(t=>t.id));
+  const all=[...(owned||[]),...memberTrips.filter(t=>!seen.has(t.id))];
+  TRIPS=all;
+}
+
+async function loadTripDetail(id){
+  const [
+    {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members}
+  ] = await Promise.all([
+    DB.from('wtn_events').select('*').eq('trip_id',id).order('date').order('time'),
+    DB.from('wtn_flights').select('*').eq('trip_id',id).order('depart_date'),
+    DB.from('wtn_stays').select('*').eq('trip_id',id).order('check_in'),
+    DB.from('wtn_pack_items').select('*').eq('trip_id',id).order('category').order('created_at'),
+    DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at'),
+    DB.from('wtn_trip_members').select('*, wtn_profiles(id,name,email,picture)').eq('trip_id',id),
+  ]);
+  TD[id]={
+    events:events||[], flights:flights||[], stays:stays||[],
+    packItems:packItems||[], budgetItems:budgetItems||[],
+    members:(members||[]).map(m=>({...m,profile:m.wtn_profiles})),
+  };
+}
+
+/* ═══════════════════════════════════════════════
+   ADMIN PANEL
+═══════════════════════════════════════════════ */
+async function openAdminPanel(){
+  const {data:requests} = await DB.from('wtn_access_requests')
+    .select('*, wtn_profiles(id,name,email,picture)')
+    .eq('status','pending')
+    .order('requested_at',{ascending:true});
+
+  const reqs = requests||[];
+  modal('🛡 Admin — Pending Requests',`
+  ${reqs.length===0?`<div class="empty"><div class="icon">✅</div><p>No pending requests.</p></div>`:''}
+  ${reqs.map(r=>{
+    const p=r.wtn_profiles||{};
+    return`<div class="req-card">
+      <div class="req-name">${esc(p.name||'Unknown')}</div>
+      <div class="req-meta">${esc(p.email)} · requested ${new Date(r.requested_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+      ${r.message?`<div class="req-msg">"${esc(r.message)}"</div>`:''}
+      <div class="row">
+        <button class="btn sm primary" onclick="approveRequest('${r.id}','${p.id}')">✓ Approve</button>
+        <button class="btn sm danger" onclick="rejectRequest('${r.id}','${p.id}')">✕ Reject</button>
+      </div>
+    </div>`;
+  }).join('')}
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Close</button>
+  </div>`);
+}
+
+async function approveRequest(reqId, userId){
+  await Promise.all([
+    DB.from('wtn_profiles').update({approved:true}).eq('id',userId),
+    DB.from('wtn_access_requests').update({status:'approved',reviewed_at:new Date().toISOString()}).eq('id',reqId),
+  ]);
+  toast('User approved ✓');
+  closeModal();
+  checkPendingBadge();
+}
+
+async function rejectRequest(reqId, userId){
+  await DB.from('wtn_access_requests').update({status:'rejected',reviewed_at:new Date().toISOString()}).eq('id',reqId);
+  toast('Request rejected');
+  closeModal();
+  checkPendingBadge();
+}
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD RENDER
 ═══════════════════════════════════════════════ */
 function renderDashboard(){
+  CUR.view='dashboard';
   document.getElementById('breadcrumb').innerHTML='';
-  document.getElementById('headerActions').innerHTML=`<button class="btn primary" onclick="modalTrip()">＋ New Trip</button>`;
-  const trips=STATE.trips;
+  document.getElementById('headerActions').innerHTML='';
+  renderAuthHeader();
+  const headerActions = document.getElementById('headerActions');
+  headerActions.innerHTML += `<button class="btn primary" onclick="modalTrip()">＋ New Trip</button>`;
+
   document.getElementById('root').innerHTML=`
   <div id="dashboard">
     <div class="dash-hero">
       <h1>Your Adventures</h1>
-      <p class="muted">${trips.length?`${trips.length} trip${trips.length>1?'s':''} planned — where to next?`:'Start planning your first adventure.'}</p>
+      <p class="muted">${TRIPS.length?`${TRIPS.length} trip${TRIPS.length>1?'s':''} — where to next?`:'Start planning your first adventure.'}</p>
     </div>
-    ${trips.length?`<div class="trip-grid">${trips.map(tripCard).join('')}</div>`:`
+    ${TRIPS.length?`<div class="trip-grid">${TRIPS.map(tripCard).join('')}</div>`:`
     <div class="empty">
       <div class="icon">🌍</div>
       <h3 style="margin-bottom:8px">No trips yet</h3>
@@ -430,44 +594,53 @@ function renderDashboard(){
 
 function tripCard(t){
   const cd=tripCountdown(t);
-  const days=t.startDate&&t.endDate?diffDays(t.startDate,t.endDate)+1:0;
-  const evCount=STATE.events.filter(e=>e.tripId===t.id).length;
+  const days=t.start_date&&t.end_date?diffDays(t.start_date,t.end_date)+1:0;
   const statusColor=cd.status==='active'?'rgba(52,211,153,.8)':cd.status==='upcoming'?'rgba(74,144,226,.8)':'rgba(122,144,184,.6)';
-  const budget=STATE.budgetItems.filter(b=>b.tripId===t.id).reduce((a,b)=>a+(+b.planned||0),0);
+  const isShared=t.owner_id!==ME?.id;
   return`<div class="trip-card" onclick="openTrip('${t.id}')">
-    <div class="trip-card-cover" style="background:${GRADIENTS[t.gradientIdx||0]}">
+    <div class="trip-card-cover" style="background:${GRADIENTS[t.gradient_idx||0]}">
       <div class="dest-emoji">${t.emoji||'🌍'}</div>
       <span class="status-badge" style="background:${statusColor};color:#fff">${cd.label}</span>
     </div>
     <div class="trip-card-body">
-      <h3>${esc(t.name)}</h3>
-      <div class="subtitle">${esc(t.destination)}${t.country?' · '+esc(t.country):''}</div>
+      <h3>${esc(t.name)}${isShared?` <span class="shared-badge">shared</span>`:''}</h3>
+      <div class="subtitle">${esc(t.destination||'')}${t.country?' · '+esc(t.country):''}</div>
       <div class="trip-meta">
-        ${t.startDate?`<div class="trip-meta-item">📅 ${fmtShort(t.startDate)}${t.endDate?' – '+fmtShort(t.endDate):''}${days?` (${days}d)`:''}</div>`:''}
-        ${evCount?`<div class="trip-meta-item">🗓 ${evCount} event${evCount>1?'s':''}</div>`:''}
-        ${budget?`<div class="trip-meta-item">💰 ${formatCost(budget,t.currency)}</div>`:''}
-        ${t.travelers&&t.travelers.length?`<div class="trip-meta-item">👥 ${t.travelers.length} traveler${t.travelers.length>1?'s':''}</div>`:''}
+        ${t.start_date?`<div class="trip-meta-item">📅 ${fmtShort(t.start_date)}${t.end_date?' – '+fmtShort(t.end_date):''}${days?' ('+days+'d)':''}</div>`:''}
       </div>
     </div>
   </div>`;
 }
 
 /* ═══════════════════════════════════════════════
-   TRIP VIEW
+   TRIP VIEW RENDER
 ═══════════════════════════════════════════════ */
-function renderTripView(){
-  const t=STATE.trips.find(x=>x.id===CUR.tripId);if(!t){goHome();return;}
+function renderTripShell(){
+  const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t){goHome();return;}
   const cd=tripCountdown(t);
-  const days=t.startDate&&t.endDate?diffDays(t.startDate,t.endDate)+1:0;
+  const days=t.start_date&&t.end_date?diffDays(t.start_date,t.end_date)+1:0;
+  const write=canWrite(t);
 
   document.getElementById('breadcrumb').innerHTML=`
     <span class="sep" style="cursor:pointer;color:var(--muted)" onclick="goHome()">Trips</span>
-    <span class="sep">›</span>
-    <span class="crumb">${esc(t.name)}</span>`;
-  document.getElementById('headerActions').innerHTML=`
-    <button class="btn sm ghost" onclick="window.print()" title="Print itinerary">🖨 Print</button>
-    <button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>
-    <button class="btn sm danger" onclick="deleteTrip('${t.id}')">🗑</button>`;
+    <span class="sep">›</span><span class="crumb">${esc(t.name)}</span>`;
+  document.getElementById('headerActions').innerHTML='';
+  renderAuthHeader();
+  const ha=document.getElementById('headerActions');
+  ha.innerHTML=`
+  <div style="display:flex;gap:8px;align-items:center">
+    ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn">🛡 Admin</button>`:''}
+    <button class="btn sm ghost" onclick="window.print()">🖨 Print</button>
+    ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>`:''}
+    ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')">🗑</button>`:''}
+    <div class="user-chip">
+      ${ME?.picture?`<img src="${esc(ME.picture)}" alt="">`:
+        `<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`}
+      <span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span>
+    </div>
+    <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
+  </div>`;
+  if(isAdmin())checkPendingBadge();
 
   const TABS=[
     {id:'overview',icon:'📋',label:'Overview'},
@@ -481,13 +654,13 @@ function renderTripView(){
 
   document.getElementById('root').innerHTML=`
   <div id="tripView">
-    <div class="trip-hero" style="background:${GRADIENTS[t.gradientIdx||0]}">
+    <div class="trip-hero" style="background:${GRADIENTS[t.gradient_idx||0]}">
       <div class="trip-hero-emoji">${t.emoji||'🌍'}</div>
       <div class="trip-hero-content">
         <h1>${esc(t.name)}</h1>
         <div class="trip-dates">
-          <span>📍 ${esc(t.destination)}${t.country?' · '+esc(t.country):''}</span>
-          ${t.startDate?`<span>📅 ${fmt(t.startDate)}${t.endDate?' → '+fmt(t.endDate):''}${days?' ('+days+' days)':''}</span>`:''}
+          <span>📍 ${esc(t.destination||'')}${t.country?' · '+esc(t.country):''}</span>
+          ${t.start_date?`<span>📅 ${fmt(t.start_date)}${t.end_date?' → '+fmt(t.end_date):''}${days?' ('+days+' days)':''}</span>`:''}
           <span>${cd.label}</span>
         </div>
       </div>
@@ -495,73 +668,106 @@ function renderTripView(){
     <div class="trip-tabs">
       ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
     </div>
-    <div id="tabContent"></div>
+    <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
   </div>`;
-
-  renderTab();
 }
 
 function renderTab(){
-  const t=STATE.trips.find(x=>x.id===CUR.tripId);if(!t)return;
+  const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
-  if(CUR.tab==='overview')el.innerHTML=renderOverview(t);
-  else if(CUR.tab==='itinerary')el.innerHTML=renderItinerary(t);
-  else if(CUR.tab==='flights')el.innerHTML=renderFlights(t);
-  else if(CUR.tab==='stays')el.innerHTML=renderStays(t);
-  else if(CUR.tab==='activities')el.innerHTML=renderActivities(t);
-  else if(CUR.tab==='packing')el.innerHTML=renderPacking(t);
-  else if(CUR.tab==='budget')el.innerHTML=renderBudget(t);
+  const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
+  if(CUR.tab==='overview')el.innerHTML=renderOverview(t,d);
+  else if(CUR.tab==='itinerary')el.innerHTML=renderItinerary(t,d);
+  else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
+  else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
+  else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
+  else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
+  else if(CUR.tab==='budget')el.innerHTML=renderBudget(t,d);
 }
 
 /* ── Overview ── */
-function renderOverview(t){
-  const days=t.startDate&&t.endDate?diffDays(t.startDate,t.endDate)+1:0;
-  const evCount=STATE.events.filter(e=>e.tripId===t.id).length;
-  const flCount=STATE.flights.filter(f=>f.tripId===t.id).length;
-  const stCount=STATE.stays.filter(s=>s.tripId===t.id).length;
-  const totalBudget=STATE.budgetItems.filter(b=>b.tripId===t.id).reduce((a,b)=>a+(+b.planned||0),0);
-  const totalActual=STATE.budgetItems.filter(b=>b.tripId===t.id).reduce((a,b)=>a+(+b.actual||0),0);
+function renderOverview(t,d){
+  const days=t.start_date&&t.end_date?diffDays(t.start_date,t.end_date)+1:0;
+  const totalBudget=d.budgetItems.reduce((a,b)=>a+(+b.planned||0),0);
+  const totalActual=d.budgetItems.reduce((a,b)=>a+(+b.actual||0),0);
   const travelers=t.travelers||[];
+  const write=canWrite(t);
+  const isOwner=t.owner_id===ME?.id;
+
+  const ownerProfile={id:t.owner_id,name:t.owner_name||'Owner',email:t.owner_email||'',picture:t.owner_picture||null};
+  const allMembers=[{user_id:t.owner_id,role:'owner',profile:ownerProfile},...(d.members||[])];
+
   return`
   <div class="overview-grid">
     <div class="stat-card"><div class="stat-val">${days||'—'}</div><div class="stat-label">Days</div></div>
-    <div class="stat-card"><div class="stat-val">${evCount}</div><div class="stat-label">Events Planned</div></div>
-    <div class="stat-card"><div class="stat-val">${flCount}</div><div class="stat-label">Flights</div></div>
-    <div class="stat-card"><div class="stat-val">${stCount}</div><div class="stat-label">Stays</div></div>
+    <div class="stat-card"><div class="stat-val">${d.events.length}</div><div class="stat-label">Events</div></div>
+    <div class="stat-card"><div class="stat-val">${d.flights.length}</div><div class="stat-label">Flights</div></div>
+    <div class="stat-card"><div class="stat-val">${d.stays.length}</div><div class="stat-label">Stays</div></div>
     ${totalBudget?`<div class="stat-card"><div class="stat-val" style="font-size:20px">${formatCost(totalBudget,t.currency)}</div><div class="stat-label">Budget</div></div>`:''}
     ${totalActual?`<div class="stat-card"><div class="stat-val" style="font-size:20px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="stat-label">Spent</div></div>`:''}
   </div>
+
+  <!-- Members -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-head">
+      <h2 style="font-size:17px">👥 Trip Members</h2>
+      ${isOwner?`<button class="btn sm primary" onclick="modalInvite('${t.id}')">＋ Invite</button>`:''}
+    </div>
+    ${allMembers.map(m=>{
+      const p=m.profile||{};
+      const initials=(p.name||p.email||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return`<div class="member-card">
+        ${p.picture?`<img class="member-avatar" src="${esc(p.picture)}" alt="">`:
+          `<div class="member-avatar" style="background:var(--border2)">${initials}</div>`}
+        <div class="member-info">
+          <div class="member-name">${esc(p.name||p.email||'Unknown')}</div>
+          <div class="member-email">${esc(p.email||'')}</div>
+        </div>
+        <span class="role-badge ${m.role}">${m.role}</span>
+        ${isOwner&&m.user_id!==ME?.id?`
+          <select style="width:auto;padding:4px 8px;font-size:12px" onchange="updateMemberRole('${t.id}','${m.user_id}',this.value)">
+            <option${m.role==='editor'?' selected':''}>editor</option>
+            <option${m.role==='viewer'?' selected':''}>viewer</option>
+          </select>
+          <button class="btn sm danger" onclick="removeMember('${t.id}','${m.user_id}')">✕</button>`:''}
+      </div>`;
+    }).join('')}
+    ${allMembers.length===1&&isOwner?`<p class="muted" style="font-size:13px;margin-top:8px">Invite others to collaborate on this trip.</p>`:''}
+  </div>
+
   ${travelers.length?`
   <div class="card" style="margin-bottom:16px">
-    <div class="section-head"><h2 style="font-size:16px">👥 Travelers</h2>
-      <button class="btn sm ghost" onclick="modalTrip('${t.id}')">Edit</button></div>
-    <div class="travelers-list">
-      ${travelers.map((tv,i)=>`<div class="traveler-chip">
-        <div class="traveler-avatar" style="background:${TRAVELER_COLORS[i%TRAVELER_COLORS.length]}20;color:${TRAVELER_COLORS[i%TRAVELER_COLORS.length]}">${(tv.name||'?')[0].toUpperCase()}</div>
+    <div class="section-head"><h2 style="font-size:16px">🧑‍🤝‍🧑 Travelers</h2></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      ${travelers.map((tv,i)=>`<div style="display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border2);border-radius:30px;padding:6px 14px 6px 6px">
+        <div style="width:28px;height:28px;border-radius:50%;background:${TRAVELER_COLORS[i%TRAVELER_COLORS.length]}20;color:${TRAVELER_COLORS[i%TRAVELER_COLORS.length]};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${(tv.name||'?')[0].toUpperCase()}</div>
         <div><div style="font-size:13px;font-weight:600">${esc(tv.name)}</div>${tv.role?`<div style="font-size:11px;color:var(--muted)">${esc(tv.role)}</div>`:''}</div>
       </div>`).join('')}
     </div>
   </div>`:''}
+
   <div class="card" style="margin-bottom:16px">
     <div class="section-head"><h2 style="font-size:16px">📝 Trip Notes</h2></div>
-    <textarea class="notes-area" placeholder="Visa requirements, packing reminders, emergency contacts, local tips..."
-      oninput="updateTripNotes('${t.id}',this.value)">${esc(t.notes||'')}</textarea>
-  </div>
-  ${t.emergencyContacts?`<div class="card">
-    <h2 style="font-size:16px;margin-bottom:10px">🆘 Emergency Info</h2>
-    <pre style="font-size:13px;color:var(--muted);white-space:pre-wrap;font-family:inherit">${esc(t.emergencyContacts)}</pre>
-  </div>`:''}`;
+    <textarea class="notes-area" placeholder="Visa requirements, emergency contacts, tips..." ${write?'':'readonly'}
+      oninput="debouncedSaveNotes('${t.id}',this.value)">${esc(t.notes||'')}</textarea>
+  </div>`;
+}
+
+let _notesTimer=null;
+function debouncedSaveNotes(id,notes){
+  clearTimeout(_notesTimer);
+  _notesTimer=setTimeout(()=>DB.from('wtn_trips').update({notes}).eq('id',id),800);
 }
 
 /* ── Itinerary ── */
-function renderItinerary(t){
+function renderItinerary(t,d){
   const days=tripDays(t);
   if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
-  const events=STATE.events.filter(e=>e.tripId===t.id);
+  const write=canWrite(t);
   const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
   return`<div>
     ${days.map((date,idx)=>{
-      const dayEvents=events.filter(e=>e.date===date).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
+      const dayEvents=d.events.filter(e=>e.date===date).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
       const color=dayColors[idx%dayColors.length];
       return`<div class="day-block">
         <div class="day-header">
@@ -572,23 +778,22 @@ function renderItinerary(t){
               <div class="day-date">${dayEvents.length} event${dayEvents.length!==1?'s':''}</div>
             </div>
           </div>
-          <button class="btn sm primary" onclick="modalEvent('${t.id}','${date}')">＋ Add Event</button>
+          ${write?`<button class="btn sm primary" onclick="modalEvent('${t.id}','${date}')">＋ Add</button>`:''}
         </div>
         <div class="timeline">
-          ${dayEvents.length?dayEvents.map(ev=>eventCard(ev)).join(''):`
-          <div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No events — click + Add Event to plan this day.</div>`}
+          ${dayEvents.length?dayEvents.map(ev=>eventCard(ev,write)).join(''):`<div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No events yet.</div>`}
         </div>
       </div>`;
     }).join('')}
-    <button class="btn primary" style="margin-top:8px" onclick="modalEvent('${t.id}')">＋ Add Event</button>
+    ${write?`<button class="btn primary" style="margin-top:8px" onclick="modalEvent('${t.id}')">＋ Add Event</button>`:''}
   </div>`;
 }
 
-function eventCard(ev){
+function eventCard(ev,write){
   const cat=CATS[ev.category]||CATS.other;
-  return`<div class="tl-event" onclick="modalEvent('${ev.tripId}',ev=>'${ev.id}',null,'${ev.id}')">
+  return`<div class="tl-event">
     <div class="tl-dot ${cat.dot}"></div>
-    <div class="event-card ${ev.confirmed?'confirmed':''}">
+    <div class="event-card ${ev.confirmed?'confirmed':''}" onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="event-icon ${cat.cls}">${cat.icon}</div>
       <div class="event-body">
         <div class="event-title">${esc(ev.title)}</div>
@@ -596,7 +801,6 @@ function eventCard(ev){
           ${ev.time?`<span>🕐 ${ev.time}${ev.duration?' · '+ev.duration+'m':''}</span>`:''}
           ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
           ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
-          ${ev.notes?`<span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📝 ${esc(ev.notes)}</span>`:''}
         </div>
       </div>
       ${ev.cost?`<div class="event-cost">${formatCost(ev.cost,ev.currency)}</div>`:''}
@@ -605,28 +809,26 @@ function eventCard(ev){
 }
 
 /* ── Flights ── */
-function renderFlights(t){
-  const flights=STATE.flights.filter(f=>f.tripId===t.id);
+function renderFlights(t,d){
+  const write=canWrite(t);
   return`<div>
-    <div class="section-head"><h2>✈️ Flights</h2>
-      <button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add Flight</button>
-    </div>
-    ${flights.length?flights.map(f=>`
-    <div class="booking-card" onclick="modalFlight('${t.id}','${f.id}')">
+    <div class="section-head"><h2>✈️ Flights</h2>${write?`<button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add</button>`:''}</div>
+    ${d.flights.length?d.flights.map(f=>`
+    <div class="booking-card" onclick="${write?`modalFlight('${t.id}','${f.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="booking-header">
         <div class="booking-icon cat-flight">✈️</div>
         <div class="flex1">
-          <div class="booking-title">${esc(f.from)} → ${esc(f.to)}</div>
-          <div class="booking-sub">${esc(f.airline||'')}${f.flightNum?' · '+esc(f.flightNum):''}</div>
+          <div class="booking-title">${esc(f.from_airport||'')} → ${esc(f.to_airport||'')}</div>
+          <div class="booking-sub">${esc(f.airline||'')}${f.flight_num?' · '+esc(f.flight_num):''}</div>
         </div>
         <span class="conf-badge ${f.confirmed?'confirmed':'pending'}">${f.confirmed?'CONFIRMED':'PENDING'}</span>
       </div>
       <div class="booking-detail-grid">
-        ${f.departDate?`<div class="booking-detail"><div class="bd-label">Departure</div><div class="bd-val">${fmtDay(f.departDate)}${f.departTime?' '+f.departTime:''}</div></div>`:''}
-        ${f.arriveDate?`<div class="booking-detail"><div class="bd-label">Arrival</div><div class="bd-val">${fmtDay(f.arriveDate)}${f.arriveTime?' '+f.arriveTime:''}</div></div>`:''}
+        ${f.depart_date?`<div class="booking-detail"><div class="bd-label">Departure</div><div class="bd-val">${fmtDay(f.depart_date)}${f.depart_time?' '+f.depart_time:''}</div></div>`:''}
+        ${f.arrive_date?`<div class="booking-detail"><div class="bd-label">Arrival</div><div class="bd-val">${fmtDay(f.arrive_date)}${f.arrive_time?' '+f.arrive_time:''}</div></div>`:''}
         ${f.seat?`<div class="booking-detail"><div class="bd-label">Seat</div><div class="bd-val">${esc(f.seat)}</div></div>`:''}
         ${f.cost?`<div class="booking-detail"><div class="bd-label">Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(f.cost,t.currency)}</div></div>`:''}
-        ${f.confirmNum?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(f.confirmNum)}</div></div>`:''}
+        ${f.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(f.confirm_num)}</div></div>`:''}
         ${f.terminal?`<div class="booking-detail"><div class="bd-label">Terminal/Gate</div><div class="bd-val">${esc(f.terminal)}</div></div>`:''}
       </div>
     </div>`).join(''):`<div class="empty"><div class="icon">✈️</div><p>No flights added yet.</p></div>`}
@@ -634,14 +836,12 @@ function renderFlights(t){
 }
 
 /* ── Stays ── */
-function renderStays(t){
-  const stays=STATE.stays.filter(s=>s.tripId===t.id);
+function renderStays(t,d){
+  const write=canWrite(t);
   return`<div>
-    <div class="section-head"><h2>🏨 Accommodation</h2>
-      <button class="btn primary" onclick="modalStay('${t.id}')">＋ Add Stay</button>
-    </div>
-    ${stays.length?stays.map(s=>`
-    <div class="booking-card" onclick="modalStay('${t.id}','${s.id}')">
+    <div class="section-head"><h2>🏨 Accommodation</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
+    ${d.stays.length?d.stays.map(s=>`
+    <div class="booking-card" onclick="${write?`modalStay('${t.id}','${s.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="booking-header">
         <div class="booking-icon cat-hotel">🏨</div>
         <div class="flex1">
@@ -651,33 +851,30 @@ function renderStays(t){
         <span class="conf-badge ${s.confirmed?'confirmed':'pending'}">${s.confirmed?'CONFIRMED':'PENDING'}</span>
       </div>
       <div class="booking-detail-grid">
-        ${s.checkIn?`<div class="booking-detail"><div class="bd-label">Check-in</div><div class="bd-val">${fmtDay(s.checkIn)}${s.checkInTime?' '+s.checkInTime:''}</div></div>`:''}
-        ${s.checkOut?`<div class="booking-detail"><div class="bd-label">Check-out</div><div class="bd-val">${fmtDay(s.checkOut)}${s.checkOutTime?' '+s.checkOutTime:''}</div></div>`:''}
-        ${s.checkIn&&s.checkOut?`<div class="booking-detail"><div class="bd-label">Nights</div><div class="bd-val">${diffDays(s.checkIn,s.checkOut)}</div></div>`:''}
-        ${s.cost?`<div class="booking-detail"><div class="bd-label">Total Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(s.cost,t.currency)}</div></div>`:''}
-        ${s.confirmNum?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirmNum)}</div></div>`:''}
-        ${s.phone?`<div class="booking-detail"><div class="bd-label">Phone</div><div class="bd-val">${esc(s.phone)}</div></div>`:''}
+        ${s.check_in?`<div class="booking-detail"><div class="bd-label">Check-in</div><div class="bd-val">${fmtDay(s.check_in)}${s.check_in_time?' '+s.check_in_time:''}</div></div>`:''}
+        ${s.check_out?`<div class="booking-detail"><div class="bd-label">Check-out</div><div class="bd-val">${fmtDay(s.check_out)}${s.check_out_time?' '+s.check_out_time:''}</div></div>`:''}
+        ${s.check_in&&s.check_out?`<div class="booking-detail"><div class="bd-label">Nights</div><div class="bd-val">${diffDays(s.check_in,s.check_out)}</div></div>`:''}
+        ${s.cost?`<div class="booking-detail"><div class="bd-label">Total</div><div class="bd-val" style="color:var(--gold)">${formatCost(s.cost,t.currency)}</div></div>`:''}
+        ${s.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirm_num)}</div></div>`:''}
       </div>
     </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No accommodation added yet.</p></div>`}
   </div>`;
 }
 
 /* ── Activities ── */
-function renderActivities(t){
-  const cats=['activity','sightseeing','food','shopping'];
-  const events=STATE.events.filter(e=>e.tripId===t.id);
+function renderActivities(t,d){
+  const write=canWrite(t);
+  const catIds=['activity','sightseeing','food','shopping'];
   return`<div>
-    <div class="section-head"><h2>🎭 All Activities</h2>
-      <button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add Event</button>
-    </div>
-    ${cats.map(catId=>{
-      const catEvents=events.filter(e=>e.category===catId);
+    <div class="section-head"><h2>🎭 Activities</h2>${write?`<button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add</button>`:''}</div>
+    ${catIds.map(catId=>{
+      const catEvents=d.events.filter(e=>e.category===catId);
       if(!catEvents.length)return'';
       const cat=CATS[catId];
       return`<div style="margin-bottom:24px">
-        <h3 style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.icon} ${cat.label}</h3>
+        <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.icon} ${cat.label}</h3>
         ${catEvents.map(ev=>`
-        <div class="event-card" style="margin-bottom:8px;border-radius:12px" onclick="modalEvent('${t.id}',null,null,'${ev.id}')">
+        <div class="event-card" style="margin-bottom:8px;border-radius:12px" onclick="${write?`modalEvent('${t.id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
           <div class="event-icon ${cat.cls}">${cat.icon}</div>
           <div class="event-body">
             <div class="event-title">${esc(ev.title)}</div>
@@ -685,30 +882,28 @@ function renderActivities(t){
               ${ev.date?`<span>📅 ${fmtDay(ev.date)}</span>`:''}
               ${ev.time?`<span>🕐 ${ev.time}</span>`:''}
               ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
-              ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
             </div>
           </div>
           ${ev.cost?`<div class="event-cost">${formatCost(ev.cost,ev.currency||t.currency)}</div>`:''}
         </div>`).join('')}
       </div>`;
     }).join('')}
-    ${events.length===0?`<div class="empty"><div class="icon">🎭</div><p>No activities planned yet.</p></div>`:''}
+    ${!d.events.length?`<div class="empty"><div class="icon">🎭</div><p>No activities yet.</p></div>`:''}
   </div>`;
 }
 
 /* ── Packing ── */
-function renderPacking(t){
-  const items=STATE.packItems.filter(p=>p.tripId===t.id);
+function renderPacking(t,d){
+  const write=canWrite(t);
+  const items=d.packItems;
   const total=items.length,packed=items.filter(i=>i.packed).length;
   const byCategory={};
   items.forEach(i=>{(byCategory[i.category]=byCategory[i.category]||[]).push(i);});
-  PACK_CATS.forEach(c=>{if(!byCategory[c])byCategory[c]=[];});
   return`<div>
-    <div class="section-head">
-      <h2>🧳 Packing List</h2>
+    <div class="section-head"><h2>🧳 Packing List</h2>
       <div class="row">
         <span class="muted" style="align-self:center;font-size:13px">${packed}/${total} packed</span>
-        <button class="btn primary" onclick="modalPackItem('${t.id}')">＋ Add Item</button>
+        ${write?`<button class="btn primary" onclick="modalPackItem('${t.id}')">＋ Add</button>`:''}
       </div>
     </div>
     ${total?`<div style="height:6px;background:var(--border);border-radius:4px;margin-bottom:20px;overflow:hidden">
@@ -722,24 +917,24 @@ function renderPacking(t){
           <div class="pack-progress"><div class="pack-progress-fill" style="width:${catItems.length?Math.round(catPacked/catItems.length*100):0}%"></div></div>
         </div>
         ${catItems.map(item=>`
-        <div class="pack-item ${item.packed?'packed':''}" onclick="togglePack('${item.id}')">
+        <div class="pack-item ${item.packed?'packed':''}" onclick="${write?`togglePack('${t.id}','${item.id}',${!item.packed})`:''}" style="${write?'':'cursor:default'}">
           <div class="pack-check">${item.packed?'✓':''}</div>
           <div class="pack-name">${esc(item.name)}</div>
           ${item.qty>1?`<div class="pack-qty">×${item.qty}</div>`:''}
-          ${item.notes?`<div class="muted" style="font-size:11px">${esc(item.notes)}</div>`:''}
-          <button class="pack-del" onclick="event.stopPropagation();deletePackItem('${item.id}')" title="Remove">✕</button>
+          ${write?`<button class="pack-del" onclick="event.stopPropagation();deletePackItem('${t.id}','${item.id}')" title="Remove">✕</button>`:''}
         </div>`).join('')}
       </div>`;
     }).join('')}
-    ${!total?`<div class="empty"><div class="icon">🧳</div><p>Nothing packed yet. Add items to track what to bring.</p>
-      <button class="btn gold" style="margin-top:16px" onclick="seedPackItems('${t.id}')">📋 Load Starter List</button>
+    ${!total?`<div class="empty"><div class="icon">🧳</div><p>Nothing added yet.</p>
+      ${write?`<button class="btn gold" style="margin-top:16px" onclick="seedPackItems('${t.id}')">📋 Load Starter List</button>`:''}
     </div>`:''}
   </div>`;
 }
 
 /* ── Budget ── */
-function renderBudget(t){
-  const items=STATE.budgetItems.filter(b=>b.tripId===t.id);
+function renderBudget(t,d){
+  const write=canWrite(t);
+  const items=d.budgetItems;
   const totalPlanned=items.reduce((a,b)=>a+(+b.planned||0),0);
   const totalActual=items.reduce((a,b)=>a+(+b.actual||0),0);
   const over=totalActual>totalPlanned&&totalPlanned>0;
@@ -747,74 +942,109 @@ function renderBudget(t){
   const byCategory={};
   items.forEach(i=>{(byCategory[i.category]=byCategory[i.category]||[]).push(i);});
   return`<div>
-    <div class="section-head"><h2>💰 Budget Tracker</h2>
-      <button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add Item</button>
-    </div>
+    <div class="section-head"><h2>💰 Budget</h2>${write?`<button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add</button>`:''}</div>
     ${items.length?`
     <div class="budget-summary">
-      <div class="budget-stat">
-        <div class="bv" style="color:var(--blue)">${formatCost(totalPlanned,t.currency)}</div>
-        <div class="bl">Total Budget</div>
-      </div>
-      <div class="budget-stat">
-        <div class="bv" style="color:${over?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div>
-        <div class="bl">Total Spent</div>
-      </div>
-      <div class="budget-stat">
-        <div class="bv" style="color:${over?'var(--coral)':'var(--muted)'}">${over?'−':''}${formatCost(Math.abs(totalPlanned-totalActual),t.currency)}</div>
-        <div class="bl">${over?'Over Budget':'Remaining'}</div>
-      </div>
+      <div class="budget-stat"><div class="bv" style="color:var(--blue)">${formatCost(totalPlanned,t.currency)}</div><div class="bl">Total Budget</div></div>
+      <div class="budget-stat"><div class="bv" style="color:${over?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="bl">Spent</div></div>
+      <div class="budget-stat"><div class="bv" style="color:${over?'var(--coral)':'var(--muted)'}">${over?'−':''}${formatCost(Math.abs(totalPlanned-totalActual),t.currency)}</div><div class="bl">${over?'Over Budget':'Remaining'}</div></div>
     </div>
     <div style="height:8px;background:var(--border);border-radius:4px;margin-bottom:24px;overflow:hidden">
       <div style="height:100%;width:${pct}%;background:${over?'var(--coral)':'linear-gradient(90deg,var(--blue),var(--cyan))'};border-radius:4px;transition:width .4s"></div>
     </div>
-    ${Object.entries(byCategory).map(([cat,citems])=>{
-      const cp=citems.reduce((a,b)=>a+(+b.planned||0),0);
-      const ca=citems.reduce((a,b)=>a+(+b.actual||0),0);
-      const over=ca>cp&&cp>0;
-      const pct=cp?Math.min(100,Math.round(ca/cp*100)):0;
-      return`<div style="margin-bottom:16px">
-        <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${cat}</h3>
-        ${citems.map(item=>`
-        <div class="budget-item" onclick="modalBudgetItem('${t.id}','${item.id}')">
-          <div class="budget-item-header">
-            <div class="budget-item-name">${esc(item.name)}</div>
-            ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
-          </div>
-          <div class="budget-amounts">
-            <span class="budget-planned">Budget: ${formatCost(item.planned,t.currency)}</span>
-            ${item.actual?`<span class="budget-actual" style="color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,t.currency)}</span>`:'<span class="muted">Not spent yet</span>'}
-          </div>
-          ${item.planned?`<div class="budget-bar"><div class="budget-bar-fill" style="width:${item.actual?Math.min(100,Math.round(item.actual/item.planned*100)):0}%;background:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}"></div></div>`:''}
-        </div>`).join('')}
-      </div>`;
-    }).join('')}`
-    :`<div class="empty"><div class="icon">💰</div><p>No budget items yet. Track your planned and actual spending.</p></div>`}
+    ${Object.entries(byCategory).map(([cat,citems])=>`
+    <div style="margin-bottom:20px">
+      <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${cat}</h3>
+      ${citems.map(item=>`
+      <div class="budget-item" onclick="${write?`modalBudgetItem('${t.id}','${item.id}')`:''}" style="${write?'':'cursor:default'}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-weight:600;font-size:14px">${esc(item.name)}</span>
+          ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
+        </div>
+        <div style="display:flex;gap:16px;font-size:13px">
+          <span style="color:var(--muted)">Budget: ${formatCost(item.planned,t.currency)}</span>
+          ${item.actual?`<span style="font-weight:600;color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,t.currency)}</span>`:'<span class="muted">Not spent yet</span>'}
+        </div>
+        ${item.planned?`<div class="budget-bar"><div class="budget-bar-fill" style="width:${item.actual?Math.min(100,Math.round(item.actual/item.planned*100)):0}%;background:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}"></div></div>`:''}
+      </div>`).join('')}
+    </div>`).join('')}`
+    :`<div class="empty"><div class="icon">💰</div><p>No budget items yet.</p></div>`}
   </div>`;
 }
 
 /* ═══════════════════════════════════════════════
    MODAL SYSTEM
 ═══════════════════════════════════════════════ */
-function modal(title,body,onMount){
+function modal(title,body){
   document.getElementById('modalRoot').innerHTML=`
   <div class="modal-bg" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-header">
-        <h2>${title}</h2>
-        <button class="btn sm ghost" onclick="closeModal()">✕</button>
-      </div>
+      <div class="modal-header"><h2>${title}</h2><button class="btn sm ghost" onclick="closeModal()">✕</button></div>
       <div class="modal-body">${body}</div>
     </div>
   </div>`;
-  if(onMount)onMount();
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML='';}
 
+/* ── Invite Modal ── */
+function modalInvite(tripId){
+  modal('Invite Collaborator',`
+  <p style="color:var(--muted);font-size:13px;margin-bottom:16px">The person must have signed up and been approved before you can add them.</p>
+  <div class="field"><label>Their Email</label><input id="inv_email" placeholder="friend@example.com" type="email"></div>
+  <div class="field"><label>Role</label>
+    <select id="inv_role">
+      <option value="editor">Editor — can add/edit/delete everything</option>
+      <option value="viewer">Viewer — read-only access</option>
+    </select>
+  </div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="inviteToTrip('${tripId}')">Send Invite</button>
+  </div>`);
+  setTimeout(()=>$('#inv_email')&&$('#inv_email').focus(),50);
+}
+
+async function inviteToTrip(tripId){
+  const email=$('#inv_email').value.trim().toLowerCase();
+  const role=$('#inv_role').value;
+  if(!email){toast('Enter an email');return;}
+
+  const {data:profile} = await DB.from('wtn_profiles').select('id,name,approved').eq('email',email).single();
+  if(!profile){toast('No account found with that email. They need to sign up first.');return;}
+  if(!profile.approved){toast('That person hasn\'t been approved yet.');return;}
+
+  const {error} = await DB.from('wtn_trip_members').upsert({
+    trip_id:tripId, user_id:profile.id, role, invited_by:ME.id
+  },{onConflict:'trip_id,user_id'});
+
+  if(error){toast('Error adding member');console.error(error);return;}
+  toast(`${profile.name||email} added as ${role} ✓`);
+  closeModal();
+  await loadTripDetail(tripId);
+  renderTab();
+}
+
+async function removeMember(tripId, userId){
+  if(!confirm('Remove this person from the trip?'))return;
+  await DB.from('wtn_trip_members').delete().eq('trip_id',tripId).eq('user_id',userId);
+  toast('Removed');
+  await loadTripDetail(tripId);
+  renderTab();
+}
+
+async function updateMemberRole(tripId, userId, role){
+  await DB.from('wtn_trip_members').update({role}).eq('trip_id',tripId).eq('user_id',userId);
+  toast('Role updated');
+  await loadTripDetail(tripId);
+  renderTab();
+}
+
 /* ── Trip Modal ── */
 function modalTrip(id){
-  const t=id?STATE.trips.find(x=>x.id===id):{};
+  const t=id?TRIPS.find(x=>x.id===id):{};
   const travelers=t&&t.travelers?t.travelers:[];
+  window._editTravelers=JSON.parse(JSON.stringify(travelers));
+  window._editGradient=t.gradient_idx||0;
   modal(id?'Edit Trip':'Plan a New Trip',`
   <div class="row">
     <div class="field flex1"><label>Trip Name</label><input id="t_name" value="${esc(t.name||'')}" placeholder="e.g. Japan Spring 2025"></div>
@@ -825,19 +1055,18 @@ function modalTrip(id){
     <div class="field flex1"><label>Country</label><input id="t_country" value="${esc(t.country||'')}" placeholder="Japan"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.startDate||''}"></div>
-    <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.endDate||''}"></div>
+    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.start_date||''}"></div>
+    <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.end_date||''}"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Currency</label><select id="t_currency">${CURRENCIES.map(c=>`<option${c===(t.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
     <div class="field flex1"><label>Cover Style</label>
       <div class="gradient-picker" id="gpicker">
-        ${GRADIENTS.map((g,i)=>`<div class="gp-swatch${(t.gradientIdx||0)===i?' sel':''}" style="background:${g}" onclick="selectGradient(${i})" data-idx="${i}"></div>`).join('')}
+        ${GRADIENTS.map((g,i)=>`<div class="gp-swatch${(t.gradient_idx||0)===i?' sel':''}" style="background:${g}" onclick="selectGradient(${i})" data-idx="${i}"></div>`).join('')}
       </div>
     </div>
   </div>
-  <div class="field">
-    <label>Travelers</label>
+  <div class="field"><label>Travelers</label>
     <div id="travelerList" style="margin-bottom:8px">
       ${travelers.map((tv,i)=>`<div class="row" style="margin-bottom:6px">
         <input placeholder="Name" value="${esc(tv.name)}" oninput="updateTraveler(${i},'name',this.value)" style="flex:2">
@@ -847,58 +1076,67 @@ function modalTrip(id){
     </div>
     <button class="btn sm ghost" onclick="addTraveler()">＋ Add Traveler</button>
   </div>
-  <div class="field"><label>Emergency Contacts / Visa Info</label>
-    <textarea id="t_emergency" rows="3" placeholder="Embassy: +1-xxx, Travel insurance: policy#xxx, Local emergency: 119">${esc(t.emergencyContacts||'')}</textarea>
-  </div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
-    ${id?`<button class="btn danger" onclick="deleteTrip('${id}')">Delete</button>`:''}
+    ${id&&t.owner_id===ME?.id?`<button class="btn danger" onclick="deleteTripConfirm('${id}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveTrip('${id||''}')">Save Trip</button>
-  </div>`,
-  ()=>{window._editTravelers=JSON.parse(JSON.stringify(travelers));window._editGradient=t.gradientIdx||0;});
+  </div>`);
 }
 
-let _editTravelers=[];let _editGradient=0;
 function selectGradient(i){
   window._editGradient=i;
   $$('#gpicker .gp-swatch').forEach(s=>s.classList.toggle('sel',+s.dataset.idx===i));
 }
 function addTraveler(){
   window._editTravelers=window._editTravelers||[];
+  const i=window._editTravelers.length;
   window._editTravelers.push({name:'',role:''});
-  const i=window._editTravelers.length-1;
   const row=document.createElement('div');row.className='row';row.style.marginBottom='6px';
   row.innerHTML=`<input placeholder="Name" oninput="updateTraveler(${i},'name',this.value)" style="flex:2">
     <input placeholder="Role" oninput="updateTraveler(${i},'role',this.value)" style="flex:1">
-    <button class="btn sm danger" onclick="removeTraveler(${i})">✕</button>`;
+    <button class="btn sm danger" onclick="this.closest('.row').remove()">✕</button>`;
   document.getElementById('travelerList').appendChild(row);
 }
 function updateTraveler(i,k,v){if(window._editTravelers)window._editTravelers[i][k]=v;}
-function removeTraveler(i){if(window._editTravelers){window._editTravelers.splice(i,1);} const rows=$$('#travelerList .row');if(rows[i])rows[i].remove();}
+function removeTraveler(i){if(window._editTravelers)window._editTravelers.splice(i,1);const rows=$$('#travelerList .row');if(rows[i])rows[i].remove();}
 
-function saveTrip(id){
+async function saveTrip(id){
   const name=$('#t_name').value.trim();if(!name){toast('Trip name is required');return;}
   const travelers=(window._editTravelers||[]).filter(t=>t.name.trim());
   const data={
-    name,emoji:$('#t_emoji').value.trim(),
-    destination:$('#t_dest').value.trim(),country:$('#t_country').value.trim(),
-    startDate:$('#t_start').value,endDate:$('#t_end').value,
-    currency:$('#t_currency').value,
-    gradientIdx:window._editGradient||0,
-    travelers,
-    emergencyContacts:$('#t_emergency').value.trim(),
+    name,emoji:$('#t_emoji').value.trim(),destination:$('#t_dest').value.trim(),
+    country:$('#t_country').value.trim(),start_date:$('#t_start').value||null,
+    end_date:$('#t_end').value||null,currency:$('#t_currency').value,
+    gradient_idx:window._editGradient||0,travelers,
   };
-  if(id){Object.assign(STATE.trips.find(t=>t.id===id),data);}
-  else{STATE.trips.push({id:uid(),...data,notes:''});}
-  save();closeModal();
-  if(id&&CUR.tripId===id)renderTripView();else renderDashboard();
-  toast(id?'Trip updated ✓':'Trip created! 🎉');
+  if(id){
+    await DB.from('wtn_trips').update(data).eq('id',id);
+    const idx=TRIPS.findIndex(t=>t.id===id);
+    if(idx>=0)Object.assign(TRIPS[idx],data);
+    toast('Trip updated ✓');
+  } else {
+    const {data:newTrip,error} = await DB.from('wtn_trips').insert({...data,owner_id:ME.id}).select().single();
+    if(error){toast('Error creating trip');return;}
+    TRIPS.unshift(newTrip);
+    toast('Trip created! 🎉');
+  }
+  closeModal();
+  if(id&&CUR.tripId===id){renderTripShell();await loadTripDetail(id);renderTab();}
+  else renderDashboard();
+}
+
+async function deleteTripConfirm(id){
+  if(!confirm('Delete this trip and all its data?'))return;
+  await DB.from('wtn_trips').delete().eq('id',id);
+  TRIPS=TRIPS.filter(t=>t.id!==id);
+  delete TD[id];
+  closeModal();goHome();toast('Trip deleted');
 }
 
 /* ── Event Modal ── */
 function modalEvent(tripId,date,_,evId){
-  const ev=evId?STATE.events.find(e=>e.id===evId):{};
-  const t=STATE.trips.find(x=>x.id===tripId);
+  const t=TRIPS.find(x=>x.id===tripId);
+  const ev=evId?(TD[tripId]?.events||[]).find(e=>e.id===evId):{};
   const days=t?tripDays(t):[];
   modal(evId?'Edit Event':'Add Event',`
   <div class="field"><label>Title</label><input id="ev_title" value="${esc(ev.title||'')}" placeholder="e.g. Tsukiji Fish Market Tour"></div>
@@ -907,20 +1145,18 @@ function modalEvent(tripId,date,_,evId){
       <select id="ev_cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}"${k===(ev.category||'activity')?' selected':''}>${v.icon} ${v.label}</option>`).join('')}</select>
     </div>
     <div class="field flex1"><label>Date</label>
-      <select id="ev_date">
-        <option value="">— no date —</option>
+      <select id="ev_date"><option value="">— no date —</option>
         ${days.map(d=>`<option value="${d}"${d===(ev.date||date||'')?' selected':''}>${fmtDay(d)}</option>`).join('')}
       </select>
     </div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Start Time</label><input id="ev_time" type="time" value="${ev.time||''}"></div>
-    <div class="field flex1"><label>Duration (minutes)</label><input id="ev_dur" type="number" value="${ev.duration||''}" placeholder="e.g. 120"></div>
+    <div class="field flex1"><label>Duration (min)</label><input id="ev_dur" type="number" value="${ev.duration||''}" placeholder="120"></div>
   </div>
-  <div class="field"><label>Location / Venue</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="e.g. Toyosu Market, Tokyo"></div>
-  <div class="field"><label>Address</label><input id="ev_addr" value="${esc(ev.address||'')}" placeholder="Street address"></div>
+  <div class="field"><label>Location</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="Venue name, city"></div>
   <div class="row">
-    <div class="field flex1"><label>Cost</label><input id="ev_cost" type="number" value="${ev.cost||''}" placeholder="0"></div>
+    <div class="field flex1"><label>Cost</label><input id="ev_cost" type="number" value="${ev.cost||''}"></div>
     <div class="field" style="width:80px"><label>Currency</label><select id="ev_cur">${CURRENCIES.map(c=>`<option${c===(ev.currency||t?.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
     <div class="field flex1" style="display:flex;align-items:flex-end;padding-bottom:2px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px">
@@ -928,271 +1164,221 @@ function modalEvent(tripId,date,_,evId){
       </label>
     </div>
   </div>
-  <div class="field"><label>Confirmation # / Booking Ref</label><input id="ev_confnum" value="${esc(ev.confirmNum||'')}" placeholder="Optional"></div>
-  <div class="field"><label>Website / URL</label><input id="ev_url" value="${esc(ev.url||'')}" placeholder="https://"></div>
-  <div class="field"><label>Notes</label><textarea id="ev_notes" rows="3" placeholder="Tips, reminders, what to bring...">${esc(ev.notes||'')}</textarea></div>
+  <div class="field"><label>Confirmation #</label><input id="ev_confnum" value="${esc(ev.confirm_num||'')}"></div>
+  <div class="field"><label>Notes</label><textarea id="ev_notes" rows="3">${esc(ev.notes||'')}</textarea></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
-    ${evId?`<button class="btn danger" onclick="deleteEvent('${evId}')">Delete</button>`:''}
+    ${evId?`<button class="btn danger" onclick="deleteEvent('${tripId}','${evId}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveEvent('${tripId}','${evId||''}')">Save</button>
   </div>`);
 }
 
-function saveEvent(tripId,evId){
+async function saveEvent(tripId,evId){
   const title=$('#ev_title').value.trim();if(!title){toast('Title required');return;}
-  const data={tripId,title,category:$('#ev_cat').value,date:$('#ev_date').value,
-    time:$('#ev_time').value,duration:$('#ev_dur').value,
-    location:$('#ev_loc').value.trim(),address:$('#ev_addr').value.trim(),
-    cost:$('#ev_cost').value,currency:$('#ev_cur').value,
-    confirmed:$('#ev_conf').checked,confirmNum:$('#ev_confnum').value.trim(),
-    url:$('#ev_url').value.trim(),notes:$('#ev_notes').value.trim()};
-  if(evId){Object.assign(STATE.events.find(e=>e.id===evId),data);}
-  else{STATE.events.push({id:uid(),...data});}
-  save();closeModal();renderTab();toast(evId?'Event updated':'Event added ✓');
+  const data={trip_id:tripId,title,category:$('#ev_cat').value,
+    date:$('#ev_date').value||null,time:$('#ev_time').value||null,
+    duration:$('#ev_dur').value?+$('#ev_dur').value:null,
+    location:$('#ev_loc').value.trim()||null,
+    cost:$('#ev_cost').value?+$('#ev_cost').value:null,currency:$('#ev_cur').value,
+    confirmed:$('#ev_conf').checked,confirm_num:$('#ev_confnum').value.trim()||null,
+    notes:$('#ev_notes').value.trim()||null};
+  if(evId){
+    await DB.from('wtn_events').update(data).eq('id',evId);
+    toast('Event updated');
+  } else {
+    await DB.from('wtn_events').insert(data);
+    toast('Event added ✓');
+  }
+  closeModal();await loadTripDetail(tripId);renderTab();
 }
-function deleteEvent(id){if(!confirm('Delete this event?'))return;
-  STATE.events=STATE.events.filter(e=>e.id!==id);save();closeModal();renderTab();toast('Deleted');}
+async function deleteEvent(tripId,id){
+  if(!confirm('Delete this event?'))return;
+  await DB.from('wtn_events').delete().eq('id',id);
+  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
+}
 
 /* ── Flight Modal ── */
 function modalFlight(tripId,flId){
-  const f=flId?STATE.flights.find(x=>x.id===flId):{};
-  const t=STATE.trips.find(x=>x.id===tripId);
+  const t=TRIPS.find(x=>x.id===tripId);
+  const f=flId?(TD[tripId]?.flights||[]).find(x=>x.id===flId):{};
   modal(flId?'Edit Flight':'Add Flight',`
   <div class="row">
-    <div class="field flex1"><label>From</label><input id="fl_from" value="${esc(f.from||'')}" placeholder="SFO"></div>
-    <div class="field flex1"><label>To</label><input id="fl_to" value="${esc(f.to||'')}" placeholder="NRT"></div>
+    <div class="field flex1"><label>From</label><input id="fl_from" value="${esc(f.from_airport||'')}" placeholder="SFO"></div>
+    <div class="field flex1"><label>To</label><input id="fl_to" value="${esc(f.to_airport||'')}" placeholder="NRT"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Airline</label><input id="fl_airline" value="${esc(f.airline||'')}" placeholder="Japan Airlines"></div>
-    <div class="field flex1"><label>Flight #</label><input id="fl_num" value="${esc(f.flightNum||'')}" placeholder="JL001"></div>
+    <div class="field flex1"><label>Airline</label><input id="fl_airline" value="${esc(f.airline||'')}"></div>
+    <div class="field flex1"><label>Flight #</label><input id="fl_num" value="${esc(f.flight_num||'')}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Depart Date</label><input id="fl_ddate" type="date" value="${f.departDate||''}"></div>
-    <div class="field flex1"><label>Depart Time</label><input id="fl_dtime" type="time" value="${f.departTime||''}"></div>
+    <div class="field flex1"><label>Depart Date</label><input id="fl_ddate" type="date" value="${f.depart_date||''}"></div>
+    <div class="field flex1"><label>Depart Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Arrive Date</label><input id="fl_adate" type="date" value="${f.arriveDate||''}"></div>
-    <div class="field flex1"><label>Arrive Time</label><input id="fl_atime" type="time" value="${f.arriveTime||''}"></div>
+    <div class="field flex1"><label>Arrive Date</label><input id="fl_adate" type="date" value="${f.arrive_date||''}"></div>
+    <div class="field flex1"><label>Arrive Time</label><input id="fl_atime" type="time" value="${f.arrive_time||''}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Seat</label><input id="fl_seat" value="${esc(f.seat||'')}" placeholder="12A"></div>
-    <div class="field flex1"><label>Terminal / Gate</label><input id="fl_terminal" value="${esc(f.terminal||'')}" placeholder="T2 · Gate 44"></div>
+    <div class="field flex1"><label>Seat</label><input id="fl_seat" value="${esc(f.seat||'')}"></div>
+    <div class="field flex1"><label>Terminal/Gate</label><input id="fl_terminal" value="${esc(f.terminal||'')}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Confirmation #</label><input id="fl_conf" value="${esc(f.confirmNum||'')}" placeholder="ABC123"></div>
+    <div class="field flex1"><label>Confirmation #</label><input id="fl_conf" value="${esc(f.confirm_num||'')}"></div>
     <div class="field flex1"><label>Cost (${t?.currency||'$'})</label><input id="fl_cost" type="number" value="${f.cost||''}"></div>
   </div>
   <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
-    <input type="checkbox" id="fl_confirmed"${f.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Flight confirmed
-  </label></div>
+    <input type="checkbox" id="fl_confirmed"${f.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Flight confirmed</label></div>
   <div class="field"><label>Notes</label><textarea id="fl_notes" rows="2">${esc(f.notes||'')}</textarea></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
-    ${flId?`<button class="btn danger" onclick="deleteFlight('${flId}')">Delete</button>`:''}
+    ${flId?`<button class="btn danger" onclick="deleteFlight('${tripId}','${flId}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveFlight('${tripId}','${flId||''}')">Save</button>
   </div>`);
 }
-function saveFlight(tripId,flId){
+async function saveFlight(tripId,flId){
   const from=$('#fl_from').value.trim();if(!from){toast('Origin required');return;}
-  const data={tripId,from,to:$('#fl_to').value.trim(),airline:$('#fl_airline').value.trim(),
-    flightNum:$('#fl_num').value.trim(),departDate:$('#fl_ddate').value,departTime:$('#fl_dtime').value,
-    arriveDate:$('#fl_adate').value,arriveTime:$('#fl_atime').value,
-    seat:$('#fl_seat').value.trim(),terminal:$('#fl_terminal').value.trim(),
-    confirmNum:$('#fl_conf').value.trim(),cost:$('#fl_cost').value,
-    confirmed:$('#fl_confirmed').checked,notes:$('#fl_notes').value.trim()};
-  if(flId){Object.assign(STATE.flights.find(f=>f.id===flId),data);}
-  else{STATE.flights.push({id:uid(),...data});}
-  save();closeModal();renderTab();toast(flId?'Flight updated':'Flight added ✓');
+  const data={trip_id:tripId,from_airport:from,to_airport:$('#fl_to').value.trim()||null,
+    airline:$('#fl_airline').value.trim()||null,flight_num:$('#fl_num').value.trim()||null,
+    depart_date:$('#fl_ddate').value||null,depart_time:$('#fl_dtime').value||null,
+    arrive_date:$('#fl_adate').value||null,arrive_time:$('#fl_atime').value||null,
+    seat:$('#fl_seat').value.trim()||null,terminal:$('#fl_terminal').value.trim()||null,
+    confirm_num:$('#fl_conf').value.trim()||null,cost:$('#fl_cost').value?+$('#fl_cost').value:null,
+    confirmed:$('#fl_confirmed').checked,notes:$('#fl_notes').value.trim()||null};
+  if(flId){await DB.from('wtn_flights').update(data).eq('id',flId);toast('Updated');}
+  else{await DB.from('wtn_flights').insert(data);toast('Flight added ✓');}
+  closeModal();await loadTripDetail(tripId);renderTab();
 }
-function deleteFlight(id){if(!confirm('Delete this flight?'))return;
-  STATE.flights=STATE.flights.filter(f=>f.id!==id);save();closeModal();renderTab();}
+async function deleteFlight(tripId,id){
+  if(!confirm('Delete this flight?'))return;
+  await DB.from('wtn_flights').delete().eq('id',id);
+  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
+}
 
 /* ── Stay Modal ── */
 function modalStay(tripId,stId){
-  const s=stId?STATE.stays.find(x=>x.id===stId):{};
-  const t=STATE.trips.find(x=>x.id===tripId);
+  const t=TRIPS.find(x=>x.id===tripId);
+  const s=stId?(TD[tripId]?.stays||[]).find(x=>x.id===stId):{};
   modal(stId?'Edit Stay':'Add Accommodation',`
   <div class="field"><label>Property Name</label><input id="st_name" value="${esc(s.name||'')}" placeholder="Park Hyatt Tokyo"></div>
   <div class="row">
     <div class="field flex1"><label>Type</label>
-      <select id="st_type"><option${(s.type||'Hotel')==='Hotel'?' selected':''}>Hotel</option>
-        <option${s.type==='Hostel'?' selected':''}>Hostel</option><option${s.type==='Airbnb'?' selected':''}>Airbnb</option>
-        <option${s.type==='Resort'?' selected':''}>Resort</option><option${s.type==='Apartment'?' selected':''}>Apartment</option>
-        <option${s.type==='Other'?' selected':''}>Other</option></select>
+      <select id="st_type">${['Hotel','Hostel','Airbnb','Resort','Apartment','Other'].map(x=>`<option${x===(s.type||'Hotel')?' selected':''}>${x}</option>`).join('')}</select>
     </div>
     <div class="field flex1"><label>Cost (${t?.currency||'$'})</label><input id="st_cost" type="number" value="${s.cost||''}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.checkIn||''}"></div>
-    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.checkInTime||''}"></div>
+    <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.check_in||''}"></div>
+    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.check_in_time||''}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Check-out Date</label><input id="st_co" type="date" value="${s.checkOut||''}"></div>
-    <div class="field flex1"><label>Check-out Time</label><input id="st_cot" type="time" value="${s.checkOutTime||''}"></div>
+    <div class="field flex1"><label>Check-out Date</label><input id="st_co" type="date" value="${s.check_out||''}"></div>
+    <div class="field flex1"><label>Check-out Time</label><input id="st_cot" type="time" value="${s.check_out_time||''}"></div>
   </div>
-  <div class="field"><label>Address</label><input id="st_addr" value="${esc(s.address||'')}" placeholder="2-1-1 Nishi-Shinjuku, Tokyo"></div>
   <div class="row">
-    <div class="field flex1"><label>Confirmation #</label><input id="st_conf" value="${esc(s.confirmNum||'')}" placeholder="HYA-12345"></div>
-    <div class="field flex1"><label>Phone</label><input id="st_phone" value="${esc(s.phone||'')}" placeholder="+81-3-xxxx-xxxx"></div>
+    <div class="field flex1"><label>Confirmation #</label><input id="st_conf" value="${esc(s.confirm_num||'')}"></div>
+    <div class="field flex1"><label>Phone</label><input id="st_phone" value="${esc(s.phone||'')}"></div>
   </div>
   <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
-    <input type="checkbox" id="st_confirmed"${s.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Booking confirmed
-  </label></div>
-  <div class="field"><label>Notes</label><textarea id="st_notes" rows="2" placeholder="Breakfast included, parking, pool hours...">${esc(s.notes||'')}</textarea></div>
+    <input type="checkbox" id="st_confirmed"${s.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Booking confirmed</label></div>
+  <div class="field"><label>Address</label><input id="st_addr" value="${esc(s.address||'')}"></div>
+  <div class="field"><label>Notes</label><textarea id="st_notes" rows="2">${esc(s.notes||'')}</textarea></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
-    ${stId?`<button class="btn danger" onclick="deleteStay('${stId}')">Delete</button>`:''}
+    ${stId?`<button class="btn danger" onclick="deleteStay('${tripId}','${stId}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveStay('${tripId}','${stId||''}')">Save</button>
   </div>`);
 }
-function saveStay(tripId,stId){
+async function saveStay(tripId,stId){
   const name=$('#st_name').value.trim();if(!name){toast('Property name required');return;}
-  const data={tripId,name,type:$('#st_type').value,cost:$('#st_cost').value,
-    checkIn:$('#st_ci').value,checkInTime:$('#st_cit').value,
-    checkOut:$('#st_co').value,checkOutTime:$('#st_cot').value,
-    address:$('#st_addr').value.trim(),confirmNum:$('#st_conf').value.trim(),
-    phone:$('#st_phone').value.trim(),confirmed:$('#st_confirmed').checked,
-    notes:$('#st_notes').value.trim()};
-  if(stId){Object.assign(STATE.stays.find(s=>s.id===stId),data);}
-  else{STATE.stays.push({id:uid(),...data});}
-  save();closeModal();renderTab();toast(stId?'Stay updated':'Stay added ✓');
+  const data={trip_id:tripId,name,type:$('#st_type').value,cost:$('#st_cost').value?+$('#st_cost').value:null,
+    check_in:$('#st_ci').value||null,check_in_time:$('#st_cit').value||null,
+    check_out:$('#st_co').value||null,check_out_time:$('#st_cot').value||null,
+    confirm_num:$('#st_conf').value.trim()||null,phone:$('#st_phone').value.trim()||null,
+    confirmed:$('#st_confirmed').checked,address:$('#st_addr').value.trim()||null,
+    notes:$('#st_notes').value.trim()||null};
+  if(stId){await DB.from('wtn_stays').update(data).eq('id',stId);toast('Updated');}
+  else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
+  closeModal();await loadTripDetail(tripId);renderTab();
 }
-function deleteStay(id){if(!confirm('Delete this stay?'))return;
-  STATE.stays=STATE.stays.filter(s=>s.id!==id);save();closeModal();renderTab();}
+async function deleteStay(tripId,id){
+  if(!confirm('Delete?'))return;
+  await DB.from('wtn_stays').delete().eq('id',id);
+  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
+}
 
 /* ── Packing Modal ── */
 function modalPackItem(tripId){
   modal('Add Packing Item',`
-  <div class="field"><label>Item Name</label><input id="pk_name" placeholder="e.g. Passport, Sunscreen, Adapter"></div>
+  <div class="field"><label>Item Name</label><input id="pk_name" placeholder="e.g. Passport"></div>
   <div class="row">
-    <div class="field flex1"><label>Category</label>
-      <select id="pk_cat">${PACK_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
-    </div>
+    <div class="field flex1"><label>Category</label><select id="pk_cat">${PACK_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
     <div class="field flex1"><label>Quantity</label><input id="pk_qty" type="number" value="1" min="1"></div>
   </div>
-  <div class="field"><label>Notes</label><input id="pk_notes" placeholder="Optional note"></div>
+  <div class="field"><label>Notes</label><input id="pk_notes" placeholder="Optional"></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="savePackItem('${tripId}')">Add Item</button>
   </div>`);
   setTimeout(()=>$('#pk_name')&&$('#pk_name').focus(),50);
 }
-function savePackItem(tripId){
+async function savePackItem(tripId){
   const name=$('#pk_name').value.trim();if(!name){toast('Item name required');return;}
-  STATE.packItems.push({id:uid(),tripId,name,category:$('#pk_cat').value,qty:+$('#pk_qty').value||1,notes:$('#pk_notes').value.trim(),packed:false});
-  save();closeModal();renderTab();toast('Item added ✓');
+  await DB.from('wtn_pack_items').insert({trip_id:tripId,name,category:$('#pk_cat').value,qty:+$('#pk_qty').value||1,notes:$('#pk_notes').value.trim()||null});
+  toast('Added ✓');closeModal();await loadTripDetail(tripId);renderTab();
 }
-function togglePack(id){const i=STATE.packItems.find(x=>x.id===id);if(!i)return;i.packed=!i.packed;save();renderTab();}
-function deletePackItem(id){STATE.packItems=STATE.packItems.filter(x=>x.id!==id);save();renderTab();}
+async function togglePack(tripId,id,packed){
+  await DB.from('wtn_pack_items').update({packed}).eq('id',id);
+  if(TD[tripId]){const i=TD[tripId].packItems.find(x=>x.id===id);if(i)i.packed=packed;}
+  renderTab();
+}
+async function deletePackItem(tripId,id){
+  await DB.from('wtn_pack_items').delete().eq('id',id);
+  await loadTripDetail(tripId);renderTab();
+}
+async function seedPackItems(tripId){
+  const starter=[
+    {cat:'Documents',items:['Passport','Flight tickets','Hotel confirmations','Travel insurance','Driver\'s license']},
+    {cat:'Clothing',items:['T-shirts','Pants/Jeans','Underwear','Socks','Jacket','Walking shoes','Sandals','Swimwear']},
+    {cat:'Toiletries',items:['Toothbrush','Toothpaste','Deodorant','Shampoo','Sunscreen','Moisturizer']},
+    {cat:'Electronics',items:['Phone charger','Power bank','Universal adapter','Earphones']},
+    {cat:'Health',items:['Pain reliever','Antihistamine','Band-aids','Hand sanitizer','Prescription meds']},
+    {cat:'Misc',items:['Reusable water bottle','Day bag','Neck pillow','Luggage locks']},
+  ];
+  const rows=[];
+  starter.forEach(({cat,items})=>items.forEach(name=>rows.push({trip_id:tripId,name,category:cat,qty:1,packed:false})));
+  await DB.from('wtn_pack_items').insert(rows);
+  toast('Starter list loaded ✓');await loadTripDetail(tripId);renderTab();
+}
 
 /* ── Budget Modal ── */
 function modalBudgetItem(tripId,bId){
-  const b=bId?STATE.budgetItems.find(x=>x.id===bId):{};
-  const t=STATE.trips.find(x=>x.id===tripId);
+  const t=TRIPS.find(x=>x.id===tripId);
+  const b=bId?(TD[tripId]?.budgetItems||[]).find(x=>x.id===bId):{};
   modal(bId?'Edit Budget Item':'Add Budget Item',`
-  <div class="field"><label>Description</label><input id="b_name" value="${esc(b.name||'')}" placeholder="e.g. Round-trip flights, Hotel nights"></div>
-  <div class="field"><label>Category</label>
-    <select id="b_cat">${BUDGET_CATS.map(c=>`<option${c===(b.category||'Misc')?' selected':''}>${c}</option>`).join('')}</select>
-  </div>
+  <div class="field"><label>Description</label><input id="b_name" value="${esc(b.name||'')}" placeholder="e.g. Round-trip flights"></div>
+  <div class="field"><label>Category</label><select id="b_cat">${BUDGET_CATS.map(c=>`<option${c===(b.category||'Misc')?' selected':''}>${c}</option>`).join('')}</select></div>
   <div class="row">
-    <div class="field flex1"><label>Planned (${t?.currency||'$'})</label><input id="b_plan" type="number" value="${b.planned||''}" placeholder="0"></div>
-    <div class="field flex1"><label>Actual Spent (${t?.currency||'$'})</label><input id="b_actual" type="number" value="${b.actual||''}" placeholder="0"></div>
+    <div class="field flex1"><label>Planned (${t?.currency||'$'})</label><input id="b_plan" type="number" value="${b.planned||''}"></div>
+    <div class="field flex1"><label>Actual Spent</label><input id="b_actual" type="number" value="${b.actual||''}"></div>
   </div>
-  <div class="field"><label>Notes</label><input id="b_notes" value="${esc(b.notes||'')}" placeholder="e.g. Booked on Booking.com"></div>
+  <div class="field"><label>Notes</label><input id="b_notes" value="${esc(b.notes||'')}"></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
-    ${bId?`<button class="btn danger" onclick="deleteBudgetItem('${bId}')">Delete</button>`:''}
+    ${bId?`<button class="btn danger" onclick="deleteBudgetItem('${tripId}','${bId}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveBudgetItem('${tripId}','${bId||''}')">Save</button>
   </div>`);
 }
-function saveBudgetItem(tripId,bId){
+async function saveBudgetItem(tripId,bId){
   const name=$('#b_name').value.trim();if(!name){toast('Description required');return;}
-  const data={tripId,name,category:$('#b_cat').value,planned:$('#b_plan').value,actual:$('#b_actual').value,notes:$('#b_notes').value.trim()};
-  if(bId){Object.assign(STATE.budgetItems.find(b=>b.id===bId),data);}
-  else{STATE.budgetItems.push({id:uid(),...data});}
-  save();closeModal();renderTab();toast(bId?'Updated':'Budget item added ✓');
+  const data={trip_id:tripId,name,category:$('#b_cat').value,planned:+$('#b_plan').value||0,actual:+$('#b_actual').value||0,notes:$('#b_notes').value.trim()||null};
+  if(bId){await DB.from('wtn_budget_items').update(data).eq('id',bId);toast('Updated');}
+  else{await DB.from('wtn_budget_items').insert(data);toast('Added ✓');}
+  closeModal();await loadTripDetail(tripId);renderTab();
 }
-function deleteBudgetItem(id){STATE.budgetItems=STATE.budgetItems.filter(x=>x.id!==id);save();closeModal();renderTab();}
-
-/* ═══════════════════════════════════════════════
-   MUTATIONS
-═══════════════════════════════════════════════ */
-function updateTripNotes(id,notes){const t=STATE.trips.find(x=>x.id===id);if(t)t.notes=notes;save();}
-function deleteTrip(id){
-  if(!confirm('Delete this trip and all its data?'))return;
-  STATE.trips=STATE.trips.filter(t=>t.id!==id);
-  STATE.events=STATE.events.filter(e=>e.tripId!==id);
-  STATE.flights=STATE.flights.filter(f=>f.tripId!==id);
-  STATE.stays=STATE.stays.filter(s=>s.tripId!==id);
-  STATE.packItems=STATE.packItems.filter(p=>p.tripId!==id);
-  STATE.budgetItems=STATE.budgetItems.filter(b=>b.tripId!==id);
-  save();closeModal();goHome();toast('Trip deleted');
-}
-
-/* ── Starter packing list ── */
-function seedPackItems(tripId){
-  const starter=[
-    {cat:'Documents',items:['Passport','Flight tickets','Hotel confirmations','Travel insurance','Visa','Driver\'s license','Emergency contacts']},
-    {cat:'Clothing',items:['T-shirts','Pants/Jeans','Underwear','Socks','Jacket','Comfortable walking shoes','Sandals','Swimwear','Pajamas']},
-    {cat:'Toiletries',items:['Toothbrush','Toothpaste','Deodorant','Shampoo','Conditioner','Face wash','Razor','Moisturizer','Sunscreen','Lip balm']},
-    {cat:'Electronics',items:['Phone charger','Power bank','Universal adapter','Camera','Earphones/AirPods','Laptop']},
-    {cat:'Health',items:['Prescription medication','Pain reliever','Antihistamine','Band-aids','Antidiarrheal','Hand sanitizer','Face masks','First aid kit']},
-    {cat:'Misc',items:['Reusable water bottle','Day bag/backpack','Neck pillow','Eye mask','Umbrella','Snacks for travel','Local currency','Luggage locks']},
-  ];
-  starter.forEach(({cat,items})=>items.forEach(name=>STATE.packItems.push({id:uid(),tripId,name,category:cat,qty:1,notes:'',packed:false})));
-  save();renderTab();toast('Starter packing list loaded ✓');
-}
-
-/* ═══════════════════════════════════════════════
-   SEED DEMO DATA
-═══════════════════════════════════════════════ */
-function seedDemo(){
-  const tId=uid();
-  STATE.trips=[{
-    id:tId,name:'Japan Spring Adventure',emoji:'🗼',destination:'Tokyo, Osaka, Kyoto',country:'Japan',
-    startDate:'2025-04-01',endDate:'2025-04-14',currency:'$',gradientIdx:0,
-    travelers:[{name:'Ryan',role:'Organizer'},{name:'Joy',role:'Co-pilot'}],
-    notes:'Remember to get JR Pass before departure!\nBook Sumo ticket in advance — sells out fast.\nSim card at airport: IIJmio or Ubigi eSIM.',
-    emergencyContacts:'US Embassy Tokyo: +81-3-3224-5000\nTravel Insurance: Allianz Policy #AL-2025-881234\nLocal emergency: 119 (ambulance) / 110 (police)'
-  }];
-  STATE.flights=[
-    {id:uid(),tripId:tId,from:'SFO',to:'NRT',airline:'Japan Airlines',flightNum:'JL001',departDate:'2025-04-01',departTime:'11:00',arriveDate:'2025-04-02',arriveTime:'15:30',seat:'22A',terminal:'T1 · Gate G10',confirmNum:'JL-9X8K2P',cost:1200,confirmed:true,notes:'Window seat booked!'},
-    {id:uid(),tripId:tId,from:'NRT',to:'SFO',airline:'Japan Airlines',flightNum:'JL002',departDate:'2025-04-14',departTime:'17:00',arriveDate:'2025-04-14',arriveTime:'10:30',seat:'22A',terminal:'T2',confirmNum:'JL-9X8K2Q',cost:1200,confirmed:true,notes:'Return flight'},
-  ];
-  STATE.stays=[
-    {id:uid(),tripId:tId,name:'Shinjuku Granbell Hotel',type:'Hotel',checkIn:'2025-04-02',checkInTime:'15:00',checkOut:'2025-04-07',checkOutTime:'11:00',address:'2-14-5 Kabukicho, Shinjuku, Tokyo',confirmNum:'SGB-44821',phone:'+81-3-5291-8080',cost:850,confirmed:true,notes:'Free WiFi, breakfast not included. 5 min walk from Shinjuku station east exit.'},
-    {id:uid(),tripId:tId,name:'The Millennials Kyoto',type:'Hotel',checkIn:'2025-04-07',checkInTime:'16:00',checkOut:'2025-04-11',checkOutTime:'10:00',address:'Karasuma-dori Ebisugawa, Kyoto',confirmNum:'MK-29931',phone:'+81-75-241-0510',cost:420,confirmed:true,notes:'Pod hotel. Locker included. Very central.'},
-    {id:uid(),tripId:tId,name:'Cross Hotel Osaka',type:'Hotel',checkIn:'2025-04-11',checkInTime:'15:00',checkOut:'2025-04-14',checkOutTime:'11:00',address:'2-5-15 Tanimachi, Chuo-ku, Osaka',confirmNum:'COS-77234',cost:360,confirmed:false,notes:'Near Namba. Confirm booking!'},
-  ];
-  const days=['2025-04-02','2025-04-03','2025-04-04','2025-04-05','2025-04-06','2025-04-07','2025-04-08','2025-04-09'];
-  STATE.events=[
-    {id:uid(),tripId:tId,date:'2025-04-02',time:'16:00',title:'Check in & explore Shinjuku',category:'sightseeing',location:'Shinjuku, Tokyo',duration:180,cost:'',confirmed:true,notes:'Walk around Kabukicho, grab ramen at Ichiran'},
-    {id:uid(),tripId:tId,date:'2025-04-03',time:'07:30',title:'Tsukiji Outer Market breakfast',category:'food',location:'Tsukiji Outer Market',duration:90,cost:25,currency:'$',confirmed:true,notes:'Fresh sushi breakfast! Get there early — lines form fast.'},
-    {id:uid(),tripId:tId,date:'2025-04-03',time:'10:00',title:'Shibuya Crossing & Harajuku',category:'sightseeing',location:'Shibuya, Tokyo',duration:240,cost:'',confirmed:true,notes:'Don\'t miss the scramble crossing view from Starbucks'},
-    {id:uid(),tripId:tId,date:'2025-04-03',time:'19:00',title:'Dinner at Ichiran Ramen',category:'food',location:'Ichiran Shibuya',duration:60,cost:18,currency:'$',confirmed:false,notes:'Solo booth ramen experience'},
-    {id:uid(),tripId:tId,date:'2025-04-04',time:'09:00',title:'TeamLab Borderless',category:'activity',location:'Azabudai Hills, Tokyo',duration:180,cost:32,currency:'$',confirmed:true,confirmNum:'TL-882291',notes:'Book tickets online! Sells out weeks ahead.'},
-    {id:uid(),tripId:tId,date:'2025-04-04',time:'14:00',title:'Asakusa & Senso-ji Temple',category:'sightseeing',location:'Asakusa, Tokyo',duration:150,cost:'',confirmed:true,notes:'Best at golden hour. Try ningyo-yaki sweets.'},
-    {id:uid(),tripId:tId,date:'2025-04-05',time:'06:00',title:'Day trip to Nikko',category:'activity',location:'Nikko, Tochigi',duration:480,cost:45,currency:'$',confirmed:false,notes:'JR Pass covers this! 2h train from Shinjuku.'},
-    {id:uid(),tripId:tId,date:'2025-04-06',time:'10:00',title:'Akihabara Electric Town',category:'shopping',location:'Akihabara, Tokyo',duration:240,cost:'',confirmed:true,notes:'Great for electronics and anime merch'},
-    {id:uid(),tripId:tId,date:'2025-04-06',time:'19:00',title:'Omakase dinner at Sushi Saito',category:'food',location:'Mita, Tokyo',duration:120,cost:180,currency:'$',confirmed:true,confirmNum:'SS-RYAN-APR6',notes:'Dress code: smart casual. Reservation under Ryan.'},
-    {id:uid(),tripId:tId,date:'2025-04-07',time:'09:00',title:'Shinkansen to Kyoto',category:'transport',location:'Tokyo Station → Kyoto Station',duration:140,cost:'',confirmed:true,notes:'JR Pass · Hikari 501 · Platform 14 · Reserved seat car 3'},
-    {id:uid(),tripId:tId,date:'2025-04-07',time:'14:00',title:'Fushimi Inari torii gates',category:'sightseeing',location:'Fushimi Inari-taisha, Kyoto',duration:180,cost:'',confirmed:true,notes:'Go up at least 30min — the crowds thin out higher up.'},
-    {id:uid(),tripId:tId,date:'2025-04-08',time:'07:00',title:'Arashiyama Bamboo Grove',category:'sightseeing',location:'Arashiyama, Kyoto',duration:120,cost:'',confirmed:true,notes:'Go at sunrise to beat tourists. Rent a bike!'},
-    {id:uid(),tripId:tId,date:'2025-04-08',time:'14:00',title:'Kinkaku-ji Golden Pavilion',category:'sightseeing',location:'Kinkakuji-cho, Kyoto',duration:90,cost:5,currency:'$',confirmed:true,notes:''},
-    {id:uid(),tripId:tId,date:'2025-04-09',time:'10:00',title:'Nishiki Market food walk',category:'food',location:'Nishiki Market, Kyoto',duration:120,cost:40,currency:'$',confirmed:true,notes:'Try tamagoyaki, matcha mochi, pickles, fresh tofu'},
-    {id:uid(),tripId:tId,date:'2025-04-09',time:'14:00',title:'Gion district & geisha spotting',category:'sightseeing',location:'Gion, Kyoto',duration:180,cost:'',confirmed:true,notes:'Walk Hanamikoji-dori around 5-6pm for best chance to see geiko'},
-  ];
-  STATE.budgetItems=[
-    {id:uid(),tripId:tId,category:'Flights',name:'Round-trip flights (×2)',planned:2400,actual:2400,notes:'JAL booked'},
-    {id:uid(),tripId:tId,category:'Accommodation',name:'Hotels — 12 nights',planned:1630,actual:1270,notes:'3 hotels'},
-    {id:uid(),tripId:tId,category:'Food & Drink',name:'Dining budget',planned:800,actual:350,notes:'~$60/day for two'},
-    {id:uid(),tripId:tId,category:'Activities',name:'Attractions & experiences',planned:400,actual:217,notes:''},
-    {id:uid(),tripId:tId,category:'Transport',name:'JR Pass (×2) + local transit',planned:600,actual:580,notes:'14-day JR Pass purchased'},
-    {id:uid(),tripId:tId,category:'Shopping',name:'Shopping & souvenirs',planned:500,actual:0,notes:''},
-    {id:uid(),tripId:tId,category:'Misc',name:'Sim card, tips, misc',planned:150,actual:40,notes:''},
-  ];
-  seedPackItems(tId);
-  save();
+async function deleteBudgetItem(tripId,id){
+  if(!confirm('Delete?'))return;
+  await DB.from('wtn_budget_items').delete().eq('id',id);
+  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
 }
 
 /* ═══════════════════════════════════════════════
@@ -1207,7 +1393,12 @@ document.addEventListener('keydown',e=>{
 /* ═══════════════════════════════════════════════
    BOOT
 ═══════════════════════════════════════════════ */
-window.addEventListener('load', initGoogleAuth);
+DB.auth.onAuthStateChange(async(event,session)=>{
+  if(event==='SIGNED_IN'&&!ME&&session){
+    await afterSignIn(session.user);
+  }
+});
+window.addEventListener('load',initApp);
 </script>
 </body>
 </html>
