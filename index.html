@@ -238,9 +238,14 @@ select option{background:var(--panel)}
 .ppl-wrap{position:relative}
 .ppl-btn{display:inline-flex;align-items:center;gap:6px}
 .ppl-count{background:var(--border2);border-radius:10px;font-size:11px;font-weight:700;padding:1px 6px;color:var(--muted)}
-.ppl-dropdown{position:absolute;top:calc(100% + 10px);right:0;width:252px;background:var(--panel);border:1px solid var(--border2);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.7);z-index:150;padding:14px;animation:pplIn .15s ease-out}
+.ppl-dropdown{position:absolute;top:calc(100% + 10px);right:0;width:272px;background:var(--panel);border:1px solid var(--border2);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.7);z-index:150;padding:14px;animation:pplIn .15s ease-out}
 .ppl-dropdown.hidden{display:none}
 @keyframes pplIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.invite-link-section{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}
+.invite-link-row{display:flex;gap:6px;margin-bottom:6px}
+.invite-url-inp{flex:1;font-size:11px;background:var(--bg);border:1px solid var(--border2);border-radius:7px;color:var(--muted);padding:5px 8px;outline:none;min-width:0;cursor:text}
+.invite-role-row{display:flex;gap:6px;align-items:center}
+.invite-role-row select{flex:1;font-size:12px;padding:4px 6px;border-radius:7px;background:var(--bg);border:1px solid var(--border2);color:var(--text)}
 .sbar-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .sbar-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;font-weight:700;font-family:'DM Sans',sans-serif}
 .sbar-member{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--border)}
@@ -297,6 +302,7 @@ const DB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let ME      = null;   // current profile
 let TRIPS   = [];     // trip list
 let TD      = {};     // trip detail cache: {id: {events,flights,stays,packItems,budgetItems,members}}
+let PENDING_INVITE = new URLSearchParams(window.location.search).get('invite');
 let CUR     = {view:'loading', tripId:null, tab:'overview'};
 
 /* ═══════════════════════════════════════════════
@@ -434,7 +440,8 @@ async function afterSignIn(user){
 
   renderAuthHeader();
   await loadTrips();
-  renderDashboard();
+  if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
+  else{renderDashboard();}
 }
 
 function showLoading(msg='Loading…'){
@@ -449,9 +456,11 @@ function showSignIn(){
   document.getElementById('root').innerHTML=`
   <div class="auth-screen">
     <div class="auth-card">
-      <div class="auth-icon">✈</div>
+      <div class="auth-icon">${PENDING_INVITE?'🎉':'✈'}</div>
       <h1>WhereToNext</h1>
-      <p>Plan every detail of your adventures — flights, stays, day-by-day itineraries, packing & budget. All in sync.</p>
+      ${PENDING_INVITE
+        ?`<p>You've been invited to join a trip. Sign in with Google to accept your invitation.</p>`
+        :`<p>Plan every detail of your adventures — flights, stays, day-by-day itineraries, packing & budget. All in sync.</p>`}
       <button class="google-btn" onclick="signInWithGoogle()">
         <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         Continue with Google
@@ -685,6 +694,7 @@ function renderTripShell(){
   <div style="display:flex;gap:8px;align-items:center">
     ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn">🛡 Admin</button>`:''}
     <button class="btn sm ghost" onclick="window.print()">🖨 Print</button>
+    <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')">⎘ Clone</button>
     ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>`:''}
     ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')">🗑</button>`:''}
     <div class="ppl-wrap" id="peopleBtnWrap">
@@ -1129,17 +1139,83 @@ function renderSidebar(tripId){
     </div>`;
   }
 
+  const inviteUrl=`${location.origin}${location.pathname}?invite=${t.invite_token||''}`;
   dropdown.innerHTML=`
   <div class="sbar-head">
     <span class="sbar-label">People</span>
     ${isOwner?`<button class="btn sm primary" style="font-size:11px;padding:5px 10px" onclick="modalInvite('${tripId}')">＋ Invite</button>`:''}
   </div>
-  ${all.map(mrow).join('')}`;
+  ${all.map(mrow).join('')}
+  ${isOwner&&t.invite_token?`
+  <div class="invite-link-section">
+    <div class="sbar-label" style="margin-bottom:8px">Invite via Link</div>
+    <div class="invite-link-row">
+      <input class="invite-url-inp" id="invLinkInp" value="${esc(inviteUrl)}" readonly onclick="this.select()">
+      <button class="btn sm" onclick="copyInvLink()">Copy</button>
+    </div>
+    <div class="invite-role-row">
+      <select onchange="setInvRole('${tripId}',this.value)">
+        <option value="viewer"${(t.invite_role||'viewer')==='viewer'?' selected':''}>Can view</option>
+        <option value="editor"${t.invite_role==='editor'?' selected':''}>Can edit</option>
+      </select>
+      <button class="btn sm ghost" onclick="regenInvLink('${tripId}')" title="Generate a new link (old one stops working)">↺ New</button>
+    </div>
+  </div>`:''}`;
 }
 
 function togglePeople(e){
   e&&e.stopPropagation();
   document.getElementById('peopleDropdown')?.classList.toggle('hidden');
+}
+
+/* ── Invite link helpers ── */
+function copyInvLink(){
+  const inp=document.getElementById('invLinkInp');if(!inp)return;
+  navigator.clipboard.writeText(inp.value).then(()=>toast('Link copied ✓'));
+}
+async function setInvRole(tripId,role){
+  await DB.from('wtn_trips').update({invite_role:role}).eq('id',tripId);
+  const t=TRIPS.find(x=>x.id===tripId);if(t)t.invite_role=role;
+  toast('Role updated ✓');
+}
+async function regenInvLink(tripId){
+  const newToken=crypto.randomUUID();
+  await DB.from('wtn_trips').update({invite_token:newToken}).eq('id',tripId);
+  const t=TRIPS.find(x=>x.id===tripId);if(t)t.invite_token=newToken;
+  renderSidebar(tripId);
+  toast('New link generated — old link no longer works');
+}
+async function processInvite(token){
+  PENDING_INVITE=null;
+  history.replaceState({},'',location.pathname);
+  showLoading('Joining trip…');
+  const {data,error}=await DB.rpc('wtn_join_by_invite',{p_token:token});
+  if(error||data?.error){toast(data?.error||'Invalid invite link');renderDashboard();return;}
+  await loadTrips();
+  toast(`Joined "${data.trip_name}" ✓`);
+  openTrip(data.trip_id);
+}
+
+/* ── Clone Trip ── */
+function modalCloneTrip(tripId){
+  const t=TRIPS.find(x=>x.id===tripId);
+  modal('Clone Trip',`
+  <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Creates a full copy with all events, flights, stays, packing list, and budget — owned by you.</p>
+  <div class="field"><label>New Trip Name</label>
+    <input id="clone_name" value="${esc((t?.name||'')+(t?' (copy)':''))}" placeholder="Trip name">
+  </div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="cloneTrip('${tripId}')">Clone</button>
+  </div>`);
+  setTimeout(()=>{const el=$('#clone_name');if(el){el.focus();el.select();}},50);
+}
+async function cloneTrip(tripId){
+  const name=$('#clone_name').value.trim();if(!name){toast('Name required');return;}
+  const {data:newId,error}=await DB.rpc('wtn_clone_trip',{p_trip_id:tripId,p_new_name:name});
+  if(error){toast('Clone failed: '+error.message);return;}
+  toast('Trip cloned ✓');closeModal();
+  await loadTrips();openTrip(newId);
 }
 
 /* ── Trip Modal ── */
