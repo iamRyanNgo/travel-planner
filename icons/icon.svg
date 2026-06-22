@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111b2e"/>
+      <stop offset="1" stop-color="#080e1c"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Plane body -->
+  <ellipse cx="256" cy="210" rx="32" ry="125" fill="#f5c542"/>
+  <ellipse cx="256" cy="94" rx="32" ry="42" fill="#ffe07a"/>
+  <!-- Main wings -->
+  <path d="M224 205 L72 345 L72 378 L224 278 Z" fill="#f5c542"/>
+  <path d="M288 205 L440 345 L440 378 L288 278 Z" fill="#f5c542"/>
+  <!-- Tail fins -->
+  <path d="M224 308 L152 408 L224 386 Z" fill="#f5c542"/>
+  <path d="M288 308 L360 408 L288 386 Z" fill="#f5c542"/>
+</svg>

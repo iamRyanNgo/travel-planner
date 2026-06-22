@@ -1,0 +1,25 @@
+{
+  "name": "WhereToNext",
+  "short_name": "WhereToNext",
+  "description": "Plan every detail of your next adventure",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080e1c",
+  "theme_color": "#080e1c",
+  "orientation": "any",
+  "categories": ["travel", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

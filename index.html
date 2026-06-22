@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://kqlkhathprlhaogwhgjf.supabase.co https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; img-src * data: blob:; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src https://kqlkhathprlhaogwhgjf.supabase.co wss://kqlkhathprlhaogwhgjf.supabase.co https://api.unsplash.com;">
 <title>WhereToNext</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon.svg">
 <link rel="preconnect" href="https://kqlkhathprlhaogwhgjf.supabase.co">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -332,11 +334,12 @@ const DB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 /* ═══════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════ */
-let ME      = null;   // current profile
-let TRIPS   = [];     // trip list
-let TD      = {};     // trip detail cache: {id: {events,flights,stays,packItems,budgetItems,members}}
+let ME      = null;
+let TRIPS   = [];
+let TD      = {};
 let PENDING_INVITE = new URLSearchParams(window.location.search).get('invite');
 let CUR     = {view:'loading', tripId:null, tab:'overview'};
+let PWA_PROMPT = null;
 
 /* ═══════════════════════════════════════════════
    UTILITIES
@@ -552,6 +555,7 @@ function renderAuthHeader(){
   document.getElementById('headerActions').innerHTML=`
   <div style="display:flex;align-items:center;gap:8px">
     ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" style="position:relative" id="adminBtn">🛡 Admin</button>`:''}
+    ${PWA_PROMPT?`<button class="btn sm" onclick="installPWA()" title="Install app on your device" style="background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff">⬇ Install App</button>`:''}
     <div class="user-chip">
       ${ME.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="member-avatar" style="background:var(--border2);font-size:12px">${(ME.name||'?')[0]}</div>`}
@@ -1723,6 +1727,34 @@ document.addEventListener('click',e=>{
   const wrap=document.getElementById('peopleBtnWrap');
   if(wrap&&!wrap.contains(e.target))document.getElementById('peopleDropdown')?.classList.add('hidden');
 });
+
+/* ═══════════════════════════════════════════════
+   PWA — INSTALL + SERVICE WORKER
+═══════════════════════════════════════════════ */
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  PWA_PROMPT = e;
+  renderAuthHeader();
+});
+
+window.addEventListener('appinstalled', () => {
+  PWA_PROMPT = null;
+  renderAuthHeader();
+  toast('App installed! Find it on your home screen ✓');
+});
+
+async function installPWA(){
+  if(!PWA_PROMPT)return;
+  PWA_PROMPT.prompt();
+  const {outcome} = await PWA_PROMPT.userChoice;
+  PWA_PROMPT = null;
+  renderAuthHeader();
+  if(outcome==='accepted')toast('Installing… check your home screen ✓');
+}
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
 
 /* ═══════════════════════════════════════════════
    BOOT

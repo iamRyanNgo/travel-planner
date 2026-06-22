@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full bleed background (no rounded corners) for maskable -->
+  <rect width="512" height="512" fill="#0d1526"/>
+  <!-- Plane scaled down ~80% and centered so nothing clips in the safe zone -->
+  <g transform="translate(256,256) scale(0.72) translate(-256,-256)">
+    <ellipse cx="256" cy="210" rx="32" ry="125" fill="#f5c542"/>
+    <ellipse cx="256" cy="94" rx="32" ry="42" fill="#ffe07a"/>
+    <path d="M224 205 L72 345 L72 378 L224 278 Z" fill="#f5c542"/>
+    <path d="M288 205 L440 345 L440 378 L288 278 Z" fill="#f5c542"/>
+    <path d="M224 308 L152 408 L224 386 Z" fill="#f5c542"/>
+    <path d="M288 308 L360 408 L288 386 Z" fill="#f5c542"/>
+  </g>
+</svg>
