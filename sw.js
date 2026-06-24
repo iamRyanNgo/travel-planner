@@ -1,4 +1,4 @@
-const CACHE = 'wtn-v1';
+const CACHE = 'wtn-v2';
 const PRECACHE = [
   '/',
   '/index.html',

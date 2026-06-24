@@ -426,20 +426,21 @@ function setTab(tab){CUR.tab=tab;renderTab();}
 async function initApp(){
   showLoading('Checking your session…');
   let handled=false;
-  DB.auth.onAuthStateChange(async(event,session)=>{
+  // IMPORTANT: never await other Supabase calls *inside* this callback — it runs
+  // while the auth lock is held and awaiting DB queries here can deadlock, which
+  // left the app blank until a hard refresh. Defer the work with setTimeout(…,0)
+  // so afterSignIn() runs outside the lock.
+  DB.auth.onAuthStateChange((event,session)=>{
     if(event==='SIGNED_OUT'){
       handled=false; ME=null; TRIPS=[]; TD={}; showSignIn();
       return;
     }
     if(handled)return;
-    if(event==='INITIAL_SESSION'&&session){
+    if((event==='INITIAL_SESSION'||event==='SIGNED_IN')&&session){
       handled=true;
-      await afterSignIn(session.user);
+      setTimeout(()=>{ afterSignIn(session.user); },0);
     } else if(event==='INITIAL_SESSION'&&!session){
       showSignIn();
-    } else if(event==='SIGNED_IN'&&session){
-      handled=true;
-      await afterSignIn(session.user);
     }
   });
 }
