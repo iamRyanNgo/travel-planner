@@ -2071,24 +2071,7 @@ async function installPWA(){
 }
 
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').then(reg=>{
-    // When a new SW takes over, reload so the page is served fresh from the new cache
-    let refreshing=false;
-    navigator.serviceWorker.addEventListener('controllerchange',()=>{
-      if(refreshing)return;
-      refreshing=true;
-      window.location.reload();
-    });
-    reg.addEventListener('updatefound',()=>{
-      const sw=reg.installing;
-      if(!sw)return;
-      sw.addEventListener('statechange',()=>{
-        if(sw.state==='installed'&&navigator.serviceWorker.controller){
-          // New version installed; controllerchange fires after skipWaiting activates it
-        }
-      });
-    });
-  }).catch(()=>{});
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }
 
 /* ═══════════════════════════════════════════════
