@@ -889,7 +889,9 @@ function renderOverview(t,d){
   const evByDay={};
   d.events.forEach(e=>{if(e.date)evByDay[e.date]=(evByDay[e.date]||0)+1;});
   const busiestEntry=Object.entries(evByDay).sort((a,b)=>b[1]-a[1])[0];
-  const busiestDay=busiestEntry?`${busiestEntry[1]} events`:null;
+  const busiestDayNum=busiestEntry&&t.start_date?diffDays(t.start_date,busiestEntry[0])+1:null;
+  const busiestDay=busiestEntry?`Day ${busiestDayNum||'?'}`:null;
+  const busiestDaySub=busiestEntry?`${busiestEntry[1]} event${busiestEntry[1]!==1?'s':''} · ${fmtShort(busiestEntry[0])}`:null;
 
   // Packing progress
   const packed=d.packItems.filter(p=>p.packed).length;
@@ -902,7 +904,7 @@ function renderOverview(t,d){
     destinations.length&&{icon:'📍',val:destinations.length,label:`Destination${destinations.length!==1?'s':''}`,sub:destinations.slice(0,2).join(', ')+(destinations.length>2?'…':'')},
     confirmedPct!==null&&{icon:'✅',val:`${confirmedPct}%`,label:'Confirmed'},
     costPerDay&&{icon:'💵',val:formatCost(costPerDay,t.currency),label:'Per Day (est.)'},
-    busiestDay&&{icon:'🔥',val:busiestDay,label:'Busiest Day'},
+    busiestDay&&{icon:'🔥',val:busiestDay,label:'Busiest Day',sub:busiestDaySub},
     packTotal&&{icon:'🧳',val:`${packed}/${packTotal}`,label:'Items Packed'},
   ].filter(Boolean);
 
