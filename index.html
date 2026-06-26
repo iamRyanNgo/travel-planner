@@ -2072,6 +2072,14 @@ async function installPWA(){
 
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  // When a new SW takes over, reload once so the fresh SW serves the page.
+  // refreshing prevents a loop — it's reset on each new page load.
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(refreshing)return;
+    refreshing=true;
+    window.location.reload();
+  });
 }
 
 /* ═══════════════════════════════════════════════
