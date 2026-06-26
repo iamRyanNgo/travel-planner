@@ -2146,15 +2146,32 @@ async function installPWA(){
 }
 
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  // When a new SW takes over, reload once so the fresh SW serves the page.
-  // refreshing prevents a loop — it's reset on each new page load.
   let refreshing=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
     if(refreshing)return;
     refreshing=true;
     window.location.reload();
   });
+
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+    // Force an immediate update check on every page load.
+    // Without this, browsers can delay the check by up to 24 hours,
+    // keeping an old (potentially broken) SW in control.
+    reg.update().catch(()=>{});
+  }).catch(()=>{});
+
+  // Safety net: if the page looks blank 4 seconds after load and a SW
+  // is still controlling, the old SW likely served stale broken content.
+  // Unregister it so the next load goes straight to the network.
+  setTimeout(async()=>{
+    if(!navigator.serviceWorker.controller)return;
+    const root=document.getElementById('root');
+    if(root&&root.innerHTML.trim().length<30){
+      const reg=await navigator.serviceWorker.getRegistration().catch(()=>null);
+      if(reg)await reg.unregister().catch(()=>{});
+      window.location.reload();
+    }
+  },4000);
 }
 
 /* ═══════════════════════════════════════════════
