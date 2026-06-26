@@ -14,7 +14,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@700;900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet"></noscript>
 <style>
 :root {
   --bg:#080e1c; --bg2:#0d1526; --panel:#111b2e; --panel2:#172036;
@@ -355,7 +356,7 @@ button,a{touch-action:manipulation}
   <div id="headerActions"></div>
 </header>
 
-<div id="root"></div>
+<div id="root"><div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><div class="spinner"></div><p>Loading…</p></div></div>
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
@@ -474,16 +475,32 @@ function setTab(tab){CUR.tab=tab;renderTab();}
 async function initApp(){
   showLoading('Checking your session…');
   let handled=false;
+
+  // Fallback: if onAuthStateChange never fires within 8s (network issue, Supabase
+  // outage, etc.) show a reload prompt instead of a silent blank screen.
+  const authTimeout=setTimeout(()=>{
+    if(!handled){
+      document.getElementById('root').innerHTML=`
+        <div class="loading-screen">
+          <div class="brand-lg">✈ WhereToNext</div>
+          <p style="color:var(--coral);max-width:320px;text-align:center">Taking longer than expected.<br>Check your connection and try again.</p>
+          <button class="btn primary" onclick="window.location.reload()" style="margin-top:16px">Reload</button>
+        </div>`;
+    }
+  },8000);
+
   // IMPORTANT: never await other Supabase calls *inside* this callback — it runs
   // while the auth lock is held and awaiting DB queries here can deadlock, which
   // left the app blank until a hard refresh. Defer the work with setTimeout(…,0)
   // so afterSignIn() runs outside the lock.
   DB.auth.onAuthStateChange((event,session)=>{
     if(event==='SIGNED_OUT'){
+      clearTimeout(authTimeout);
       handled=false; ME=null; TRIPS=[]; TD={}; showSignIn();
       return;
     }
     if(handled)return;
+    clearTimeout(authTimeout);
     if((event==='INITIAL_SESSION'||event==='SIGNED_IN')&&session){
       handled=true;
       setTimeout(()=>{ afterSignIn(session.user); },0);
