@@ -216,10 +216,20 @@ select option{background:var(--panel)}
 .budget-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
 .budget-stat .bv{font-size:22px;font-weight:700;margin-bottom:2px}
 .budget-stat .bl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.budget-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;cursor:pointer;transition:.15s}
+.budget-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;cursor:pointer;transition:.15s}
 .budget-item:hover{border-color:var(--border2)}
 .budget-bar{height:6px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
 .budget-bar-fill{height:100%;border-radius:4px;transition:width .4s}
+.budget-group{margin-bottom:22px}
+.budget-group-head{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.budget-group-head.bg-conf{color:var(--green)}
+.budget-group-head.bg-pot{color:var(--orange)}
+.budget-line{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:7px}
+.budget-line-icon{font-size:16px;flex-shrink:0;width:24px;text-align:center}
+.budget-line-body{flex:1;min-width:0}
+.budget-line-name{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.budget-line-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.budget-line-amt{font-size:14px;font-weight:700;color:var(--gold);flex-shrink:0}
 
 /* ── Admin panel ── */
 .admin-panel{background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.2);border-radius:14px;padding:18px;margin-bottom:20px}
@@ -1137,41 +1147,89 @@ function renderPacking(t,d){
 /* ── Budget ── */
 function renderBudget(t,d){
   const write=canWrite(t);
-  const items=d.budgetItems;
-  const totalPlanned=items.reduce((a,b)=>a+(+b.planned||0),0);
-  const totalActual=items.reduce((a,b)=>a+(+b.actual||0),0);
-  const over=totalActual>totalPlanned&&totalPlanned>0;
-  const pct=totalPlanned?Math.min(100,Math.round(totalActual/totalPlanned*100)):0;
-  const byCategory={};
-  items.forEach(i=>{(byCategory[i.category]=byCategory[i.category]||[]).push(i);});
+  const cur=t.currency||'$';
+
+  // Gather auto-items from flights, stays, events
+  const autoConf=[], autoPot=[];
+  (d.flights||[]).forEach(f=>{
+    if(!f.cost)return;
+    const label=f.from_airport&&f.to_airport?`${f.from_airport} → ${f.to_airport}`:(f.airline||'Flight');
+    (f.confirmed?autoConf:autoPot).push({icon:'✈️',name:label,sub:f.airline||'',amt:+f.cost});
+  });
+  (d.stays||[]).forEach(s=>{
+    if(!s.cost)return;
+    (s.confirmed?autoConf:autoPot).push({icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:+s.cost});
+  });
+  (d.events||[]).forEach(ev=>{
+    if(!ev.cost)return;
+    const CATS={food:'🍽️',activity:'🎯',transport:'🚗',shopping:'🛍️',other:'📌'};
+    const icon=CATS[ev.category]||'📌';
+    (ev.confirmed?autoConf:autoPot).push({icon,name:ev.title||'Activity',sub:ev.location||'',amt:+ev.cost});
+  });
+
+  const confTotal=autoConf.reduce((a,x)=>a+x.amt,0);
+  const potTotal=autoPot.reduce((a,x)=>a+x.amt,0);
+  const manualItems=d.budgetItems||[];
+  const manualTotal=manualItems.reduce((a,b)=>a+(+b.actual||+b.planned||0),0);
+  const grandTotal=confTotal+potTotal+manualTotal;
+
+  function budgetLine(item){
+    return`<div class="budget-line">
+      <div class="budget-line-icon">${item.icon}</div>
+      <div class="budget-line-body">
+        <div class="budget-line-name">${esc(item.name)}</div>
+        ${item.sub?`<div class="budget-line-sub">${esc(item.sub)}</div>`:''}
+      </div>
+      <div class="budget-line-amt">${formatCost(item.amt,cur)}</div>
+    </div>`;
+  }
+
+  // Two-tone progress bar: green=confirmed, orange=potential
+  const barTotal=confTotal+potTotal+manualTotal;
+  const confPct=barTotal?Math.round(confTotal/barTotal*100):0;
+  const potPct=barTotal?Math.round((potTotal+manualTotal)/barTotal*100):0;
+
+  const hasAny=autoConf.length||autoPot.length||manualItems.length;
+
   return`<div>
-    <div class="section-head"><h2>💰 Budget</h2>${write?`<button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add</button>`:''}</div>
-    ${items.length?`
+    <div class="section-head"><h2>💰 Budget</h2>${write?`<button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add Manual</button>`:''}</div>
+    ${hasAny?`
     <div class="budget-summary">
-      <div class="budget-stat"><div class="bv" style="color:var(--blue)">${formatCost(totalPlanned,t.currency)}</div><div class="bl">Total Budget</div></div>
-      <div class="budget-stat"><div class="bv" style="color:${over?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="bl">Spent</div></div>
-      <div class="budget-stat"><div class="bv" style="color:${over?'var(--coral)':'var(--muted)'}">${over?'−':''}${formatCost(Math.abs(totalPlanned-totalActual),t.currency)}</div><div class="bl">${over?'Over Budget':'Remaining'}</div></div>
+      <div class="budget-stat"><div class="bv" style="color:var(--green)">${formatCost(confTotal,cur)}</div><div class="bl">Confirmed</div></div>
+      <div class="budget-stat"><div class="bv" style="color:var(--orange)">${formatCost(potTotal,cur)}</div><div class="bl">Potential</div></div>
+      <div class="budget-stat"><div class="bv" style="color:var(--gold)">${formatCost(grandTotal,cur)}</div><div class="bl">Grand Total</div></div>
     </div>
-    <div style="height:8px;background:var(--border);border-radius:4px;margin-bottom:24px;overflow:hidden">
-      <div style="height:100%;width:${pct}%;background:${over?'var(--coral)':'linear-gradient(90deg,var(--blue),var(--cyan))'};border-radius:4px;transition:width .4s"></div>
+    <div style="height:8px;background:var(--border);border-radius:4px;margin-bottom:24px;overflow:hidden;display:flex">
+      <div style="height:100%;width:${confPct}%;background:var(--green);border-radius:4px 0 0 4px;transition:width .4s"></div>
+      <div style="height:100%;width:${potPct}%;background:var(--orange);transition:width .4s"></div>
     </div>
-    ${Object.entries(byCategory).map(([cat,citems])=>`
-    <div style="margin-bottom:20px">
-      <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${cat}</h3>
-      ${citems.map(item=>`
+    ${autoConf.length?`
+    <div class="budget-group">
+      <div class="budget-group-head bg-conf"><span>✓ Confirmed</span><span>${formatCost(confTotal,cur)}</span></div>
+      ${autoConf.map(budgetLine).join('')}
+    </div>`:''}
+    ${autoPot.length?`
+    <div class="budget-group">
+      <div class="budget-group-head bg-pot"><span>◷ Potential</span><span>${formatCost(potTotal,cur)}</span></div>
+      ${autoPot.map(budgetLine).join('')}
+    </div>`:''}
+    ${manualItems.length?`
+    <div class="budget-group">
+      <div class="budget-group-head"><span>📋 Manual Items</span><span>${formatCost(manualTotal,cur)}</span></div>
+      ${manualItems.map(item=>`
       <div class="budget-item" onclick="${write?`modalBudgetItem('${t.id}','${item.id}')`:''}" style="${write?'':'cursor:default'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <span style="font-weight:600;font-size:14px">${esc(item.name)}</span>
           ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
         </div>
         <div style="display:flex;gap:16px;font-size:13px">
-          <span style="color:var(--muted)">Budget: ${formatCost(item.planned,t.currency)}</span>
-          ${item.actual?`<span style="font-weight:600;color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,t.currency)}</span>`:'<span class="muted">Not spent yet</span>'}
+          <span style="color:var(--muted)">Budget: ${formatCost(item.planned,cur)}</span>
+          ${item.actual?`<span style="font-weight:600;color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,cur)}</span>`:'<span class="muted">Not spent yet</span>'}
         </div>
         ${item.planned?`<div class="budget-bar"><div class="budget-bar-fill" style="width:${item.actual?Math.min(100,Math.round(item.actual/item.planned*100)):0}%;background:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}"></div></div>`:''}
       </div>`).join('')}
-    </div>`).join('')}`
-    :`<div class="empty"><div class="icon">💰</div><p>No budget items yet.</p></div>`}
+    </div>`:''}`
+    :`<div class="empty"><div class="icon">💰</div><p>Costs added to flights, stays &amp; activities will appear here automatically.</p></div>`}
   </div>`;
 }
 
