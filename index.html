@@ -119,6 +119,12 @@ select option{background:var(--panel)}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
 .stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Playfair Display',serif;color:var(--gold)}
 .stat-card .stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.fun-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:24px}
+.fun-stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.fun-stat-icon{font-size:22px;flex-shrink:0;width:36px;text-align:center}
+.fun-stat-body{}
+.fun-stat-val{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
+.fun-stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
 .notes-area{width:100%;resize:vertical;min-height:100px;font-size:14px;line-height:1.6}
 
 /* ── Members ── */
@@ -845,6 +851,72 @@ function renderOverview(t,d){
   const ownerProfile=d.ownerProfile||(t.owner_id===ME?.id?{id:ME.id,name:ME.name,email:ME.email,picture:ME.picture}:{id:t.owner_id,name:'Owner',email:'',picture:null});
   const allMembers=[{user_id:t.owner_id,role:'owner',profile:ownerProfile},...(d.members||[])];
 
+  // ── Fun stats ──
+  // Total air time from flights that have both depart + arrive datetime
+  let airMins=0;
+  d.flights.forEach(f=>{
+    if(f.depart_date&&f.depart_time&&f.arrive_date&&f.arrive_time){
+      const dep=new Date(`${f.depart_date}T${f.depart_time}`);
+      const arr=new Date(`${f.arrive_date}T${f.arrive_time}`);
+      const diff=(arr-dep)/60000;
+      if(diff>0&&diff<1440*3)airMins+=diff; // sanity: ignore negatives / >3 day gaps
+    }
+  });
+  const airTimeStr=airMins>=60?`${Math.floor(airMins/60)}h ${Math.round(airMins%60)}m`:airMins>0?`${Math.round(airMins)}m`:'';
+
+  // Total nights (sum of each stay's duration)
+  let totalNights=0;
+  d.stays.forEach(s=>{if(s.check_in&&s.check_out){const n=diffDays(s.check_in,s.check_out);if(n>0)totalNights+=n;}});
+
+  // Unique destinations from stays
+  const destinations=[...new Set(d.stays.map(s=>s.city||s.name).filter(Boolean))];
+
+  // Confirmed % across all bookable items
+  const bookable=[...d.flights,...d.stays,...d.events];
+  const confirmedCount=bookable.filter(x=>x.confirmed).length;
+  const confirmedPct=bookable.length?Math.round(confirmedCount/bookable.length*100):null;
+
+  // Cost per day (all confirmed cost sources)
+  const allCosts=[
+    ...d.flights.filter(f=>f.confirmed&&f.cost).map(f=>+f.cost),
+    ...d.stays.filter(s=>s.confirmed&&s.cost).map(s=>+s.cost),
+    ...d.events.filter(e=>e.confirmed&&e.cost).map(e=>+e.cost),
+  ];
+  const totalConfirmedCost=allCosts.reduce((a,b)=>a+b,0);
+  const costPerDay=days&&totalConfirmedCost?Math.round(totalConfirmedCost/days):null;
+
+  // Busiest day (most events)
+  const evByDay={};
+  d.events.forEach(e=>{if(e.date)evByDay[e.date]=(evByDay[e.date]||0)+1;});
+  const busiestEntry=Object.entries(evByDay).sort((a,b)=>b[1]-a[1])[0];
+  const busiestDay=busiestEntry?`${busiestEntry[1]} events`:null;
+
+  // Packing progress
+  const packed=d.packItems.filter(p=>p.packed).length;
+  const packTotal=d.packItems.length;
+
+  // Build fun stat tiles (only show if there's data)
+  const funStats=[
+    airTimeStr&&{icon:'✈️',val:airTimeStr,label:'Air Time'},
+    totalNights&&{icon:'🌙',val:totalNights,label:`Night${totalNights!==1?'s':''} Away`},
+    destinations.length&&{icon:'📍',val:destinations.length,label:`Destination${destinations.length!==1?'s':''}`,sub:destinations.slice(0,2).join(', ')+(destinations.length>2?'…':'')},
+    confirmedPct!==null&&{icon:'✅',val:`${confirmedPct}%`,label:'Confirmed'},
+    costPerDay&&{icon:'💵',val:formatCost(costPerDay,t.currency),label:'Per Day (est.)'},
+    busiestDay&&{icon:'🔥',val:busiestDay,label:'Busiest Day'},
+    packTotal&&{icon:'🧳',val:`${packed}/${packTotal}`,label:'Items Packed'},
+  ].filter(Boolean);
+
+  function funStatCard(s){
+    return`<div class="fun-stat">
+      <div class="fun-stat-icon">${s.icon}</div>
+      <div class="fun-stat-body">
+        <div class="fun-stat-val">${s.val}</div>
+        <div class="fun-stat-label">${s.label}</div>
+        ${s.sub?`<div style="font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${esc(s.sub)}</div>`:''}
+      </div>
+    </div>`;
+  }
+
   return`
   <div class="overview-grid">
     <div class="stat-card"><div class="stat-val">${days||'—'}</div><div class="stat-label">Days</div></div>
@@ -854,6 +926,7 @@ function renderOverview(t,d){
     ${totalBudget?`<div class="stat-card"><div class="stat-val" style="font-size:20px">${formatCost(totalBudget,t.currency)}</div><div class="stat-label">Budget</div></div>`:''}
     ${totalActual?`<div class="stat-card"><div class="stat-val" style="font-size:20px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="stat-label">Spent</div></div>`:''}
   </div>
+  ${funStats.length?`<div class="fun-stats">${funStats.map(funStatCard).join('')}</div>`:''}
 
   <!-- Members -->
   <div class="card" style="margin-bottom:16px">
