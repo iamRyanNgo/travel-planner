@@ -175,6 +175,19 @@ select option{background:var(--panel)}
 .conf-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.5px}
 .conf-badge.confirmed{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3)}
 .conf-badge.pending{background:rgba(251,146,60,.12);color:var(--orange);border:1px solid rgba(251,146,60,.3)}
+.conf-badge.partial{background:rgba(74,144,226,.12);color:var(--blue);border:1px solid rgba(74,144,226,.3)}
+/* Flight round-trip card */
+.fl-legs{padding:10px 0 2px}
+.fl-leg{display:flex;align-items:center;gap:10px;padding:7px 0}
+.fl-leg+.fl-leg{border-top:1px dashed var(--border)}
+.fl-leg-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);width:30px;flex-shrink:0}
+.fl-leg-ret .fl-leg-label{color:var(--blue)}
+.fl-leg-route{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.fl-leg-point{flex:1;min-width:0}
+.fl-leg-code{font-size:17px;font-weight:700;letter-spacing:.5px}
+.fl-leg-time{font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap}
+.fl-leg-arrow{color:var(--dim);font-size:13px;flex-shrink:0}
+.fl-return-toggle{border-top:1px solid var(--border);margin:14px 0 10px;padding-top:12px;display:flex;align-items:center;gap:10px}
 
 /* ── Packing ── */
 .pack-section{margin-bottom:24px}
@@ -920,29 +933,97 @@ function eventCard(ev,write){
 }
 
 /* ── Flights ── */
+function flightLeg(f,label,cls){
+  return`<div class="fl-leg ${cls}">
+    <div class="fl-leg-label">${label}</div>
+    <div class="fl-leg-route">
+      <div class="fl-leg-point">
+        <div class="fl-leg-code">${esc(f.from_airport||'—')}</div>
+        ${f.depart_date?`<div class="fl-leg-time">${fmtShort(f.depart_date)}${f.depart_time?' · '+f.depart_time:''}</div>`:''}
+      </div>
+      <div class="fl-leg-arrow">→</div>
+      <div class="fl-leg-point">
+        <div class="fl-leg-code">${esc(f.to_airport||'—')}</div>
+        ${f.arrive_date?`<div class="fl-leg-time">${fmtShort(f.arrive_date)}${f.arrive_time?' · '+f.arrive_time:''}</div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderFlights(t,d){
   const write=canWrite(t);
+  if(!d.flights.length)return`<div>
+    <div class="section-head"><h2>✈️ Flights</h2>${write?`<button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add</button>`:''}</div>
+    <div class="empty"><div class="icon">✈️</div><p>No flights added yet.</p></div>
+  </div>`;
+
+  // Auto-pair round trips (A→B + B→A)
+  const used=new Set();
+  const cards=[];
+  d.flights.forEach((f,i)=>{
+    if(used.has(i))return;
+    const ri=d.flights.findIndex((r,j)=>j>i&&!used.has(j)&&
+      f.from_airport&&f.to_airport&&r.from_airport&&r.to_airport&&
+      r.from_airport===f.to_airport&&r.to_airport===f.from_airport);
+    if(ri!==-1){cards.push({rt:true,out:f,ret:d.flights[ri]});used.add(i);used.add(ri);}
+    else{cards.push({rt:false,f});used.add(i);}
+  });
+
   return`<div>
     <div class="section-head"><h2>✈️ Flights</h2>${write?`<button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add</button>`:''}</div>
-    ${d.flights.length?d.flights.map(f=>`
-    <div class="booking-card" onclick="${write?`modalFlight('${t.id}','${f.id}')`:''}" style="${write?'':'cursor:default'}">
-      <div class="booking-header">
-        <div class="booking-icon cat-flight">✈️</div>
-        <div class="flex1">
-          <div class="booking-title">${esc(f.from_airport||'')} → ${esc(f.to_airport||'')}</div>
-          <div class="booking-sub">${esc(f.airline||'')}${f.flight_num?' · '+esc(f.flight_num):''}</div>
-        </div>
-        <span class="conf-badge ${f.confirmed?'confirmed':'pending'}">${f.confirmed?'CONFIRMED':'PENDING'}</span>
-      </div>
-      <div class="booking-detail-grid">
-        ${f.depart_date?`<div class="booking-detail"><div class="bd-label">Departure</div><div class="bd-val">${fmtDay(f.depart_date)}${f.depart_time?' '+f.depart_time:''}</div></div>`:''}
-        ${f.arrive_date?`<div class="booking-detail"><div class="bd-label">Arrival</div><div class="bd-val">${fmtDay(f.arrive_date)}${f.arrive_time?' '+f.arrive_time:''}</div></div>`:''}
-        ${f.seat?`<div class="booking-detail"><div class="bd-label">Seat</div><div class="bd-val">${esc(f.seat)}</div></div>`:''}
-        ${f.cost?`<div class="booking-detail"><div class="bd-label">Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(f.cost,t.currency)}</div></div>`:''}
-        ${f.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(f.confirm_num)}</div></div>`:''}
-        ${f.terminal?`<div class="booking-detail"><div class="bd-label">Terminal/Gate</div><div class="bd-val">${esc(f.terminal)}</div></div>`:''}
-      </div>
-    </div>`).join(''):`<div class="empty"><div class="icon">✈️</div><p>No flights added yet.</p></div>`}
+    ${cards.map(c=>{
+      if(c.rt){
+        const {out,ret}=c;
+        const bothConf=out.confirmed&&ret.confirmed;
+        const eitherConf=out.confirmed||ret.confirmed;
+        const totalCost=(out.cost||0)+(ret.cost||0);
+        return`<div class="booking-card" style="cursor:default">
+          <div class="booking-header">
+            <div class="booking-icon cat-flight">✈️</div>
+            <div class="flex1">
+              <div class="booking-title">${esc(out.from_airport)} ⇄ ${esc(out.to_airport)}</div>
+              <div class="booking-sub">${esc(out.airline||'')}${out.flight_num?' · '+esc(out.flight_num):''}${ret.flight_num?' / '+esc(ret.flight_num):''}</div>
+            </div>
+            <span class="conf-badge ${bothConf?'confirmed':eitherConf?'partial':'pending'}">${bothConf?'CONFIRMED':eitherConf?'PARTIAL':'PENDING'}</span>
+          </div>
+          <div class="fl-legs">
+            ${flightLeg(out,'OUT','')}
+            ${flightLeg(ret,'RET','fl-leg-ret')}
+          </div>
+          ${(out.seat||ret.seat||out.confirm_num||totalCost||out.terminal)?`
+          <div class="booking-detail-grid">
+            ${out.seat?`<div class="booking-detail"><div class="bd-label">Seat (out)</div><div class="bd-val">${esc(out.seat)}</div></div>`:''}
+            ${ret.seat?`<div class="booking-detail"><div class="bd-label">Seat (ret)</div><div class="bd-val">${esc(ret.seat)}</div></div>`:''}
+            ${out.terminal?`<div class="booking-detail"><div class="bd-label">Terminal</div><div class="bd-val">${esc(out.terminal)}</div></div>`:''}
+            ${out.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(out.confirm_num)}</div></div>`:''}
+            ${totalCost?`<div class="booking-detail"><div class="bd-label">Total Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(totalCost,t.currency)}</div></div>`:''}
+          </div>`:''}
+          ${write?`<div style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+            <button class="btn sm ghost" onclick="modalFlight('${t.id}','${out.id}')">✎ Edit Outbound</button>
+            <button class="btn sm ghost" onclick="modalFlight('${t.id}','${ret.id}')">✎ Edit Return</button>
+          </div>`:''}
+        </div>`;
+      } else {
+        const f=c.f;
+        return`<div class="booking-card" onclick="${write?`modalFlight('${t.id}','${f.id}')`:''}" style="${write?'':'cursor:default'}">
+          <div class="booking-header">
+            <div class="booking-icon cat-flight">✈️</div>
+            <div class="flex1">
+              <div class="booking-title">${esc(f.from_airport||'')} → ${esc(f.to_airport||'')}</div>
+              <div class="booking-sub">${esc(f.airline||'')}${f.flight_num?' · '+esc(f.flight_num):''}</div>
+            </div>
+            <span class="conf-badge ${f.confirmed?'confirmed':'pending'}">${f.confirmed?'CONFIRMED':'PENDING'}</span>
+          </div>
+          <div class="fl-legs">${flightLeg(f,'','')}</div>
+          <div class="booking-detail-grid">
+            ${f.seat?`<div class="booking-detail"><div class="bd-label">Seat</div><div class="bd-val">${esc(f.seat)}</div></div>`:''}
+            ${f.terminal?`<div class="booking-detail"><div class="bd-label">Terminal/Gate</div><div class="bd-val">${esc(f.terminal)}</div></div>`:''}
+            ${f.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(f.confirm_num)}</div></div>`:''}
+            ${f.cost?`<div class="booking-detail"><div class="bd-label">Cost</div><div class="bd-val" style="color:var(--gold)">${formatCost(f.cost,t.currency)}</div></div>`:''}
+          </div>
+        </div>`;
+      }
+    }).join('')}
   </div>`;
 }
 
@@ -1275,6 +1356,8 @@ function modalTrip(id){
   const travelers=t&&t.travelers?t.travelers:[];
   window._editTravelers=JSON.parse(JSON.stringify(travelers));
   window._editGradient=t.gradient_idx||0;
+  const today=new Date().toISOString().slice(0,10);
+  const nextWeek=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
   modal(id?'Edit Trip':'Plan a New Trip',`
   <div class="row">
     <div class="field flex1"><label>Trip Name</label><input id="t_name" value="${esc(t.name||'')}" placeholder="e.g. Japan Spring 2025"></div>
@@ -1285,8 +1368,8 @@ function modalTrip(id){
     <div class="field flex1"><label>Country</label><input id="t_country" value="${esc(t.country||'')}" placeholder="Japan"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.start_date||''}"></div>
-    <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.end_date||''}"></div>
+    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.start_date||(id?'':today)}"></div>
+    <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.end_date||(id?'':nextWeek)}"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Currency</label><select id="t_currency">${CURRENCIES.map(c=>`<option${c===(t.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
@@ -1470,7 +1553,11 @@ async function deleteEvent(tripId,id){
 function modalFlight(tripId,flId){
   const t=TRIPS.find(x=>x.id===tripId);
   const f=flId?(TD[tripId]?.flights||[]).find(x=>x.id===flId):{};
+  const defD=f.depart_date||t?.start_date||new Date().toISOString().slice(0,10);
+  const defA=f.arrive_date||defD;
+  const retD=t?.end_date||defD;
   modal(flId?'Edit Flight':'Add Flight',`
+  <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin-bottom:10px">${flId?'Flight Details':'✈ Outbound'}</div>
   <div class="row">
     <div class="field flex1"><label>From</label><input id="fl_from" value="${esc(f.from_airport||'')}" placeholder="SFO"></div>
     <div class="field flex1"><label>To</label><input id="fl_to" value="${esc(f.to_airport||'')}" placeholder="NRT"></div>
@@ -1480,12 +1567,12 @@ function modalFlight(tripId,flId){
     <div class="field flex1"><label>Flight #</label><input id="fl_num" value="${esc(f.flight_num||'')}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Depart Date</label><input id="fl_ddate" type="date" value="${f.depart_date||''}"></div>
-    <div class="field flex1"><label>Depart Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}"></div>
+    <div class="field flex1"><label>Depart</label><input id="fl_ddate" type="date" value="${defD}"></div>
+    <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Arrive Date</label><input id="fl_adate" type="date" value="${f.arrive_date||''}"></div>
-    <div class="field flex1"><label>Arrive Time</label><input id="fl_atime" type="time" value="${f.arrive_time||''}"></div>
+    <div class="field flex1"><label>Arrive</label><input id="fl_adate" type="date" value="${defA}"></div>
+    <div class="field flex1"><label>Time</label><input id="fl_atime" type="time" value="${f.arrive_time||''}"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Seat</label><input id="fl_seat" value="${esc(f.seat||'')}"></div>
@@ -1496,13 +1583,47 @@ function modalFlight(tripId,flId){
     <div class="field flex1"><label>Cost (${t?.currency||'$'})</label><input id="fl_cost" type="number" value="${f.cost||''}"></div>
   </div>
   <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
-    <input type="checkbox" id="fl_confirmed"${f.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Flight confirmed</label></div>
+    <input type="checkbox" id="fl_confirmed"${f.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Confirmed</label></div>
   <div class="field"><label>Notes</label><textarea id="fl_notes" rows="2">${esc(f.notes||'')}</textarea></div>
+  ${!flId?`
+  <div class="fl-return-toggle">
+    <span style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;white-space:nowrap">↩ Return Flight</span>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;text-transform:none;letter-spacing:0">
+      <input type="checkbox" id="fl_has_return" style="width:14px;height:14px;accent-color:var(--blue)" onchange="toggleReturnFlight(this,'${retD}')"> Add return
+    </label>
+  </div>
+  <div id="fl_return_wrap" style="display:none">
+    <div class="row">
+      <div class="field flex1"><label>From</label><input id="fl_r_from" placeholder="NRT"></div>
+      <div class="field flex1"><label>To</label><input id="fl_r_to" placeholder="SFO"></div>
+    </div>
+    <div class="row">
+      <div class="field flex1"><label>Flight #</label><input id="fl_r_num" placeholder="UA838"></div>
+      <div class="field flex1"><label>Seat</label><input id="fl_r_seat"></div>
+    </div>
+    <div class="row">
+      <div class="field flex1"><label>Depart</label><input id="fl_r_ddate" type="date" value="${retD}"></div>
+      <div class="field flex1"><label>Time</label><input id="fl_r_dtime" type="time"></div>
+    </div>
+    <div class="row">
+      <div class="field flex1"><label>Arrive</label><input id="fl_r_adate" type="date" value="${retD}"></div>
+      <div class="field flex1"><label>Time</label><input id="fl_r_atime" type="time"></div>
+    </div>
+  </div>`:''}
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
     ${flId?`<button class="btn danger" onclick="deleteFlight('${tripId}','${flId}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveFlight('${tripId}','${flId||''}')">Save</button>
   </div>`);
+}
+function toggleReturnFlight(cb,retD){
+  const wrap=document.getElementById('fl_return_wrap');if(!wrap)return;
+  wrap.style.display=cb.checked?'block':'none';
+  if(cb.checked){
+    const from=$('#fl_from')?.value;const to=$('#fl_to')?.value;
+    if(to&&!$('#fl_r_from')?.value)$('#fl_r_from').value=to;
+    if(from&&!$('#fl_r_to')?.value)$('#fl_r_to').value=from;
+  }
 }
 async function saveFlight(tripId,flId){
   const from=$('#fl_from').value.trim();if(!from){toast('Origin required');return;}
@@ -1513,8 +1634,25 @@ async function saveFlight(tripId,flId){
     seat:$('#fl_seat').value.trim()||null,terminal:$('#fl_terminal').value.trim()||null,
     confirm_num:$('#fl_conf').value.trim()||null,cost:$('#fl_cost').value?+$('#fl_cost').value:null,
     confirmed:$('#fl_confirmed').checked,notes:$('#fl_notes').value.trim()||null};
-  if(flId){await DB.from('wtn_flights').update(data).eq('id',flId);toast('Updated');}
-  else{await DB.from('wtn_flights').insert(data);toast('Flight added ✓');}
+  if(flId){await DB.from('wtn_flights').update(data).eq('id',flId);toast('Flight updated ✓');}
+  else{
+    await DB.from('wtn_flights').insert(data);
+    if($('#fl_has_return')?.checked){
+      const rFrom=$('#fl_r_from')?.value.trim();
+      if(rFrom){
+        await DB.from('wtn_flights').insert({
+          trip_id:tripId,from_airport:rFrom,
+          to_airport:$('#fl_r_to')?.value.trim()||null,
+          airline:data.airline,flight_num:$('#fl_r_num')?.value.trim()||null,
+          depart_date:$('#fl_r_ddate')?.value||null,depart_time:$('#fl_r_dtime')?.value||null,
+          arrive_date:$('#fl_r_adate')?.value||null,arrive_time:$('#fl_r_atime')?.value||null,
+          seat:$('#fl_r_seat')?.value.trim()||null,
+          confirm_num:data.confirm_num,confirmed:data.confirmed,
+        });
+        toast('Flights added ✓');
+      }
+    } else { toast('Flight added ✓'); }
+  }
   closeModal();await loadTripDetail(tripId);renderTab();
 }
 async function deleteFlight(tripId,id){
