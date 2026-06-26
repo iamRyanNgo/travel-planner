@@ -134,11 +134,25 @@ select option{background:var(--panel)}
 
 /* ── Timeline / Events ── */
 .day-block{margin-bottom:32px}
-.day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;cursor:pointer;user-select:none}
+.day-header:hover .day-num{opacity:.8}
 .day-label{display:flex;align-items:center;gap:12px}
-.day-num{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0}
+.day-num{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;transition:opacity .15s}
 .day-info h3{font-size:16px;font-weight:700;margin-bottom:2px}
 .day-info .day-date{font-size:12px;color:var(--muted)}
+.day-collapse-btn{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;transition:transform .2s}
+.day-collapse-btn.collapsed{transform:rotate(-90deg)}
+.itin-filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.itin-auto{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+.itin-auto.itin-flight{border-left:3px solid var(--blue)}
+.itin-auto.itin-stay{border-left:3px solid var(--green)}
+.itin-auto-icon{font-size:15px;width:28px;text-align:center;flex-shrink:0}
+.itin-auto-body{flex:1;min-width:0}
+.itin-auto-title{font-size:13px;font-weight:600}
+.itin-auto-meta{font-size:11px;color:var(--muted);margin-top:1px}
+.itin-auto-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;flex-shrink:0;cursor:pointer}
+.itin-auto-tag.tag-flight{background:rgba(74,144,226,.15);color:var(--blue)}
+.itin-auto-tag.tag-stay{background:rgba(52,211,153,.12);color:var(--green)}
 .timeline{position:relative;padding-left:28px}
 .timeline::before{content:'';position:absolute;left:10px;top:0;bottom:0;width:2px;background:var(--border);border-radius:2px}
 .tl-event{position:relative;margin-bottom:12px}
@@ -363,6 +377,8 @@ let TD      = {};
 let PENDING_INVITE = new URLSearchParams(window.location.search).get('invite');
 let CUR     = {view:'loading', tripId:null, tab:'overview'};
 let PWA_PROMPT = null;
+let ITIN_COLLAPSED = new Set(); // day dates collapsed in itinerary
+let ITIN_HIDE_EMPTY = false;    // hide days with no items
 
 /* ═══════════════════════════════════════════════
    UTILITIES
@@ -438,6 +454,8 @@ const TRAVELER_COLORS=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bf
 function goHome(){CUR={view:'dashboard',tripId:null,tab:'overview'};renderDashboard();}
 async function openTrip(id,tab='overview'){
   CUR={view:'trip',tripId:id,tab};
+  ITIN_COLLAPSED=new Set();
+  ITIN_HIDE_EMPTY=false;
   renderTripShell();
   await loadTripDetail(id);
   renderTab();
@@ -890,29 +908,132 @@ function debouncedSaveNotes(id,notes){
 }
 
 /* ── Itinerary ── */
+function itinAutoItems(d){
+  // Returns a map of date -> [{sortTime, html}] from flights and stays
+  const map={};
+  function push(date,sortTime,html){
+    if(!date)return;
+    (map[date]=map[date]||[]).push({sortTime:sortTime||'00:00',html});
+  }
+  (d.flights||[]).forEach(f=>{
+    const depLabel=f.airline?`${f.airline}${f.flight_num?' '+f.flight_num:''}`:'';
+    const route=`${f.from_airport||'?'} → ${f.to_airport||'?'}`;
+    if(f.depart_date){
+      push(f.depart_date,f.depart_time,
+        `<div class="tl-event"><div class="tl-dot" style="background:var(--blue)"></div>
+        <div class="itin-auto itin-flight" onclick="setTab('flights')" style="cursor:pointer">
+          <div class="itin-auto-icon">✈️</div>
+          <div class="itin-auto-body">
+            <div class="itin-auto-title">Depart · ${esc(route)}</div>
+            <div class="itin-auto-meta">${f.depart_time?f.depart_time+' · ':''}${esc(depLabel)}</div>
+          </div>
+          <span class="itin-auto-tag tag-flight">FLIGHT ›</span>
+        </div></div>`);
+    }
+    if(f.arrive_date){
+      push(f.arrive_date,f.arrive_time,
+        `<div class="tl-event"><div class="tl-dot" style="background:var(--cyan)"></div>
+        <div class="itin-auto itin-flight" onclick="setTab('flights')" style="cursor:pointer">
+          <div class="itin-auto-icon">🛬</div>
+          <div class="itin-auto-body">
+            <div class="itin-auto-title">Arrive · ${esc(route)}</div>
+            <div class="itin-auto-meta">${f.arrive_time?f.arrive_time+' · ':''}${esc(depLabel)}</div>
+          </div>
+          <span class="itin-auto-tag tag-flight">FLIGHT ›</span>
+        </div></div>`);
+    }
+  });
+  (d.stays||[]).forEach(s=>{
+    if(s.check_in){
+      push(s.check_in,s.check_in_time||'00:00',
+        `<div class="tl-event"><div class="tl-dot" style="background:var(--green)"></div>
+        <div class="itin-auto itin-stay" onclick="setTab('stays')" style="cursor:pointer">
+          <div class="itin-auto-icon">🏨</div>
+          <div class="itin-auto-body">
+            <div class="itin-auto-title">Check-in · ${esc(s.name||'Accommodation')}</div>
+            <div class="itin-auto-meta">${s.check_in_time?s.check_in_time+' · ':''}${esc(s.city||s.address||'')}</div>
+          </div>
+          <span class="itin-auto-tag tag-stay">STAY ›</span>
+        </div></div>`);
+    }
+    if(s.check_out){
+      push(s.check_out,s.check_out_time||'23:59',
+        `<div class="tl-event"><div class="tl-dot" style="background:var(--orange)"></div>
+        <div class="itin-auto itin-stay" onclick="setTab('stays')" style="cursor:pointer">
+          <div class="itin-auto-icon">🧳</div>
+          <div class="itin-auto-body">
+            <div class="itin-auto-title">Check-out · ${esc(s.name||'Accommodation')}</div>
+            <div class="itin-auto-meta">${s.check_out_time?s.check_out_time+' · ':''}${esc(s.city||s.address||'')}</div>
+          </div>
+          <span class="itin-auto-tag tag-stay">STAY ›</span>
+        </div></div>`);
+    }
+  });
+  return map;
+}
+
+function toggleItinDay(date){
+  if(ITIN_COLLAPSED.has(date))ITIN_COLLAPSED.delete(date);
+  else ITIN_COLLAPSED.add(date);
+  renderTab();
+}
+function toggleItinHideEmpty(){
+  ITIN_HIDE_EMPTY=!ITIN_HIDE_EMPTY;
+  renderTab();
+}
+
 function renderItinerary(t,d){
   const days=tripDays(t);
   if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
   const write=canWrite(t);
   const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
+  const autoMap=itinAutoItems(d);
+
+  // Count totals for filter bar label
+  let emptyCount=0;
+  days.forEach(date=>{
+    const evs=d.events.filter(e=>e.date===date);
+    const auto=autoMap[date]||[];
+    if(!evs.length&&!auto.length)emptyCount++;
+  });
+
   return`<div>
+    <div class="itin-filter-bar">
+      <button class="btn sm ghost" onclick="toggleItinHideEmpty()" style="${ITIN_HIDE_EMPTY?'background:var(--border2);color:var(--text)':''}">
+        ${ITIN_HIDE_EMPTY?'👁 Show all days':`🙈 Hide empty days${emptyCount?' ('+emptyCount+')':''}`}
+      </button>
+    </div>
     ${days.map((date,idx)=>{
       const dayEvents=d.events.filter(e=>e.date===date).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
+      const autoItems=(autoMap[date]||[]).sort((a,b)=>a.sortTime.localeCompare(b.sortTime));
+      const totalItems=dayEvents.length+autoItems.length;
+      if(ITIN_HIDE_EMPTY&&!totalItems)return'';
       const color=dayColors[idx%dayColors.length];
+      const collapsed=ITIN_COLLAPSED.has(date);
+
+      // Merge events and auto-items sorted by time
+      const allItems=[];
+      dayEvents.forEach(ev=>allItems.push({sortTime:ev.time||'23:59',html:eventCard(ev,write)}));
+      autoItems.forEach(a=>allItems.push(a));
+      allItems.sort((a,b)=>a.sortTime.localeCompare(b.sortTime));
+
       return`<div class="day-block">
-        <div class="day-header">
+        <div class="day-header" onclick="toggleItinDay('${date}')">
           <div class="day-label">
             <div class="day-num" style="background:${color}20;color:${color}">D${idx+1}</div>
             <div class="day-info">
               <h3>${fmtDay(date)}</h3>
-              <div class="day-date">${dayEvents.length} event${dayEvents.length!==1?'s':''}</div>
+              <div class="day-date">${totalItems} item${totalItems!==1?'s':''}</div>
             </div>
           </div>
-          ${write?`<button class="btn sm primary" onclick="modalEvent('${t.id}','${date}')">＋ Add</button>`:''}
+          <div style="display:flex;align-items:center;gap:8px">
+            ${write?`<button class="btn sm primary" onclick="event.stopPropagation();modalEvent('${t.id}','${date}')">＋ Add</button>`:''}
+            <button class="day-collapse-btn ${collapsed?'collapsed':''}" onclick="event.stopPropagation();toggleItinDay('${date}')">▼</button>
+          </div>
         </div>
-        <div class="timeline">
-          ${dayEvents.length?dayEvents.map(ev=>eventCard(ev,write)).join(''):`<div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No events yet.</div>`}
-        </div>
+        ${collapsed?'':`<div class="timeline">
+          ${allItems.length?allItems.map(i=>i.html).join(''):`<div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No items yet.</div>`}
+        </div>`}
       </div>`;
     }).join('')}
     ${write?`<button class="btn primary" style="margin-top:8px" onclick="modalEvent('${t.id}')">＋ Add Event</button>`:''}
