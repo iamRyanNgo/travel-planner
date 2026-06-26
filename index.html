@@ -360,7 +360,25 @@ button,a{touch-action:manipulation}
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+// Global safety net: if anything prevents the app from initializing,
+// show a reload button after 9 seconds rather than spinning forever.
+window.__loadTimer=setTimeout(function(){
+  var r=document.getElementById('root');
+  if(r&&r.querySelector&&r.querySelector('.spinner')){
+    r.innerHTML='<div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><p style="color:var(--coral);text-align:center;max-width:300px">Took too long to load.<br>Check your connection and try again.</p><button onclick="location.reload()" class="btn primary" style="margin-top:16px">Reload</button></div>';
+  }
+},9000);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"
+  onerror="clearTimeout(window.__loadTimer);document.getElementById('root').innerHTML='<div class=\'loading-screen\'><div class=\'brand-lg\'>✈ WhereToNext</div><p style=\'color:var(--coral);text-align:center\'>Could not load required scripts.<br>Check your connection.</p><button onclick=\'location.reload()\' class=\'btn primary\' style=\'margin-top:16px\'>Reload</button></div>'"></script>
+<script>
+if(typeof supabase==='undefined'){
+  clearTimeout(window.__loadTimer);
+  document.getElementById('root').innerHTML='<div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><p style="color:var(--coral);text-align:center">Script failed to load.<br>Please refresh the page.</p><button onclick="location.reload()" class="btn primary" style="margin-top:16px">Reload</button></div>';
+  throw new Error('Supabase not loaded — aborting app init');
+}
+</script>
 <script>
 /* ═══════════════════════════════════════════════
    CONFIG
@@ -475,32 +493,17 @@ function setTab(tab){CUR.tab=tab;renderTab();}
 async function initApp(){
   showLoading('Checking your session…');
   let handled=false;
-
-  // Fallback: if onAuthStateChange never fires within 8s (network issue, Supabase
-  // outage, etc.) show a reload prompt instead of a silent blank screen.
-  const authTimeout=setTimeout(()=>{
-    if(!handled){
-      document.getElementById('root').innerHTML=`
-        <div class="loading-screen">
-          <div class="brand-lg">✈ WhereToNext</div>
-          <p style="color:var(--coral);max-width:320px;text-align:center">Taking longer than expected.<br>Check your connection and try again.</p>
-          <button class="btn primary" onclick="window.location.reload()" style="margin-top:16px">Reload</button>
-        </div>`;
-    }
-  },8000);
-
   // IMPORTANT: never await other Supabase calls *inside* this callback — it runs
   // while the auth lock is held and awaiting DB queries here can deadlock, which
   // left the app blank until a hard refresh. Defer the work with setTimeout(…,0)
   // so afterSignIn() runs outside the lock.
   DB.auth.onAuthStateChange((event,session)=>{
+    clearTimeout(window.__loadTimer); // app is responding, cancel the global safety net
     if(event==='SIGNED_OUT'){
-      clearTimeout(authTimeout);
       handled=false; ME=null; TRIPS=[]; TD={}; showSignIn();
       return;
     }
     if(handled)return;
-    clearTimeout(authTimeout);
     if((event==='INITIAL_SESSION'||event==='SIGNED_IN')&&session){
       handled=true;
       setTimeout(()=>{ afterSignIn(session.user); },0);
