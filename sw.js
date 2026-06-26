@@ -1,4 +1,4 @@
-const CACHE = 'wtn-v4';
+const CACHE = 'wtn-v5';
 
 self.addEventListener('install', e => {
   // No HTML precaching — navigation always goes to the network so the page
@@ -45,8 +45,11 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for all other requests: CDN scripts, fonts, icons.
-  // These are versioned/stable assets — safe to cache indefinitely.
+  // Never cache images — profile pictures change, and a cached corrupt
+  // image shows broken avatars on every soft refresh.
+  if (request.destination === 'image') return;
+
+  // Cache-first for scripts, fonts, and other stable assets.
   e.respondWith(
     caches.open(CACHE).then(async cache => {
       const cached = await cache.match(request);
