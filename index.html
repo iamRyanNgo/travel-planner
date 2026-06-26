@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://kqlkhathprlhaogwhgjf.supabase.co">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
@@ -1949,13 +1950,32 @@ async function installPWA(){
 }
 
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  navigator.serviceWorker.register('/sw.js').then(reg=>{
+    // When a new SW takes over, reload so the page is served fresh from the new cache
+    let refreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(refreshing)return;
+      refreshing=true;
+      window.location.reload();
+    });
+    reg.addEventListener('updatefound',()=>{
+      const sw=reg.installing;
+      if(!sw)return;
+      sw.addEventListener('statechange',()=>{
+        if(sw.state==='installed'&&navigator.serviceWorker.controller){
+          // New version installed; controllerchange fires after skipWaiting activates it
+        }
+      });
+    });
+  }).catch(()=>{});
 }
 
 /* ═══════════════════════════════════════════════
    BOOT
 ═══════════════════════════════════════════════ */
-window.addEventListener('load',initApp);
+// DOMContentLoaded fires after blocking scripts (Supabase CDN) are parsed,
+// but before images and fonts — starts auth check much sooner than window.load.
+document.addEventListener('DOMContentLoaded',initApp);
 </script>
 </body>
 </html>

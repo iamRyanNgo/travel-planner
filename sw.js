@@ -1,4 +1,4 @@
-const CACHE = 'wtn-v2';
+const CACHE = 'wtn-v3';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -48,17 +48,24 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Network-first for same-origin files (app shell always stays fresh)
+  // Stale-while-revalidate for same-origin app shell:
+  // Serve cached version immediately (instant), fetch update in background.
+  // Next visit gets the fresh version. Eliminates blank-page-on-load.
   e.respondWith(
     caches.open(CACHE).then(async cache => {
-      try {
-        const res = await fetch(request);
-        if (res.ok) cache.put(request, res.clone());
+      const cached = await cache.match(request);
+      const networkFetch = fetch(request).then(res => {
+        if (res && res.ok) cache.put(request, res.clone());
         return res;
-      } catch {
-        const cached = await cache.match(request);
-        return cached || new Response('Offline — check your connection', {status: 503});
+      }).catch(() => null);
+
+      if (cached) {
+        // Serve stale immediately; update cache in background
+        e.waitUntil(networkFetch);
+        return cached;
       }
+      // No cache yet — wait for network (first visit)
+      return networkFetch || new Response('Offline — check your connection', {status: 503});
     })
   );
 });
