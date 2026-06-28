@@ -742,6 +742,9 @@ function renderDashboard(){
   renderAuthHeader();
   const headerActions = document.getElementById('headerActions');
   headerActions.innerHTML += `<button class="btn primary" onclick="modalTrip()">＋ New Trip</button>`;
+  if(!TRIPS.some(t=>t.name==='Jeju Island Wedding 💒')){
+    headerActions.innerHTML += `<button class="btn gold" onclick="seedJejuTrip()" title="Load pre-built Jeju wedding itinerary">💒 Jeju Wedding</button>`;
+  }
 
   document.getElementById('root').innerHTML=`
   <div id="dashboard">
@@ -1748,6 +1751,261 @@ async function saveTrip(id){
   closeModal();
   if(id&&CUR.tripId===id){renderTripShell();await loadTripDetail(id);renderTab();}
   else renderDashboard();
+}
+
+/* ── Jeju Wedding Seed ── */
+async function seedJejuTrip(){
+  toast('Building your Jeju wedding trip… 🌸');
+  const {data:trip,error:tripErr}=await DB.from('wtn_trips').insert({
+    owner_id:ME.id,name:'Jeju Island Wedding 💒',emoji:'💒',
+    destination:'Jeju Island, South Korea',country:'South Korea',
+    start_date:'2026-05-14',end_date:'2026-05-25',currency:'$',
+    gradient_idx:3,travelers:[],
+    notes:'Wedding celebration on May 22nd! Guests arrive in Seoul on May 14th for a week of exploring before flying to Jeju for the ceremony. 🎊',
+  }).select().single();
+  if(tripErr||!trip){toast('Could not create trip — try again');return;}
+  const tid=trip.id;
+
+  await DB.from('wtn_flights').insert([
+    {trip_id:tid,from_airport:'LAX',to_airport:'ICN',airline:'Korean Air',flight_num:'KE 12',
+     depart_date:'2026-05-13',depart_time:'23:55',arrive_date:'2026-05-14',arrive_time:'06:30',
+     confirmed:false,notes:'Arrive Incheon — allow extra time for immigration. Pick up a T-money transit card at the airport.'},
+    {trip_id:tid,from_airport:'GMP',to_airport:'CJU',airline:'Jeju Air',flight_num:'7C 101',
+     depart_date:'2026-05-17',depart_time:'15:30',arrive_date:'2026-05-17',arrive_time:'16:30',
+     confirmed:false,notes:'Gimpo → Jeju domestic shuttle (35 min). Take AREX train from ICN to Gimpo Airport first (~40 min).'},
+    {trip_id:tid,from_airport:'CJU',to_airport:'GMP',airline:'Korean Air',flight_num:'KE 1204',
+     depart_date:'2026-05-25',depart_time:'10:00',arrive_date:'2026-05-25',arrive_time:'11:10',
+     confirmed:false,notes:'Return to Seoul — check out by 8am to make this flight.'},
+    {trip_id:tid,from_airport:'ICN',to_airport:'LAX',airline:'Korean Air',flight_num:'KE 11',
+     depart_date:'2026-05-25',depart_time:'13:40',arrive_date:'2026-05-25',arrive_time:'08:40',
+     confirmed:false,notes:'Crosses the date line — arrives same calendar day as departure. Long flight (~11 hrs).'},
+  ]);
+
+  await DB.from('wtn_stays').insert([
+    {trip_id:tid,name:'Lotte Hotel Seoul',type:'Hotel',cost:840,
+     check_in:'2026-05-14',check_in_time:'15:00',check_out:'2026-05-17',check_out_time:'11:00',
+     confirmed:false,address:'30 Eulji-ro, Jung-gu, Seoul, South Korea',
+     notes:'Central Myeongdong location — walking distance to Namdaemun Market and Gyeongbokgung Palace. 3 nights × ~$280/night.'},
+    {trip_id:tid,name:'Shilla Stay Jeju',type:'Resort',cost:1760,
+     check_in:'2026-05-17',check_in_time:'16:00',check_out:'2026-05-25',check_out_time:'11:00',
+     confirmed:false,address:'1Bok 1-ro, Seogwipo-si, Jeju Island, South Korea',
+     notes:'Resort near Jungmun Beach — venue for pre-wedding dinner and post-wedding brunch. 8 nights × ~$220/night.'},
+  ]);
+
+  const evs=[
+    // ── MAY 14 · Arrive Seoul ──
+    {trip_id:tid,title:'Arrive Incheon International Airport',category:'flight',
+     date:'2026-05-14',time:'06:30',location:'Incheon International Airport (ICN), South Korea',confirmed:false,
+     notes:'Clear immigration and customs. Pick up a T-money card (₩3,000) at any convenience store or airport desk for subway and buses. AREX express train to city center ~52 min.'},
+    {trip_id:tid,title:'Check In — Lotte Hotel Seoul',category:'hotel',
+     date:'2026-05-14',time:'15:00',location:'Lotte Hotel Seoul, 30 Eulji-ro, Myeongdong',confirmed:false,
+     notes:'Early check-in available if room is ready. Store luggage with concierge if arriving before 3pm.'},
+    {trip_id:tid,title:'Myeongdong Street Food Evening',category:'food',
+     date:'2026-05-14',time:'18:30',duration:120,cost:15,
+     location:'Myeongdong Street Food Market, Jung-gu, Seoul',confirmed:false,
+     notes:'Try tteokbokki (spicy rice cakes), hotteok (sweet pancakes), Korean corn dogs, and tornado potato skewers. Open stalls line the main pedestrian street nightly.'},
+    // ── MAY 15 · Seoul Day 1 ──
+    {trip_id:tid,title:'Gyeongbokgung Palace',category:'sightseeing',
+     date:'2026-05-15',time:'09:00',duration:150,cost:3,
+     location:'Gyeongbokgung Palace, Sejongno, Jongno-gu, Seoul',confirmed:false,
+     notes:'Largest of Seoul\'s Five Grand Palaces. Royal Guard Changing ceremony at 10am and 2pm. Rent a hanbok at the East Gate for FREE palace entry — stunning photo opportunity!'},
+    {trip_id:tid,title:'Bukchon Hanok Village',category:'sightseeing',
+     date:'2026-05-15',time:'11:30',duration:90,
+     location:'Bukchon Hanok Village, Gahoe-dong, Jongno-gu, Seoul',confirmed:false,
+     notes:'Winding alleys lined with 600-year-old traditional Korean houses (hanok). Spot #3 on the slope offers the iconic Seoul rooftop skyline view — go early to avoid crowds.'},
+    {trip_id:tid,title:'Insadong Art Alley & Tea Houses',category:'sightseeing',
+     date:'2026-05-15',time:'13:30',duration:120,
+     location:'Insadong-gil, Jongno-gu, Seoul',confirmed:false,
+     notes:'Browse Korean art galleries, antique shops, and traditional teahouses. Browse Ssamziegil — a courtyard mall with indie crafts. Great spot to pick up gifts and ceramics.'},
+    {trip_id:tid,title:'Korean BBQ Dinner',category:'food',
+     date:'2026-05-15',time:'19:00',duration:90,cost:35,
+     location:'Namdaemun / Myeongdong area, Seoul',confirmed:false,
+     notes:'Try samgyeopsal (grilled pork belly) or galbi (beef short ribs) — the waiter cooks at the table. Order unlimited banchan (side dishes). Pair with cold OB beer or soju.'},
+    // ── MAY 16 · Seoul Day 2 ──
+    {trip_id:tid,title:'N Seoul Tower — Namsan Mountain',category:'activity',
+     date:'2026-05-16',time:'10:00',duration:150,cost:21,
+     location:'N Seoul Tower, Namsan Mountain, Yongsan-gu, Seoul',confirmed:false,
+     notes:'Take the Namsan cable car (₩15,000 return) for panoramic city views. Add a love lock to the famous padlock fence on the observation deck. Observatory + digital art experience inside.'},
+    {trip_id:tid,title:'Hongdae Street Art & Shopping',category:'activity',
+     date:'2026-05-16',time:'14:00',duration:120,
+     location:'Hongdae, Mapo-gu, Seoul',confirmed:false,
+     notes:'University neighbourhood famed for indie music, street performances, quirky cafés, and K-pop culture. Try bingsu (shaved ice) at a café. Free busking performances most afternoons.'},
+    {trip_id:tid,title:'Han River Sunset — Yeouido Park',category:'activity',
+     date:'2026-05-16',time:'17:30',duration:90,
+     location:'Yeouido Hangang Park, Seoul',confirmed:false,
+     notes:'Rent bikes along the river path. Grab convenience store snacks (CU or GS25) — chicken, kimbap, ramyeon cups — and watch the Han River sunset. A quintessential Seoul experience.'},
+    {trip_id:tid,title:'Traditional Korean Dinner (Mapo)',category:'food',
+     date:'2026-05-16',time:'19:30',duration:90,cost:30,
+     location:'Mapo-gu, Seoul',confirmed:false,
+     notes:'Try doenjang jjigae (fermented soybean stew), japchae (glass noodles), or haemul pajeon (seafood pancake). Excellent makgeolli (rice wine) pairing.'},
+    // ── MAY 17 · Seoul → Jeju ──
+    {trip_id:tid,title:'Namsangol Hanok Village — Hanbok Morning',category:'activity',
+     date:'2026-05-17',time:'09:00',duration:120,cost:15,
+     location:'Namsangol Hanok Village, Jung-gu, Seoul',confirmed:false,
+     notes:'Wear traditional hanbok for photos at this beautifully restored Joseon-era village near Namsan Park. Great last Seoul activity before the flight.'},
+    {trip_id:tid,title:'Fly GMP → Jeju Island',category:'flight',
+     date:'2026-05-17',time:'15:30',
+     location:'Gimpo Domestic Airport (GMP), Seoul',confirmed:false,
+     notes:'Seoul Metro Line 5 to Gimpo Airport station (30 min). Arrive 1.5 hrs before domestic departure. Grab grab some duty-free snacks in the terminal.'},
+    // ── JEJU ARRIVAL ──
+    {trip_id:tid,title:'Arrive Jeju — Rent a Car',category:'flight',
+     date:'2026-05-17',time:'16:30',
+     location:'Jeju International Airport (CJU)',confirmed:false,
+     notes:'Rent a car from the arrivals hall — driving is by far the best way to explore Jeju. Major rental desks inside. International driving permit required for foreign licenses.'},
+    {trip_id:tid,title:'Check In — Shilla Stay Jeju',category:'hotel',
+     date:'2026-05-17',time:'17:00',
+     location:'Shilla Stay Jeju, Seogwipo-si, Jeju Island',confirmed:false},
+    {trip_id:tid,title:'Hyeopje Beach Sunset',category:'sightseeing',
+     date:'2026-05-17',time:'18:30',duration:90,
+     location:'Hyeopje Beach, Aewol-eup, Jeju-si',confirmed:false,
+     notes:'Tranquil beach with emerald-green water framed by volcanic rock formations. One of Jeju\'s most photogenic sunset spots — low crowds compared to the eastern beaches.'},
+    // ── MAY 18 · Hallasan Hike ──
+    {trip_id:tid,title:'Hallasan National Park — Yeongsil Trail',category:'activity',
+     date:'2026-05-18',time:'08:00',duration:300,
+     location:'Hallasan National Park, Yeongsil Trailhead, Jeju',confirmed:false,
+     notes:'South Korea\'s highest peak (1,950m). Yeongsil trail is ~5 hrs return and features spectacular azalea blooms in May. Trail entry gate closes at 12pm — start early. Bring water, snacks, and a windproof jacket (summit is cold even in May).'},
+    {trip_id:tid,title:'Jeju Folk Village Museum',category:'sightseeing',
+     date:'2026-05-18',time:'15:30',duration:120,cost:11,
+     location:'Jeju Folk Village Museum, 631 Ponyomro, Seogwipo',confirmed:false,
+     notes:'Open-air museum with 100 traditional Jeju thatched stone houses (mingatjip) relocated from across the island. Authentic haenyeo (free-diving women) demonstrations throughout the day.'},
+    {trip_id:tid,title:'Black Pork BBQ Dinner',category:'food',
+     date:'2026-05-18',time:'19:00',duration:90,cost:40,
+     location:'Heukdon-geori (Black Pork Street), Jeju City',confirmed:false,
+     notes:'Jeju\'s most iconic dish — locally raised black pigs with richer, fattier flavor grilled over volcanic stone. Order samgyeopsal set with kimchi, garlic, and sesame dipping sauce.'},
+    // ── MAY 19 · East Coast ──
+    {trip_id:tid,title:'Seongsan Ilchulbong — Sunrise Peak',category:'sightseeing',
+     date:'2026-05-19',time:'05:30',duration:120,cost:5,
+     location:'Seongsan Ilchulbong, Seongsan-eup, Seogwipo, Jeju',confirmed:false,
+     notes:'UNESCO World Heritage volcanic crater rising dramatically from the sea. Arrive before sunrise for the legendary orange glow. ~20-min hike to the 182m summit. One of Jeju\'s must-do experiences.'},
+    {trip_id:tid,title:'Seopjikoji Coastal Walk',category:'sightseeing',
+     date:'2026-05-19',time:'09:00',duration:90,
+     location:'Seopjikoji, Seongsan-eup, Seogwipo, Jeju',confirmed:false,
+     notes:'Windswept coastal headland with May canola fields, stone windmills, and dramatic sea cliffs. Featured in the famous Korean film "Sopyonje" and multiple K-dramas. Great photo walk.'},
+    {trip_id:tid,title:'Udo Island Day Trip',category:'activity',
+     date:'2026-05-19',time:'11:00',duration:240,cost:18,
+     location:'Udo Island — ferry from Seongsan Port',confirmed:false,
+     notes:'15-min ferry (every 30 min). Rent electric bikes or scooters on the island (₩15,000/hr). Don\'t miss Udo peanut ice cream (groundnut ice cream unique to the island). Brilliant turquoise coves for swimming.'},
+    {trip_id:tid,title:'Haenyeo Seafood Dinner',category:'food',
+     date:'2026-05-19',time:'19:00',duration:90,cost:50,
+     location:'Haenyeo Village Restaurant, Seogwipo-si',confirmed:false,
+     notes:'Watch Jeju\'s legendary haenyeo (free-diving women, some aged 70+) demonstrate their craft, then eat the catch: abalone, sea cucumber, raw octopus, and fresh sashimi.'},
+    // ── MAY 20 · Volcanic Wonders ──
+    {trip_id:tid,title:'Manjanggul Lava Tube Cave',category:'sightseeing',
+     date:'2026-05-20',time:'09:30',duration:90,cost:4,
+     location:'Manjanggul Cave, Donggeomun-ro, Gujwa-eup, Jeju',confirmed:false,
+     notes:'UNESCO-listed lava tube — 7.4 km long, one of the world\'s largest. The accessible 1 km section has massive lava columns and stalagmites. Constant 11°C inside — bring a jacket even in May.'},
+    {trip_id:tid,title:'Jeju Stone Park',category:'sightseeing',
+     date:'2026-05-20',time:'11:30',duration:90,cost:8,
+     location:'Jeju Stone Park, Jeju-si',confirmed:false,
+     notes:'Beautiful hillside park themed around Jeju\'s volcanic geology and the iconic dolharubang (grandfather stone) statues. Excellent overview of Jeju mythology and culture.'},
+    {trip_id:tid,title:'Bonte Museum',category:'sightseeing',
+     date:'2026-05-20',time:'14:00',duration:90,cost:12,
+     location:'Bonte Museum, Aewol-eup, Jeju-si',confirmed:false,
+     notes:'Striking contemporary art museum with floor-to-ceiling ocean views. Minimalist architecture blends seamlessly with the landscape. Perfect for photography and pre-wedding content.'},
+    {trip_id:tid,title:'O\'sulloc Tea Museum & Fields',category:'sightseeing',
+     date:'2026-05-20',time:'16:30',duration:60,
+     location:'O\'sulloc Tea Museum, Aewol-eup, Jeju',confirmed:false,
+     notes:'Korea\'s most famous green tea brand, grown on Jeju\'s mineral-rich volcanic soil. Gorgeous manicured tea fields, a tasting bar, and beautiful matcha desserts in the café.'},
+    // ── MAY 21 · Rehearsal Day ──
+    {trip_id:tid,title:'Morning — Relax at the Resort',category:'activity',
+     date:'2026-05-21',time:'10:00',duration:180,
+     location:'Shilla Stay Jeju',confirmed:false,
+     notes:'Slow morning before rehearsal. Spa, pool, or a walk along Jungmun Beach. Enjoy the calm before tomorrow\'s big day.'},
+    {trip_id:tid,title:'💍 Wedding Rehearsal',category:'activity',
+     date:'2026-05-21',time:'14:00',duration:120,
+     location:'Wedding Venue, Jeju Island',confirmed:false,
+     notes:'Full run-through with the wedding party, officiant, photographer, and venue coordinator. Confirm processional order, seating, and vow timing.'},
+    {trip_id:tid,title:'🥂 Pre-Wedding Welcome Dinner',category:'food',
+     date:'2026-05-21',time:'19:00',duration:180,cost:95,
+     location:'Shilla Stay Jeju — Resort Restaurant',confirmed:false,
+     notes:'Welcome dinner for all guests. Korean-Western fusion tasting menu, open bar, and welcome speeches from the couple. A warm first gathering for everyone before the big day.'},
+    // ── MAY 22 · WEDDING DAY 🎊 ──
+    {trip_id:tid,title:'👰 Bridal Party — Hair & Makeup',category:'activity',
+     date:'2026-05-22',time:'09:00',duration:180,
+     location:'Hotel Suite, Shilla Stay Jeju',confirmed:false,
+     notes:'Bridal party prep. Groom and groomsmen prep separately. Photographer arrives for "getting ready" shots around 10am.'},
+    {trip_id:tid,title:'🌸 Wedding Ceremony',category:'activity',
+     date:'2026-05-22',time:'15:00',duration:60,
+     location:'Wedding Venue, Jeju Island',confirmed:false,
+     notes:'Exchange of vows in front of your closest family and friends. Golden hour photography session immediately after — Jeju\'s May light is absolutely magical. 🥲'},
+    {trip_id:tid,title:'📸 Couple Photo Session — Jeju Landscape',category:'activity',
+     date:'2026-05-22',time:'16:15',duration:75,
+     location:'Wedding Venue Grounds, Jeju',confirmed:false,
+     notes:'Golden hour portraits with the couple and wedding party. Utilize Jeju\'s volcanic landscape, ocean views, or oreum (parasitic cone) backdrop.'},
+    {trip_id:tid,title:'🎊 Wedding Reception & Banquet',category:'food',
+     date:'2026-05-22',time:'18:00',duration:240,cost:150,
+     location:'Wedding Venue — Banquet Hall, Jeju Island',confirmed:false,
+     notes:'Multi-course dinner, first dance, parent dances, speeches, cake cutting, and bouquet toss. Keep the after-party going as long as possible — this is the night of a lifetime! 🎉'},
+    // ── MAY 23 · Day After ──
+    {trip_id:tid,title:'🥞 Post-Wedding Brunch',category:'food',
+     date:'2026-05-23',time:'11:00',duration:120,cost:45,
+     location:'Shilla Stay Jeju — Rooftop Terrace',confirmed:false,
+     notes:'Relaxed brunch for the newlyweds and close family. Recap the night, share photos, open remaining gifts. No schedule pressure today.'},
+    {trip_id:tid,title:'Jungmun Saekdal Beach',category:'activity',
+     date:'2026-05-23',time:'14:00',duration:150,
+     location:'Jungmun Saekdal Beach, Seogwipo, Jeju',confirmed:false,
+     notes:'Jeju\'s most beautiful beach — dramatic striped black-and-white sand, turquoise water, and rolling waves. Perfect lazy post-wedding afternoon. Surfboard and jet ski rentals available.'},
+    {trip_id:tid,title:'Cheonjeyeon Waterfall',category:'sightseeing',
+     date:'2026-05-23',time:'17:00',duration:60,cost:3,
+     location:'Cheonjeyeon Waterfall, Seogwipo, Jeju',confirmed:false,
+     notes:'Three-tiered waterfall flowing through a lush subtropical canyon. The arched Seonimgyo Bridge is especially beautiful at dusk. Said to be where the seven nymphs of heaven bathe.'},
+    // ── MAY 24 · Final Day ──
+    {trip_id:tid,title:'Jusangjeolli Cliff — Basalt Columns',category:'sightseeing',
+     date:'2026-05-24',time:'09:30',duration:90,cost:2,
+     location:'Jusangjeolli Cliff, Jungmun, Seogwipo, Jeju',confirmed:false,
+     notes:'Dramatic hexagonal basalt columns formed where ancient lava met the sea — Jeju\'s answer to Giant\'s Causeway. Crashing waves at high tide are spectacular. Best at low tide for close-up viewing.'},
+    {trip_id:tid,title:'Cheonjiyeon Waterfall',category:'sightseeing',
+     date:'2026-05-24',time:'11:30',duration:60,cost:3,
+     location:'Cheonjiyeon Waterfall, Seogwipo, Jeju',confirmed:false,
+     notes:'Distinct from Cheonjeyeon — fed by groundwater so it flows year-round regardless of rain. Lower pools often contain endangered Jeju eels (Anguilla marmorata).'},
+    {trip_id:tid,title:'🍖 Farewell Dinner — Black Pork BBQ',category:'food',
+     date:'2026-05-24',time:'18:30',duration:120,cost:55,
+     location:'Heukdon-geori (Black Pork Street), Jeju City',confirmed:false,
+     notes:'Final group dinner before everyone heads home. Last round of Jeju black pork, makgeolli rice wine, and soju. Share memories, swap photos, and say your goodbyes properly.'},
+    // ── MAY 25 · Depart ──
+    {trip_id:tid,title:'Check Out — Shilla Stay Jeju',category:'hotel',
+     date:'2026-05-25',time:'08:00',
+     location:'Shilla Stay Jeju, Seogwipo',confirmed:false,
+     notes:'Check out by 8am to comfortably reach the airport for the 10am flight. Leave luggage with the porter the evening before if possible.'},
+    {trip_id:tid,title:'Fly Home from Jeju',category:'flight',
+     date:'2026-05-25',time:'10:00',
+     location:'Jeju International Airport (CJU)',confirmed:false,
+     notes:'Safe travels! Grab some hallabong (Jeju tangerine) chocolates and O\'sulloc green tea as souvenirs at the airport duty-free. 🍊'},
+  ];
+
+  const packItems=[
+    {trip_id:tid,name:'Passport',category:'Documents',qty:1},
+    {trip_id:tid,name:'Wedding outfit / formal wear',category:'Clothing',qty:1},
+    {trip_id:tid,name:'Dress shoes',category:'Clothing',qty:1},
+    {trip_id:tid,name:'Comfortable walking shoes',category:'Clothing',qty:1},
+    {trip_id:tid,name:'Hiking shoes / trail runners',category:'Clothing',qty:1},
+    {trip_id:tid,name:'Swimwear',category:'Clothing',qty:2},
+    {trip_id:tid,name:'Light jacket / windbreaker',category:'Clothing',qty:1},
+    {trip_id:tid,name:'Hanbok (or plan to rent on-site)',category:'Clothing',qty:1},
+    {trip_id:tid,name:'Sunscreen SPF 50+',category:'Toiletries',qty:2},
+    {trip_id:tid,name:'Insect repellent (Hallasan hike)',category:'Toiletries',qty:1},
+    {trip_id:tid,name:'Motion sickness pills (Udo Island ferry)',category:'Health',qty:1},
+    {trip_id:tid,name:'Blister plasters (walking-heavy days)',category:'Health',qty:1},
+    {trip_id:tid,name:'Power adapter — South Korea (Type C / F)',category:'Electronics',qty:1},
+    {trip_id:tid,name:'Portable phone charger',category:'Electronics',qty:1},
+    {trip_id:tid,name:'Camera + extra memory cards',category:'Electronics',qty:1},
+    {trip_id:tid,name:'Travel umbrella',category:'Misc',qty:1},
+    {trip_id:tid,name:'Korean Won — cash for markets',category:'Documents',qty:1},
+    {trip_id:tid,name:'T-money card (Seoul transit)',category:'Documents',qty:1},
+    {trip_id:tid,name:'International driving permit (for Jeju car rental)',category:'Documents',qty:1},
+    {trip_id:tid,name:'Wedding gift / card',category:'Misc',qty:1},
+    {trip_id:tid,name:'Trail snacks for Hallasan hike',category:'Snacks',qty:1},
+    {trip_id:tid,name:'Lightweight day backpack',category:'Misc',qty:1},
+  ];
+
+  await Promise.all([
+    DB.from('wtn_events').insert(evs),
+    DB.from('wtn_pack_items').insert(packItems),
+  ]);
+
+  TRIPS.unshift(trip);
+  toast('Jeju wedding trip created! 🎊 Open it now →');
+  openTrip(tid);
 }
 
 async function deleteTripConfirm(id){
