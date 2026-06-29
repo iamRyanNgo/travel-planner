@@ -857,6 +857,7 @@ function renderTripShell(){
   </div>`;
   if(isAdmin())checkPendingBadge();
 
+  const isOwner=t.owner_id===ME?.id;
   const TABS=[
     {id:'overview',icon:'📋',label:'Overview'},
     {id:'itinerary',icon:'🗓',label:'Itinerary'},
@@ -865,7 +866,8 @@ function renderTripShell(){
     {id:'activities',icon:'🎭',label:'Activities'},
     {id:'packing',icon:'🧳',label:'Packing'},
     {id:'budget',icon:'💰',label:'Budget'},
-    {id:'travelers',icon:'🛂',label:'Travelers'},
+    // Travelers tab: owner-only — passport/visa data stays private from trip members
+    ...(isOwner?[{id:'travelers',icon:'🔒',label:'Travelers'}]:[]),
   ];
 
   document.getElementById('root').innerHTML=`
@@ -901,7 +903,17 @@ function renderTab(){
   else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
   else if(CUR.tab==='budget')el.innerHTML=renderBudget(t,d);
-  else if(CUR.tab==='travelers')el.innerHTML=renderTravelers(t,d);
+  else if(CUR.tab==='travelers'){
+    if(t.owner_id!==ME?.id){
+      el.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px;gap:12px;color:var(--muted);text-align:center;padding:32px">
+        <div style="font-size:48px">🔒</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)">Private section</div>
+        <div style="font-size:14px;max-width:300px;line-height:1.6">Traveler details are only visible to the trip owner.</div>
+      </div>`;
+    }else{
+      el.innerHTML=renderTravelers(t,d);
+    }
+  }
 }
 
 /* ── Overview ── */
