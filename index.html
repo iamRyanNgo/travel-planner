@@ -327,14 +327,10 @@ button,a{touch-action:manipulation}
   .modal-bg{padding:0;align-items:flex-end}
   input,select,textarea{font-size:16px}
   .toast{bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 16px))}
-  /* Header: shift brand right to clear the ⋯ button (12px edge + ~38px btn + 8px gap = 58px) */
-  .brand{padding-left:46px}
-  /* Header: hide breadcrumb + desktop-only actions */
+  /* Header: hide breadcrumb + desktop-only actions; avatar opens the menu */
   #breadcrumb{display:none}
   .btn-label{display:none}
   .ha-desktop{display:none!important}
-  /* Show the portaled ⋯ button */
-  #mobOverflow{display:flex}
   /* Prevent brand from crowding the people/avatar buttons */
   .brand{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
   /* Tabs: smaller padding + gradient scroll hint */
@@ -351,14 +347,9 @@ button,a{touch-action:manipulation}
   .overview-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
   .stat-card .stat-val{font-size:22px}
 }
-/* ── Mobile overflow menu (⋯) — portaled outside header ── */
+/* ── Mobile overflow menu — triggered from avatar, dropdown portaled to body ── */
 .ha-desktop{display:flex;gap:6px;align-items:center}
-/* #mobOverflow sits at body level — completely outside the fixed header and its
-   backdrop-filter stacking context, so it always renders on iOS */
-#mobOverflow{position:fixed;top:0;left:calc(env(safe-area-inset-left,0px) + 12px);z-index:9999;padding:calc(env(safe-area-inset-top,0px) + 11px) 0 0;display:none;pointer-events:none}
-#mobOverflow.active{pointer-events:auto}
-.mob-act-btn{background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:7px 11px;font-size:16px;line-height:1;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation;pointer-events:auto}
-.mob-menu-drop{position:fixed;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:9999;min-width:170px;pointer-events:auto;animation:pplIn .15s ease-out}
+.mob-menu-drop{position:fixed;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:9999;min-width:170px;animation:pplIn .15s ease-out}
 .mob-menu-drop.hidden{display:none}
 .mob-menu-item{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;font-size:14px;font-weight:500;color:var(--text);background:none;border:none;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;line-height:1;transition:.12s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .mob-menu-item:active{background:var(--panel2)}
@@ -413,11 +404,8 @@ button,a{touch-action:manipulation}
   <div id="headerActions"></div>
 </header>
 
-<!-- Mobile ⋯ menu lives here — outside header, so iOS backdrop-filter never clips it -->
-<div id="mobOverflow">
-  <button id="mobActBtn" class="mob-act-btn" onclick="toggleMobMenu(event)">⋯</button>
-  <div id="mobMenuDrop" class="mob-menu-drop hidden"></div>
-</div>
+<!-- Mobile menu drop — outside header so iOS backdrop-filter never clips it -->
+<div id="mobMenuDrop" class="mob-menu-drop hidden"></div>
 
 <div id="root"><div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><div class="spinner"></div><p>Loading…</p></div></div>
 <div id="modalRoot"></div>
@@ -687,7 +675,7 @@ function renderAuthHeader(){
   <div style="display:flex;align-items:center;gap:8px">
     ${isAdmin()?`<button class="btn sm ha-desktop" onclick="openAdminPanel()" style="position:relative" id="adminBtn">🛡 Admin</button>`:''}
     ${PWA_PROMPT?`<button class="btn sm ha-desktop" onclick="installPWA()" title="Install app on your device" style="background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff">⬇ Install App</button>`:''}
-    <div class="user-chip">
+    <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">
       ${ME.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="member-avatar" style="background:var(--border2);font-size:12px">${(ME.name||'?')[0]}</div>`}
       <span>${esc(ME.name?.split(' ')[0]||ME.email)}</span>
@@ -887,7 +875,7 @@ function renderTripShell(){
       <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
       <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
     </div>
-    <div class="user-chip">${_avatar}<span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span></div>
+    <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">${_avatar}<span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span></div>
   </div>`;
   if(isAdmin())checkPendingBadge();
   updateMobMenu([
@@ -1674,20 +1662,18 @@ function togglePeople(e){
 }
 function updateMobMenu(html){
   const drop=document.getElementById('mobMenuDrop');
-  const wrap=document.getElementById('mobOverflow');
   if(drop)drop.innerHTML=html;
-  if(wrap)wrap.classList.toggle('active',!!html);
 }
 function toggleMobMenu(e){
   e&&e.stopPropagation();
   const drop=document.getElementById('mobMenuDrop');
   if(!drop)return;
   if(drop.classList.contains('hidden')){
-    const btn=document.getElementById('mobActBtn');
-    const r=btn.getBoundingClientRect();
+    const trigger=e.currentTarget||e.target.closest('.user-chip');
+    const r=trigger.getBoundingClientRect();
     drop.style.top=(r.bottom+8)+'px';
-    drop.style.left=r.left+'px';
-    drop.style.right='auto';
+    drop.style.right=(window.innerWidth-r.right)+'px';
+    drop.style.left='auto';
     drop.classList.remove('hidden');
   }else{
     drop.classList.add('hidden');
@@ -2732,8 +2718,8 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('click',e=>{
   const wrap=document.getElementById('peopleBtnWrap');
   if(wrap&&!wrap.contains(e.target))document.getElementById('peopleDropdown')?.classList.add('hidden');
-  const mob=document.getElementById('mobOverflow');
-  if(mob&&!mob.contains(e.target))closeMobMenu();
+  const drop=document.getElementById('mobMenuDrop');
+  if(drop&&!drop.contains(e.target)&&!e.target.closest('.user-chip'))closeMobMenu();
 });
 
 /* ═══════════════════════════════════════════════
