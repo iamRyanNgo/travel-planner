@@ -326,9 +326,11 @@ button,a{touch-action:manipulation}
   .modal-bg{padding:0;align-items:flex-end}
   input,select,textarea{font-size:16px}
   .toast{bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 16px))}
-  /* Header: hide breadcrumb (trip name is in the hero) and collapse button labels */
+  /* Header: hide breadcrumb + desktop actions, show ⋯ menu instead */
   #breadcrumb{display:none}
   .btn-label{display:none}
+  .ha-desktop{display:none!important}
+  .mob-menu-wrap{display:block}
   /* Tabs: smaller padding + gradient scroll hint */
   .trip-tab{padding:8px 10px;font-size:12px}
   .trip-tabs-wrap::after{content:'';position:absolute;top:0;right:0;bottom:4px;width:36px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none}
@@ -343,6 +345,15 @@ button,a{touch-action:manipulation}
   .overview-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
   .stat-card .stat-val{font-size:22px}
 }
+/* ── Mobile overflow menu (⋯) ── */
+.ha-desktop{display:flex;gap:6px;align-items:center}
+.mob-menu-wrap{display:none;position:relative}
+.mob-menu-drop{position:absolute;top:calc(100% + 10px);right:0;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:200;min-width:170px;animation:pplIn .15s ease-out}
+.mob-menu-drop.hidden{display:none}
+.mob-menu-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;font-size:14px;font-weight:500;color:var(--text);background:none;border:none;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;line-height:1;transition:.12s}
+.mob-menu-item:active{background:var(--panel2)}
+.mob-menu-item.danger{color:var(--coral)}
+
 /* ── People dropdown (nav bar) ── */
 .ppl-wrap{position:relative}
 .ppl-btn{display:inline-flex;align-items:center;gap:6px}
@@ -837,23 +848,37 @@ function renderTripShell(){
   document.getElementById('headerActions').innerHTML='';
   renderAuthHeader();
   const ha=document.getElementById('headerActions');
+  const _avatar=ME?.picture
+    ?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`
+    :`<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`;
   ha.innerHTML=`
   <div style="display:flex;gap:6px;align-items:center">
-    ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
-    <button class="btn sm ghost hide-sm" onclick="window.print()" title="Print">🖨 <span class="btn-label">Print</span></button>
-    <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone trip">⎘ <span class="btn-label">Clone</span></button>
-    ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit trip">✎ <span class="btn-label">Edit</span></button>`:''}
-    ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete trip">🗑</button>`:''}
+    <!-- Desktop: all action buttons visible -->
+    <div class="ha-desktop">
+      ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
+      <button class="btn sm ghost" onclick="window.print()" title="Print">🖨 <span class="btn-label">Print</span></button>
+      <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
+      ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
+      ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete">🗑</button>`:''}
+      <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
+    </div>
+    <!-- Always visible: people + avatar -->
     <div class="ppl-wrap" id="peopleBtnWrap">
       <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
       <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
     </div>
-    <div class="user-chip">
-      ${ME?.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
-        `<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`}
-      <span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span>
+    <div class="user-chip">${_avatar}<span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span></div>
+    <!-- Mobile only: ⋯ overflow menu -->
+    <div class="mob-menu-wrap" id="mobMenuWrap">
+      <button class="btn sm ghost" onclick="toggleMobMenu(event)" title="More">⋯</button>
+      <div class="mob-menu-drop hidden" id="mobMenuDrop">
+        ${isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:''}
+        <button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>
+        ${write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:''}
+        ${t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:''}
+        <button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>
+      </div>
     </div>
-    <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
   </div>`;
   if(isAdmin())checkPendingBadge();
 
@@ -1630,6 +1655,13 @@ function renderSidebar(tripId){
 function togglePeople(e){
   e&&e.stopPropagation();
   document.getElementById('peopleDropdown')?.classList.toggle('hidden');
+}
+function toggleMobMenu(e){
+  e&&e.stopPropagation();
+  document.getElementById('mobMenuDrop')?.classList.toggle('hidden');
+}
+function closeMobMenu(){
+  document.getElementById('mobMenuDrop')?.classList.add('hidden');
 }
 
 /* ── Invite link helpers ── */
@@ -2667,6 +2699,8 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('click',e=>{
   const wrap=document.getElementById('peopleBtnWrap');
   if(wrap&&!wrap.contains(e.target))document.getElementById('peopleDropdown')?.classList.add('hidden');
+  const mob=document.getElementById('mobMenuWrap');
+  if(mob&&!mob.contains(e.target))closeMobMenu();
 });
 
 /* ═══════════════════════════════════════════════
