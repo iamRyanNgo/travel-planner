@@ -389,10 +389,31 @@ button,a{touch-action:manipulation}
   .pack-del,.sbar-remove{opacity:.55}
 }
 
+/* ── Print selector modal ── */
+.print-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
+.print-check-card{position:relative;border:2px solid var(--border);border-radius:12px;padding:14px 10px 12px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:5px;user-select:none;-webkit-tap-highlight-color:transparent}
+.print-check-card:has(input:checked){border-color:var(--gold);background:rgba(245,197,66,.07)}
+.print-check-card input{position:absolute;top:8px;right:8px;accent-color:var(--gold);width:15px;height:15px;cursor:pointer;flex-shrink:0}
+.pcc-icon{font-size:22px;pointer-events:none}
+.pcc-label{font-size:11px;font-weight:700;color:var(--text);text-align:center;pointer-events:none;text-transform:uppercase;letter-spacing:.4px}
+.print-sel-row{display:flex;gap:6px;margin-bottom:14px}
+.print-sel-btn{font-size:12px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:20px;padding:3px 10px;cursor:pointer;font-family:inherit;transition:.12s}
+.print-sel-btn:hover{color:var(--text);border-color:var(--border2)}
+
 @media print{
-  #appHeader,#headerActions,.btn,.trip-tabs{display:none!important}
-  body{background:#fff;color:#000}
-  .card,.booking-card,.event-card{box-shadow:none;border:1px solid #ddd}
+  #appHeader,#root,#modalRoot,#toastRoot,#mobMenuDrop{display:none!important}
+  #printView{display:block!important}
+  body{background:#fff;color:#000;font-family:'DM Sans',system-ui,sans-serif}
+  .pv-header{padding:0 0 16px;border-bottom:3px solid #000;margin-bottom:28px}
+  .pv-header h1{font-size:28px;font-weight:900;margin:0 0 4px}
+  .pv-header p{font-size:13px;color:#555;margin:0}
+  .pv-section{margin-bottom:36px}
+  .pv-section-title{font-size:17px;font-weight:800;border-bottom:1px solid #ddd;padding-bottom:6px;margin-bottom:16px;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.5px}
+  .pv-page-break{page-break-before:always;padding-top:28px}
+  .card,.booking-card,.event-card{box-shadow:none!important;border:1px solid #ddd!important}
+  .btn{display:none!important}
+  .day-collapse-btn,.photo-btn,.pack-del,.sbar-remove{display:none!important}
+  .timeline::before{background:#ccc}
 }
 </style>
 </head>
@@ -408,6 +429,7 @@ button,a{touch-action:manipulation}
 <div id="mobMenuDrop" class="mob-menu-drop hidden"></div>
 
 <div id="root"><div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><div class="spinner"></div><p>Loading…</p></div></div>
+<div id="printView"></div>
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
@@ -864,7 +886,7 @@ function renderTripShell(){
     <!-- Desktop: all action buttons visible -->
     <div class="ha-desktop">
       ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
-      <button class="btn sm ghost" onclick="window.print()" title="Print">🖨 <span class="btn-label">Print</span></button>
+      <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
       <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
       ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
       ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete">🗑</button>`:''}
@@ -1549,6 +1571,83 @@ function modal(title,body){
   </div>`;
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML='';}
+
+/* ── Print Modal ── */
+const PRINT_TABS=[
+  {id:'overview',  icon:'📋',label:'Overview'},
+  {id:'itinerary', icon:'🗓',label:'Itinerary'},
+  {id:'flights',   icon:'✈️', label:'Flights'},
+  {id:'stays',     icon:'🏨',label:'Stays'},
+  {id:'activities',icon:'🎭',label:'Activities'},
+  {id:'packing',   icon:'🧳',label:'Packing'},
+  {id:'budget',    icon:'💰',label:'Budget'},
+];
+
+function modalPrint(){
+  const t=TRIPS.find(x=>x.id===CUR.tripId);
+  if(!t){toast('Open a trip first');return;}
+  modal('🖨 Print Trip',`
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Choose which sections to include in your printout.</p>
+    <div class="print-sel-row">
+      <button class="print-sel-btn" onclick="setPrintAll(true)">Select all</button>
+      <button class="print-sel-btn" onclick="setPrintAll(false)">None</button>
+    </div>
+    <div class="print-grid">
+      ${PRINT_TABS.map(tb=>`
+        <label class="print-check-card">
+          <input type="checkbox" class="print-cb" value="${tb.id}" checked>
+          <span class="pcc-icon">${tb.icon}</span>
+          <span class="pcc-label">${tb.label}</span>
+        </label>`).join('')}
+    </div>
+    <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="executePrint()">🖨 Print</button>
+    </div>
+  `);
+}
+
+function setPrintAll(val){
+  document.querySelectorAll('.print-cb').forEach(cb=>cb.checked=val);
+}
+
+async function executePrint(){
+  const t=TRIPS.find(x=>x.id===CUR.tripId);
+  if(!t)return;
+  const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[],travelers:[]};
+  const selected=[...document.querySelectorAll('.print-cb:checked')].map(cb=>cb.value);
+  if(!selected.length){toast('Select at least one section');return;}
+  closeModal();
+
+  const renderFn={
+    overview:  ()=>renderOverview(t,d),
+    itinerary: ()=>renderItinerary(t,d),
+    flights:   ()=>renderFlights(t,d),
+    stays:     ()=>renderStays(t,d),
+    activities:()=>renderActivities(t,d),
+    packing:   ()=>renderPacking(t,d),
+    budget:    ()=>renderBudget(t,d),
+  };
+
+  const sections=selected.map((id,i)=>{
+    const tab=PRINT_TABS.find(tb=>tb.id===id);
+    return`<div class="pv-section${i>0?' pv-page-break':''}">
+      <div class="pv-section-title">${tab?.icon||''} ${tab?.label||id}</div>
+      ${renderFn[id]?.()??''}
+    </div>`;
+  }).join('');
+
+  const pv=document.getElementById('printView');
+  pv.innerHTML=`
+    <div class="pv-header">
+      <h1>${esc(t.name)}</h1>
+      <p>📍 ${esc(t.destination||'')}${t.country?' · '+esc(t.country):''}${t.start_date?' &nbsp;·&nbsp; 📅 '+fmt(t.start_date)+(t.end_date?' → '+fmt(t.end_date):''):''}</p>
+    </div>
+    ${sections}`;
+
+  await new Promise(r=>requestAnimationFrame(r));
+  window.print();
+}
 
 /* ── Invite Modal ── */
 function modalInvite(tripId){
