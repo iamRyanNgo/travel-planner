@@ -353,7 +353,7 @@ button,a{touch-action:manipulation}
 .ha-desktop{display:flex;gap:6px;align-items:center}
 /* #mobOverflow sits at body level — completely outside the fixed header and its
    backdrop-filter stacking context, so it always renders on iOS */
-#mobOverflow{position:fixed;top:0;right:0;z-index:9999;padding:calc(env(safe-area-inset-top,0px) + 11px) 12px 0;display:none;pointer-events:none}
+#mobOverflow{position:fixed;top:0;left:calc(env(safe-area-inset-left,0px) + 152px);z-index:9999;padding:calc(env(safe-area-inset-top,0px) + 11px) 0 0;display:none;pointer-events:none}
 #mobOverflow.active{pointer-events:auto}
 .mob-act-btn{background:var(--panel2);border:1px solid var(--border2);color:var(--text);border-radius:10px;padding:7px 11px;font-size:16px;line-height:1;cursor:pointer;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation;pointer-events:auto}
 .mob-menu-drop{position:fixed;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:9999;min-width:170px;pointer-events:auto;animation:pplIn .15s ease-out}
@@ -1684,7 +1684,8 @@ function toggleMobMenu(e){
     const btn=document.getElementById('mobActBtn');
     const r=btn.getBoundingClientRect();
     drop.style.top=(r.bottom+8)+'px';
-    drop.style.right=(window.innerWidth-r.right)+'px';
+    drop.style.left=r.left+'px';
+    drop.style.right='auto';
     drop.classList.remove('hidden');
   }else{
     drop.classList.add('hidden');
