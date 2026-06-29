@@ -403,17 +403,92 @@ button,a{touch-action:manipulation}
 @media print{
   #appHeader,#root,#modalRoot,#toastRoot,#mobMenuDrop{display:none!important}
   #printView{display:block!important}
-  body{background:#fff;color:#000;font-family:'DM Sans',system-ui,sans-serif}
-  .pv-header{padding:0 0 16px;border-bottom:3px solid #000;margin-bottom:28px}
-  .pv-header h1{font-size:28px;font-weight:900;margin:0 0 4px}
-  .pv-header p{font-size:13px;color:#555;margin:0}
-  .pv-section{margin-bottom:36px}
-  .pv-section-title{font-size:17px;font-weight:800;border-bottom:1px solid #ddd;padding-bottom:6px;margin-bottom:16px;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.5px}
-  .pv-page-break{page-break-before:always;padding-top:28px}
-  .card,.booking-card,.event-card{box-shadow:none!important;border:1px solid #ddd!important}
-  .btn{display:none!important}
-  .day-collapse-btn,.photo-btn,.pack-del,.sbar-remove{display:none!important}
-  .timeline::before{background:#ccc}
+  *{box-shadow:none!important;text-shadow:none!important}
+  body{background:#fff;color:#000;font-family:'DM Sans',system-ui,sans-serif;font-size:11px;line-height:1.4;margin:0;padding:0}
+
+  /* Trip header — tight 1-liner */
+  .pv-header{display:flex;align-items:baseline;gap:16px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:14px}
+  .pv-header h1{font-size:16px;font-weight:900;margin:0;white-space:nowrap}
+  .pv-header p{font-size:10px;color:#555;margin:0}
+
+  /* Section titles */
+  .pv-section{margin-bottom:14px}
+  .pv-section-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#555;border-bottom:1px solid #ccc;padding-bottom:3px;margin-bottom:8px}
+  .pv-page-break{page-break-before:always;padding-top:14px}
+
+  /* Cards: strip borders/radius/padding to table-row density */
+  .booking-card{border:none!important;border-bottom:1px solid #eee!important;border-radius:0!important;padding:6px 0!important;margin-bottom:0!important}
+  .booking-header{gap:8px;margin-bottom:3px}
+  .booking-icon{width:22px;height:22px;font-size:12px;border-radius:4px}
+  .booking-title{font-size:11px;font-weight:700}
+  .booking-sub{font-size:10px}
+  .booking-detail-grid{display:flex;flex-wrap:wrap;gap:12px;padding-top:3px;border-top:none!important}
+  .booking-detail .bd-label{font-size:9px}
+  .booking-detail .bd-val{font-size:10px}
+  .conf-badge{display:none}
+
+  /* Events: single-line rows */
+  .event-card{border:none!important;border-bottom:1px solid #eee!important;border-radius:0!important;padding:4px 0!important;gap:8px}
+  .event-icon{width:20px;height:20px;font-size:11px;border-radius:3px}
+  .event-title{font-size:11px;font-weight:600;margin-bottom:0}
+  .event-meta{font-size:10px;margin-top:1px;gap:6px}
+  .event-cost{font-size:10px}
+  .ev-photo-panel,.photo-strip,.day-collapse-btn,.photo-btn,.pack-del,.sbar-remove,.itin-filter-bar,.btn{display:none!important}
+
+  /* Timeline: strip the vertical line */
+  .timeline{padding-left:0}
+  .timeline::before,.tl-dot{display:none}
+  .tl-event{margin-bottom:0}
+
+  /* Day blocks */
+  .day-block{margin-bottom:10px}
+  .day-header{margin-bottom:4px}
+  .day-num{width:28px;height:28px;font-size:11px;border-radius:6px}
+  .day-info h3{font-size:11px}
+  .day-info .day-date{font-size:9px}
+  .itin-auto{padding:4px 6px;margin-bottom:3px;border-radius:4px}
+  .itin-auto-title{font-size:10px}
+  .itin-auto-meta{font-size:9px}
+
+  /* Packing: compact checklist */
+  .pack-item{padding:3px 6px;border-radius:4px;border:none!important;border-bottom:1px solid #eee!important;margin-bottom:0}
+  .pack-check{width:13px;height:13px;border-radius:3px}
+  .pack-name{font-size:11px}
+  .pack-qty{font-size:10px}
+  .pack-section{margin-bottom:8px}
+  .pack-section-header{margin-bottom:4px}
+  .pack-section-title{font-size:10px}
+  .pack-progress{display:none}
+
+  /* Overview stats: inline row instead of grid */
+  .overview-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .stat-card{border:1px solid #eee!important;border-radius:6px!important;padding:6px 10px!important;flex:0 0 auto}
+  .stat-card .stat-val{font-size:16px}
+  .stat-card .stat-label{font-size:9px}
+  .fun-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .fun-stat{padding:5px 8px;border-radius:6px;border:1px solid #eee!important}
+  .fun-stat-icon{font-size:13px;width:20px}
+  .fun-stat-val{font-size:12px}
+  .fun-stat-label{font-size:9px}
+
+  /* Budget */
+  .budget-summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .budget-stat{padding:6px 10px;border:1px solid #eee!important;border-radius:6px!important;flex:0 0 auto}
+  .budget-stat .bv{font-size:14px}
+  .budget-stat .bl{font-size:9px}
+  .budget-bar{display:none}
+  .budget-line{padding:4px 0;border-bottom:1px solid #eee}
+  .budget-line-name{font-size:11px}
+  .budget-line-sub{font-size:9px}
+
+  /* Members */
+  .member-card{padding:5px 8px;border-radius:4px;margin-bottom:3px;border:1px solid #eee!important}
+  .member-avatar{width:22px;height:22px;font-size:10px}
+  .member-name{font-size:11px}
+  .member-email{font-size:9px}
+
+  /* Notes textarea */
+  textarea{border:none;resize:none;padding:0;font-size:11px;color:#333}
 }
 </style>
 </head>
