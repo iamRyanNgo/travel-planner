@@ -243,3 +243,32 @@ create policy wtn_budget_r on wtn_budget_items for select using      (wtn_can_re
 create policy wtn_budget_i on wtn_budget_items for insert with check (wtn_can_write(trip_id));
 create policy wtn_budget_u on wtn_budget_items for update using      (wtn_can_write(trip_id));
 create policy wtn_budget_d on wtn_budget_items for delete using      (wtn_can_write(trip_id));
+
+-- ── Travelers ─────────────────────────────────────────────────────
+create table if not exists wtn_travelers (
+  id                      uuid primary key default gen_random_uuid(),
+  trip_id                 uuid references wtn_trips(id) on delete cascade not null,
+  name                    text not null,
+  role                    text,
+  email                   text,
+  phone                   text,
+  nationality             text,
+  date_of_birth           date,
+  passport_number         text,
+  passport_country        text,
+  passport_expiry         date,
+  visa_type               text,
+  visa_expiry             date,
+  visa_notes              text,
+  emergency_contact_name  text,
+  emergency_contact_phone text,
+  seat_preference         text,
+  meal_preference         text,
+  notes                   text,
+  created_at              timestamptz default now()
+);
+alter table wtn_travelers enable row level security;
+create policy wtn_trav_r on wtn_travelers for select using      (wtn_can_read(trip_id));
+create policy wtn_trav_i on wtn_travelers for insert with check (wtn_can_write(trip_id));
+create policy wtn_trav_u on wtn_travelers for update using      (wtn_can_write(trip_id));
+create policy wtn_trav_d on wtn_travelers for delete using      (wtn_can_write(trip_id));

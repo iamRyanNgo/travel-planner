@@ -251,6 +251,28 @@ select option{background:var(--panel)}
 .budget-line-sub{font-size:11px;color:var(--muted);margin-top:1px}
 .budget-line-amt{font-size:14px;font-weight:700;color:var(--gold);flex-shrink:0}
 
+/* ── Travelers ── */
+.traveler-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.traveler-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;transition:.15s;position:relative}
+.traveler-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.traveler-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0}
+.traveler-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.traveler-name{font-size:16px;font-weight:700;font-family:'Playfair Display',serif}
+.traveler-role{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.traveler-fields{display:grid;gap:8px}
+.traveler-field{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.traveler-field-icon{font-size:14px;flex-shrink:0;width:20px;padding-top:1px;text-align:center}
+.traveler-field-body{flex:1;min-width:0}
+.traveler-field-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px;font-weight:600}
+.traveler-field-val{color:var(--text);word-break:break-word}
+.traveler-field-val.warn{color:var(--coral)}
+.traveler-field-val.ok{color:var(--green)}
+.traveler-section-head{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px;margin-top:4px}
+.traveler-status{position:absolute;top:14px;right:14px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px}
+.traveler-status.complete{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.traveler-status.partial{background:rgba(251,146,60,.12);color:var(--orange);border:1px solid rgba(251,146,60,.25)}
+.traveler-status.empty{background:rgba(122,144,184,.1);color:var(--muted);border:1px solid var(--border)}
+
 /* ── Admin panel ── */
 .admin-panel{background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.2);border-radius:14px;padding:18px;margin-bottom:20px}
 .admin-panel h3{font-size:14px;font-weight:700;color:var(--coral);margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -667,7 +689,7 @@ async function loadTrips(){
 async function loadTripDetail(id){
   const trip=TRIPS.find(x=>x.id===id);
   const [
-    {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members},{data:ownerProfile}
+    {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members},{data:ownerProfile},{data:travelers}
   ] = await Promise.all([
     DB.from('wtn_events').select('*').eq('trip_id',id).order('date').order('time'),
     DB.from('wtn_flights').select('*').eq('trip_id',id).order('depart_date'),
@@ -676,12 +698,14 @@ async function loadTripDetail(id){
     DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at'),
     DB.from('wtn_trip_members').select('*, wtn_profiles!user_id(id,name,email,picture)').eq('trip_id',id),
     DB.from('wtn_profiles').select('id,name,email,picture').eq('id',trip?.owner_id||'').single(),
+    DB.from('wtn_travelers').select('*').eq('trip_id',id).order('name'),
   ]);
   TD[id]={
     events:events||[], flights:flights||[], stays:stays||[],
     packItems:packItems||[], budgetItems:budgetItems||[],
     members:(members||[]).map(m=>({...m,profile:m.wtn_profiles})),
     ownerProfile:ownerProfile||null,
+    travelers:travelers||[],
   };
   renderSidebar(id);
 }
@@ -825,6 +849,7 @@ function renderTripShell(){
     {id:'activities',icon:'🎭',label:'Activities'},
     {id:'packing',icon:'🧳',label:'Packing'},
     {id:'budget',icon:'💰',label:'Budget'},
+    {id:'travelers',icon:'🛂',label:'Travelers'},
   ];
 
   document.getElementById('root').innerHTML=`
@@ -858,6 +883,7 @@ function renderTab(){
   else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
   else if(CUR.tab==='budget')el.innerHTML=renderBudget(t,d);
+  else if(CUR.tab==='travelers')el.innerHTML=renderTravelers(t,d);
 }
 
 /* ── Overview ── */
@@ -2395,6 +2421,158 @@ async function deleteBudgetItem(tripId,id){
   if(!confirm('Delete?'))return;
   await DB.from('wtn_budget_items').delete().eq('id',id);
   toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
+}
+
+/* ── Travelers ── */
+function renderTravelers(t,d){
+  const travelers=d.travelers||[];
+  const write=canWrite(t);
+  function completeness(tv){
+    const fields=[tv.passport_number,tv.passport_expiry,tv.passport_country,tv.nationality,tv.date_of_birth,tv.emergency_contact_name,tv.emergency_contact_phone];
+    const filled=fields.filter(Boolean).length;
+    if(filled===fields.length)return{label:'Complete',cls:'complete'};
+    if(filled>0)return{label:'Partial',cls:'partial'};
+    return{label:'No docs',cls:'empty'};
+  }
+  function expiryWarn(dateStr){
+    if(!dateStr)return null;
+    const d=new Date(dateStr),now=new Date();
+    const months=(d-now)/(1000*60*60*24*30);
+    if(months<0)return'warn';
+    if(months<6)return'warn';
+    return'ok';
+  }
+  function fmtDate(s){return s?new Date(s).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}):'—'}
+  function travCard(tv){
+    const initials=(tv.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const c=completeness(tv);
+    const pExp=expiryWarn(tv.passport_expiry);
+    const vExp=expiryWarn(tv.visa_expiry);
+    return`<div class="traveler-card" onclick="${write?`modalTraveler('${t.id}','${tv.id}')`:''}" ${!write?'style="cursor:default"':''}>
+      <span class="traveler-status ${c.cls}">${c.label}</span>
+      <div class="traveler-header">
+        <div class="traveler-avatar">${initials}</div>
+        <div><div class="traveler-name">${esc(tv.name)}</div><div class="traveler-role">${esc(tv.role||'Traveler')}</div></div>
+      </div>
+      <div class="traveler-fields">
+        ${tv.nationality||tv.date_of_birth?`
+        <div class="traveler-field"><span class="traveler-field-icon">🌍</span><div class="traveler-field-body"><div class="traveler-field-label">Nationality</div><div class="traveler-field-val">${esc(tv.nationality||'—')}</div></div></div>
+        ${tv.date_of_birth?`<div class="traveler-field"><span class="traveler-field-icon">🎂</span><div class="traveler-field-body"><div class="traveler-field-label">Date of Birth</div><div class="traveler-field-val">${fmtDate(tv.date_of_birth)}</div></div></div>`:''}
+        `:''}
+        <div class="traveler-section-head">Passport</div>
+        <div class="traveler-field"><span class="traveler-field-icon">🛂</span><div class="traveler-field-body"><div class="traveler-field-label">Passport Number</div><div class="traveler-field-val">${esc(tv.passport_number||'—')}</div></div></div>
+        <div class="traveler-field"><span class="traveler-field-icon">🏳️</span><div class="traveler-field-body"><div class="traveler-field-label">Issuing Country</div><div class="traveler-field-val">${esc(tv.passport_country||'—')}</div></div></div>
+        <div class="traveler-field"><span class="traveler-field-icon">📅</span><div class="traveler-field-body"><div class="traveler-field-label">Expiry Date</div><div class="traveler-field-val${pExp?' '+pExp:''}">${fmtDate(tv.passport_expiry)}${pExp==='warn'?' ⚠️':pExp==='ok'?' ✓':''}</div></div></div>
+        ${tv.visa_type||tv.visa_expiry?`
+        <div class="traveler-section-head">Visa</div>
+        <div class="traveler-field"><span class="traveler-field-icon">📋</span><div class="traveler-field-body"><div class="traveler-field-label">Visa Type</div><div class="traveler-field-val">${esc(tv.visa_type||'—')}</div></div></div>
+        <div class="traveler-field"><span class="traveler-field-icon">📅</span><div class="traveler-field-body"><div class="traveler-field-label">Visa Expiry</div><div class="traveler-field-val${vExp?' '+vExp:''}">${fmtDate(tv.visa_expiry)}${vExp==='warn'?' ⚠️':vExp==='ok'?' ✓':''}</div></div></div>
+        ${tv.visa_notes?`<div class="traveler-field"><span class="traveler-field-icon">💬</span><div class="traveler-field-body"><div class="traveler-field-label">Visa Notes</div><div class="traveler-field-val">${esc(tv.visa_notes)}</div></div></div>`:''}
+        `:''}
+        ${tv.emergency_contact_name||tv.emergency_contact_phone?`
+        <div class="traveler-section-head">Emergency Contact</div>
+        <div class="traveler-field"><span class="traveler-field-icon">👤</span><div class="traveler-field-body"><div class="traveler-field-label">Name</div><div class="traveler-field-val">${esc(tv.emergency_contact_name||'—')}</div></div></div>
+        <div class="traveler-field"><span class="traveler-field-icon">📞</span><div class="traveler-field-body"><div class="traveler-field-label">Phone</div><div class="traveler-field-val">${esc(tv.emergency_contact_phone||'—')}</div></div></div>
+        `:''}
+        ${tv.seat_preference||tv.meal_preference?`
+        <div class="traveler-section-head">Preferences</div>
+        ${tv.seat_preference?`<div class="traveler-field"><span class="traveler-field-icon">💺</span><div class="traveler-field-body"><div class="traveler-field-label">Seat</div><div class="traveler-field-val">${esc(tv.seat_preference)}</div></div></div>`:''}
+        ${tv.meal_preference?`<div class="traveler-field"><span class="traveler-field-icon">🍽️</span><div class="traveler-field-body"><div class="traveler-field-label">Meal</div><div class="traveler-field-val">${esc(tv.meal_preference)}</div></div></div>`:''}
+        `:''}
+        ${tv.notes?`<div class="traveler-section-head">Notes</div><div class="traveler-field"><span class="traveler-field-icon">📝</span><div class="traveler-field-body"><div class="traveler-field-val">${esc(tv.notes)}</div></div></div>`:''}
+        ${tv.phone||tv.email?`
+        <div class="traveler-section-head">Contact</div>
+        ${tv.email?`<div class="traveler-field"><span class="traveler-field-icon">✉️</span><div class="traveler-field-body"><div class="traveler-field-label">Email</div><div class="traveler-field-val">${esc(tv.email)}</div></div></div>`:''}
+        ${tv.phone?`<div class="traveler-field"><span class="traveler-field-icon">📱</span><div class="traveler-field-body"><div class="traveler-field-label">Phone</div><div class="traveler-field-val">${esc(tv.phone)}</div></div></div>`:''}
+        `:''}
+      </div>
+    </div>`;
+  }
+  return`<div style="padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <h2 style="font-size:20px;margin-bottom:4px">Travelers</h2>
+        <p class="muted" style="font-size:13px">${travelers.length} traveler${travelers.length!==1?'s':''} — passport, visa, emergency contacts</p>
+      </div>
+      ${write?`<button class="btn primary" onclick="modalTraveler('${t.id}')">＋ Add Traveler</button>`:''}
+    </div>
+    ${travelers.length
+      ?`<div class="traveler-grid">${travelers.map(travCard).join('')}</div>`
+      :`<div class="empty"><div class="icon">🛂</div><h3 style="margin-bottom:8px">No travelers yet</h3><p class="muted" style="margin-bottom:20px">Add each person's passport, visa, and emergency contact details in one place.</p>${write?`<button class="btn primary" onclick="modalTraveler('${t.id}')">＋ Add Traveler</button>`:''}</div>`
+    }
+  </div>`;
+}
+
+function modalTraveler(tripId,tvId){
+  const tv=tvId?(TD[tripId]?.travelers||[]).find(x=>x.id===tvId):{};
+  modal(tvId?'Edit Traveler':'Add Traveler',`
+  <div class="row">
+    <div class="field flex1"><label>Full Name</label><input id="tv_name" value="${esc(tv.name||'')}" placeholder="As on passport"></div>
+    <div class="field flex1"><label>Role / Group</label><input id="tv_role" value="${esc(tv.role||'')}" placeholder="e.g. Bridesmaid, Family"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Email</label><input id="tv_email" type="email" value="${esc(tv.email||'')}" placeholder="name@email.com"></div>
+    <div class="field flex1"><label>Phone</label><input id="tv_phone" value="${esc(tv.phone||'')}" placeholder="+1 555 000 0000"></div>
+  </div>
+  <div class="row">
+    <div class="field flex1"><label>Nationality</label><input id="tv_nat" value="${esc(tv.nationality||'')}" placeholder="e.g. American"></div>
+    <div class="field flex1"><label>Date of Birth</label><input id="tv_dob" type="date" value="${tv.date_of_birth||''}"></div>
+  </div>
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:8px 0 12px;padding-top:8px;border-top:1px solid var(--border)">Passport</div>
+  <div class="row">
+    <div class="field flex1"><label>Passport Number</label><input id="tv_pnum" value="${esc(tv.passport_number||'')}" placeholder="A1234567"></div>
+    <div class="field flex1"><label>Issuing Country</label><input id="tv_pcountry" value="${esc(tv.passport_country||'')}" placeholder="United States"></div>
+  </div>
+  <div class="field"><label>Passport Expiry Date</label><input id="tv_pexp" type="date" value="${tv.passport_expiry||''}"></div>
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:8px 0 12px;padding-top:8px;border-top:1px solid var(--border)">Visa</div>
+  <div class="row">
+    <div class="field flex1"><label>Visa Type</label><input id="tv_vtype" value="${esc(tv.visa_type||'')}" placeholder="e.g. K-ETA, Tourist Visa"></div>
+    <div class="field flex1"><label>Visa Expiry</label><input id="tv_vexp" type="date" value="${tv.visa_expiry||''}"></div>
+  </div>
+  <div class="field"><label>Visa Notes</label><input id="tv_vnotes" value="${esc(tv.visa_notes||'')}" placeholder="e.g. Applied, single-entry, arrival stamp"></div>
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:8px 0 12px;padding-top:8px;border-top:1px solid var(--border)">Emergency Contact</div>
+  <div class="row">
+    <div class="field flex1"><label>Contact Name</label><input id="tv_ecname" value="${esc(tv.emergency_contact_name||'')}" placeholder="Full name"></div>
+    <div class="field flex1"><label>Contact Phone</label><input id="tv_ecphone" value="${esc(tv.emergency_contact_phone||'')}" placeholder="+1 555 000 0000"></div>
+  </div>
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:8px 0 12px;padding-top:8px;border-top:1px solid var(--border)">Preferences</div>
+  <div class="row">
+    <div class="field flex1"><label>Seat Preference</label><input id="tv_seat" value="${esc(tv.seat_preference||'')}" placeholder="e.g. Window, Aisle"></div>
+    <div class="field flex1"><label>Meal Preference</label><input id="tv_meal" value="${esc(tv.meal_preference||'')}" placeholder="e.g. Vegetarian, Halal"></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea id="tv_notes" rows="2" placeholder="Allergies, medical info, special requirements…">${esc(tv.notes||'')}</textarea></div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${tvId?`<button class="btn danger" onclick="deleteTraveler('${tripId}','${tvId}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveTraveler('${tripId}','${tvId||''}')">Save</button>
+  </div>`);
+}
+
+async function saveTraveler(tripId,tvId){
+  const name=$('#tv_name').value.trim();if(!name){toast('Name is required');return;}
+  const data={
+    trip_id:tripId,name,role:$('#tv_role').value.trim()||null,
+    email:$('#tv_email').value.trim()||null,phone:$('#tv_phone').value.trim()||null,
+    nationality:$('#tv_nat').value.trim()||null,date_of_birth:$('#tv_dob').value||null,
+    passport_number:$('#tv_pnum').value.trim()||null,passport_country:$('#tv_pcountry').value.trim()||null,
+    passport_expiry:$('#tv_pexp').value||null,
+    visa_type:$('#tv_vtype').value.trim()||null,visa_expiry:$('#tv_vexp').value||null,
+    visa_notes:$('#tv_vnotes').value.trim()||null,
+    emergency_contact_name:$('#tv_ecname').value.trim()||null,
+    emergency_contact_phone:$('#tv_ecphone').value.trim()||null,
+    seat_preference:$('#tv_seat').value.trim()||null,
+    meal_preference:$('#tv_meal').value.trim()||null,
+    notes:$('#tv_notes').value.trim()||null,
+  };
+  if(tvId){await DB.from('wtn_travelers').update(data).eq('id',tvId);toast('Traveler updated ✓');}
+  else{await DB.from('wtn_travelers').insert(data);toast('Traveler added ✓');}
+  closeModal();await loadTripDetail(tripId);renderTab();
+}
+
+async function deleteTraveler(tripId,id){
+  if(!confirm('Remove this traveler?'))return;
+  await DB.from('wtn_travelers').delete().eq('id',id);
+  toast('Removed');closeModal();await loadTripDetail(tripId);renderTab();
 }
 
 /* ═══════════════════════════════════════════════
