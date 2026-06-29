@@ -70,9 +70,10 @@ select option{background:var(--panel)}
 .divider{height:1px;background:var(--border);margin:20px 0}
 
 /* ── Header ── */
-#appHeader{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(8,14,28,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:16px}
+#appHeader{position:fixed;top:0;left:0;right:0;z-index:50;background:rgba(8,14,28,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:16px;overflow:visible}
 #root{padding-top:58px}
-.brand{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;background:linear-gradient(135deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;cursor:pointer;flex-shrink:0}
+#headerActions{display:flex;gap:8px;flex-shrink:0;align-items:center}
+.brand{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;background:linear-gradient(135deg,#fff,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;cursor:pointer;flex-shrink:1;min-width:0}
 .brand span{font-size:11px;font-family:'DM Sans',sans-serif;font-weight:500;color:var(--muted);display:block;letter-spacing:2px;text-transform:uppercase;margin-top:-4px}
 #breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex:1;min-width:0}
 #breadcrumb .sep{color:var(--dim)}
@@ -331,6 +332,8 @@ button,a{touch-action:manipulation}
   .btn-label{display:none}
   .ha-desktop{display:none!important}
   .mob-menu-wrap{display:block}
+  /* Prevent brand from crowding action buttons */
+  .brand{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
   /* Tabs: smaller padding + gradient scroll hint */
   .trip-tab{padding:8px 10px;font-size:12px}
   .trip-tabs-wrap::after{content:'';position:absolute;top:0;right:0;bottom:4px;width:36px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none}
@@ -348,7 +351,7 @@ button,a{touch-action:manipulation}
 /* ── Mobile overflow menu (⋯) ── */
 .ha-desktop{display:flex;gap:6px;align-items:center}
 .mob-menu-wrap{display:none;position:relative}
-.mob-menu-drop{position:absolute;top:calc(100% + 10px);right:0;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:200;min-width:170px;animation:pplIn .15s ease-out}
+.mob-menu-drop{position:fixed;top:68px;right:12px;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:999;min-width:170px;animation:pplIn .15s ease-out}
 .mob-menu-drop.hidden{display:none}
 .mob-menu-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;font-size:14px;font-weight:500;color:var(--text);background:none;border:none;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;line-height:1;transition:.12s}
 .mob-menu-item:active{background:var(--panel2)}
@@ -1658,7 +1661,17 @@ function togglePeople(e){
 }
 function toggleMobMenu(e){
   e&&e.stopPropagation();
-  document.getElementById('mobMenuDrop')?.classList.toggle('hidden');
+  const drop=document.getElementById('mobMenuDrop');
+  if(!drop)return;
+  if(drop.classList.contains('hidden')){
+    const btn=e.currentTarget||e.target.closest('button');
+    const r=btn.getBoundingClientRect();
+    drop.style.top=(r.bottom+8)+'px';
+    drop.style.right=(window.innerWidth-r.right)+'px';
+    drop.classList.remove('hidden');
+  }else{
+    drop.classList.add('hidden');
+  }
 }
 function closeMobMenu(){
   document.getElementById('mobMenuDrop')?.classList.add('hidden');
