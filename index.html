@@ -107,8 +107,10 @@ select option{background:var(--panel)}
 .trip-hero-content h1{font-size:clamp(24px,4vw,40px);font-weight:900;margin-bottom:6px}
 .trip-hero-content .trip-dates{font-size:14px;color:rgba(255,255,255,.7);display:flex;gap:16px;flex-wrap:wrap}
 .trip-hero-emoji{position:absolute;top:24px;right:32px;font-size:80px;z-index:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
-.trip-tabs{display:flex;gap:2px;padding:16px 0 0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;margin-bottom:24px}
+.trip-tabs-wrap{position:relative}
+.trip-tabs{display:flex;gap:2px;padding:16px 0 0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;margin-bottom:24px;-webkit-overflow-scrolling:touch}
 .trip-tabs::-webkit-scrollbar{display:none}
+.btn-label{display:inline}
 .trip-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;transition:.15s}
 .trip-tab:hover{color:var(--text)}
 .trip-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
@@ -314,13 +316,29 @@ button,a{touch-action:manipulation}
 .modal{overscroll-behavior:contain}
 
 @media(max-width:680px){
-  #appHeader{padding:0 max(14px,env(safe-area-inset-right,14px)) 0 max(14px,env(safe-area-inset-left,14px))}
+  #appHeader{padding:0 max(12px,env(safe-area-inset-right,12px)) 0 max(12px,env(safe-area-inset-left,12px));gap:8px}
   #dashboard,#tripView{padding:16px 14px max(60px,calc(env(safe-area-inset-bottom,0px) + 24px))}
   .trip-hero{height:200px;padding:18px;border-radius:0 0 18px 18px}
   .modal{border-radius:18px 18px 0 0;max-height:min(94vh,94dvh)}
   .modal-bg{padding:0;align-items:flex-end}
   input,select,textarea{font-size:16px}
   .toast{bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 16px))}
+  /* Header: hide breadcrumb (trip name is in the hero) and collapse button labels */
+  #breadcrumb{display:none}
+  .btn-label{display:none}
+  /* Tabs: smaller padding + gradient scroll hint */
+  .trip-tab{padding:8px 10px;font-size:12px}
+  .trip-tabs-wrap::after{content:'';position:absolute;top:0;right:0;bottom:4px;width:36px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none}
+  /* Event cards: tighter on mobile */
+  .event-card{padding:10px}
+  .event-icon{width:34px;height:34px;font-size:16px}
+  .event-title{font-size:13px}
+  /* Booking cards: tighter */
+  .booking-card{padding:14px}
+  .booking-detail-grid{grid-template-columns:1fr 1fr}
+  /* Overview stat grid */
+  .overview-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+  .stat-card .stat-val{font-size:22px}
 }
 /* ── People dropdown (nav bar) ── */
 .ppl-wrap{position:relative}
@@ -346,16 +364,11 @@ button,a{touch-action:manipulation}
 .sbar-member:hover .sbar-remove{opacity:1;color:var(--coral)}
 
 @media(max-width:680px){
-  .trip-tab{padding:8px 11px;font-size:12px}
-  .trip-tabs{-webkit-overflow-scrolling:touch}
   .ppl-dropdown{right:auto;left:50%;transform:translateX(-50%)}
   .hide-sm{display:none!important}
   .user-chip span{display:none}
   .user-chip{padding:2px 4px}
   .trip-hero-emoji{font-size:52px;top:14px;right:16px}
-  .stat-card .stat-val{font-size:22px}
-  .overview-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
-  .booking-detail-grid{grid-template-columns:1fr 1fr}
 }
 @media(hover:none),(pointer:coarse){
   .pack-del,.sbar-remove{opacity:.55}
@@ -822,14 +835,14 @@ function renderTripShell(){
   renderAuthHeader();
   const ha=document.getElementById('headerActions');
   ha.innerHTML=`
-  <div style="display:flex;gap:8px;align-items:center">
-    ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn">🛡 Admin</button>`:''}
-    <button class="btn sm ghost hide-sm" onclick="window.print()">🖨 Print</button>
-    <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')">⎘ Clone</button>
-    ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')">✎ Edit</button>`:''}
-    ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')">🗑</button>`:''}
+  <div style="display:flex;gap:6px;align-items:center">
+    ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
+    <button class="btn sm ghost hide-sm" onclick="window.print()" title="Print">🖨 <span class="btn-label">Print</span></button>
+    <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone trip">⎘ <span class="btn-label">Clone</span></button>
+    ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit trip">✎ <span class="btn-label">Edit</span></button>`:''}
+    ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete trip">🗑</button>`:''}
     <div class="ppl-wrap" id="peopleBtnWrap">
-      <button class="btn sm ppl-btn" onclick="togglePeople(event)">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
+      <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
       <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
     </div>
     <div class="user-chip">
@@ -865,8 +878,10 @@ function renderTripShell(){
         </div>
       </div>
     </div>
-    <div class="trip-tabs">
-      ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+    <div class="trip-tabs-wrap">
+      <div class="trip-tabs">
+        ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+      </div>
     </div>
     <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
   </div>`;
