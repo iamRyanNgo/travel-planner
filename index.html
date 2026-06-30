@@ -24,6 +24,26 @@
   --coral:#f87171; --purple:#a78bfa; --orange:#fb923c; --pink:#f472b6;
   --radius:14px; --shadow:0 8px 32px rgba(0,0,0,.45);
 }
+[data-theme="light"]{
+  --bg:#f0f4ff;--bg2:#e8edf7;--panel:#ffffff;--panel2:#f4f6fb;
+  --border:#d1d9ea;--border2:#b8c4d9;
+  --text:#1a2540;--muted:#566685;--dim:#9aacc5;
+  --gold:#9b6f00;--gold2:#c48800;
+  --blue:#2563eb;--cyan:#0891b2;--green:#059669;
+  --coral:#dc2626;--purple:#7c3aed;--orange:#ea580c;--pink:#db2777;
+  --radius:14px;--shadow:0 8px 32px rgba(0,0,0,.1);
+}
+[data-theme="light"] #appHeader{background:rgba(240,244,255,.93)}
+[data-theme="light"] .trip-hero::after{background:linear-gradient(to top,rgba(240,244,255,.97) 0%,rgba(240,244,255,.5) 60%,transparent 100%)}
+[data-theme="light"] .trip-hero-content .trip-dates{color:rgba(26,37,64,.75)}
+[data-theme="light"] .brand{background:linear-gradient(135deg,var(--text) 40%,var(--gold));-webkit-background-clip:text;background-clip:text}
+[data-theme="light"] .dash-hero h1{background:linear-gradient(135deg,var(--text) 40%,var(--gold));-webkit-background-clip:text;background-clip:text}
+[data-theme="light"] .loading-screen .brand-lg{background:linear-gradient(135deg,var(--text),var(--gold));-webkit-background-clip:text;background-clip:text}
+[data-theme="light"] .auth-card h1{background:linear-gradient(135deg,var(--text),var(--gold));-webkit-background-clip:text;background-clip:text}
+[data-theme="light"] .timeline::before{background:var(--border2)}
+[data-theme="light"] .mob-menu-drop{box-shadow:0 8px 32px rgba(0,0,0,.2)}
+[data-theme="light"] .tab-nav-drop{box-shadow:0 8px 32px rgba(0,0,0,.15)}
+[data-theme="light"] .ppl-dropdown{box-shadow:0 8px 32px rgba(0,0,0,.15)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 #root{overflow-x:clip}
@@ -110,13 +130,17 @@ select option{background:var(--panel)}
 .trip-hero-content h1{font-size:clamp(24px,4vw,40px);font-weight:900;margin-bottom:6px}
 .trip-hero-content .trip-dates{font-size:14px;color:rgba(255,255,255,.7);display:flex;gap:16px;flex-wrap:wrap}
 .trip-hero-emoji{position:absolute;top:24px;right:32px;font-size:80px;z-index:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
-.trip-tabs-wrap{position:relative}
-.trip-tabs{display:flex;gap:2px;padding:16px 0 0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;margin-bottom:24px;-webkit-overflow-scrolling:touch}
-.trip-tabs::-webkit-scrollbar{display:none}
 .btn-label{display:inline}
-.trip-tab{padding:10px 18px;font-size:13px;font-weight:600;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;cursor:pointer;transition:.15s}
-.trip-tab:hover{color:var(--text)}
-.trip-tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+/* ── Tab navigation dropdown ── */
+.tab-nav-wrap{position:relative;padding:14px 0 0;margin-bottom:20px}
+.tab-nav-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.tab-nav-btn:hover,.tab-nav-btn:focus{background:var(--panel);border-color:var(--gold);color:var(--gold);outline:none}
+.tab-nav-arrow{color:var(--muted);font-size:11px;margin-left:2px}
+.tab-nav-drop{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.5);z-index:100;animation:pplIn .15s ease-out}
+.tab-nav-drop.hidden{display:none}
+.tab-nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;font-size:14px;font-weight:500;color:var(--muted);background:none;border:none;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;transition:.12s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.tab-nav-item:hover{background:var(--panel2);color:var(--text)}
+.tab-nav-item.active{color:var(--gold);font-weight:700;background:rgba(245,197,66,.07)}
 
 /* ── Overview ── */
 .overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
@@ -333,9 +357,6 @@ button,a{touch-action:manipulation}
   .ha-desktop{display:none!important}
   /* Prevent brand from crowding the people/avatar buttons */
   .brand{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
-  /* Tabs: smaller padding + gradient scroll hint */
-  .trip-tab{padding:8px 10px;font-size:12px}
-  .trip-tabs-wrap::after{content:'';position:absolute;top:0;right:0;bottom:4px;width:36px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none}
   /* Event cards: tighter on mobile */
   .event-card{padding:10px}
   .event-icon{width:34px;height:34px;font-size:16px}
@@ -491,6 +512,7 @@ button,a{touch-action:manipulation}
   textarea{border:none;resize:none;padding:0;font-size:11px;color:#333}
 }
 </style>
+<script>(function(){var t=localStorage.getItem('wtn-theme');if(t==='light')document.documentElement.dataset.theme='light';}());</script>
 </head>
 <body>
 
@@ -633,7 +655,54 @@ async function openTrip(id,tab='overview'){
   await loadTripDetail(id);
   renderTab();
 }
-function setTab(tab){CUR.tab=tab;renderTab();}
+const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Flights'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
+function setTab(tab){
+  CUR.tab=tab;
+  closeTabNav();
+  const meta=TAB_META[tab];
+  if(meta){
+    const lbl=document.getElementById('tabNavLabel');if(lbl)lbl.textContent=meta.label;
+    const ico=document.getElementById('tabNavIcon');if(ico)ico.textContent=meta.icon;
+  }
+  document.querySelectorAll('.tab-nav-item').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
+  renderTab();
+}
+function toggleTabNav(e){e&&e.stopPropagation();document.getElementById('tabNavDrop')?.classList.toggle('hidden');}
+function closeTabNav(){document.getElementById('tabNavDrop')?.classList.add('hidden');}
+function toggleTheme(){
+  const html=document.documentElement;
+  const isLight=html.dataset.theme==='light';
+  if(isLight)delete html.dataset.theme; else html.dataset.theme='light';
+  localStorage.setItem('wtn-theme',isLight?'dark':'light');
+  const btn=document.getElementById('themeBtn');
+  if(btn)btn.textContent=html.dataset.theme==='light'?'🌙':'☀️';
+  buildMobMenu();
+}
+function buildMobMenu(){
+  const isLight=document.documentElement.dataset.theme==='light';
+  const themeIcon=isLight?'🌙':'☀️';
+  const themeLabel=isLight?'Dark mode':'Light mode';
+  if(CUR.view==='trip'){
+    const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
+    const write=canWrite(t);
+    updateMobMenu([
+      isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
+      `<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`,
+      write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:'',
+      t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
+      `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${themeIcon} ${themeLabel}</button>`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
+    ].join(''));
+  }else{
+    updateMobMenu([
+      isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
+      `<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${themeIcon} ${themeLabel}</button>`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
+    ].join(''));
+  }
+}
 
 /* ═══════════════════════════════════════════════
    AUTH FLOW
@@ -768,10 +837,12 @@ async function submitRequest(){
 
 function renderAuthHeader(){
   if(!ME)return;
+  const isLight=document.documentElement.dataset.theme==='light';
   document.getElementById('headerActions').innerHTML=`
   <div style="display:flex;align-items:center;gap:8px">
     ${isAdmin()?`<button class="btn sm ha-desktop" onclick="openAdminPanel()" style="position:relative" id="adminBtn">🛡 Admin</button>`:''}
     ${PWA_PROMPT?`<button class="btn sm ha-desktop" onclick="installPWA()" title="Install app on your device" style="background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff">⬇ Install App</button>`:''}
+    <button class="btn sm ghost ha-desktop" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
     <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">
       ${ME.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="member-avatar" style="background:var(--border2);font-size:12px">${(ME.name||'?')[0]}</div>`}
@@ -779,10 +850,7 @@ function renderAuthHeader(){
     </div>
     <button class="btn sm ghost ha-desktop" onclick="signOut()" title="Sign out">↩</button>
   </div>`;
-  updateMobMenu([
-    isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
-    `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
-  ].join(''));
+  buildMobMenu();
   if(isAdmin())checkPendingBadge();
 }
 
@@ -956,6 +1024,7 @@ function renderTripShell(){
   const _avatar=ME?.picture
     ?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`
     :`<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`;
+  const isLight=document.documentElement.dataset.theme==='light';
   ha.innerHTML=`
   <div style="display:flex;gap:6px;align-items:center">
     <!-- Desktop: all action buttons visible -->
@@ -965,6 +1034,7 @@ function renderTripShell(){
       <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
       ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
       ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete">🗑</button>`:''}
+      <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
       <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
     </div>
     <!-- Always visible: people + avatar -->
@@ -975,13 +1045,7 @@ function renderTripShell(){
     <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">${_avatar}<span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span></div>
   </div>`;
   if(isAdmin())checkPendingBadge();
-  updateMobMenu([
-    isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
-    `<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`,
-    write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:'',
-    t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
-    `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
-  ].join(''));
+  buildMobMenu();
 
   const isOwner=t.owner_id===ME?.id;
   const TABS=[
@@ -1009,9 +1073,14 @@ function renderTripShell(){
         </div>
       </div>
     </div>
-    <div class="trip-tabs-wrap">
-      <div class="trip-tabs">
-        ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+    <div class="tab-nav-wrap" id="tabNavWrap">
+      <button class="tab-nav-btn" onclick="toggleTabNav(event)">
+        <span id="tabNavIcon">${TABS.find(x=>x.id===CUR.tab)?.icon||'📋'}</span>
+        <span id="tabNavLabel">${TABS.find(x=>x.id===CUR.tab)?.label||'Overview'}</span>
+        <span class="tab-nav-arrow">▾</span>
+      </button>
+      <div class="tab-nav-drop hidden" id="tabNavDrop">
+        ${TABS.map(tb=>`<button class="tab-nav-item${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
       </div>
     </div>
     <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
@@ -2886,7 +2955,7 @@ async function openPhotoPanel(btn){
 ═══════════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');}
+  if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');closeMobMenu();closeTabNav();}
   if(e.key==='n'&&CUR.view==='dashboard')modalTrip();
 });
 document.addEventListener('click',e=>{
@@ -2894,6 +2963,8 @@ document.addEventListener('click',e=>{
   if(wrap&&!wrap.contains(e.target))document.getElementById('peopleDropdown')?.classList.add('hidden');
   const drop=document.getElementById('mobMenuDrop');
   if(drop&&!drop.contains(e.target)&&!e.target.closest('.user-chip'))closeMobMenu();
+  const tnWrap=document.getElementById('tabNavWrap');
+  if(tnWrap&&!tnWrap.contains(e.target))closeTabNav();
 });
 
 /* ═══════════════════════════════════════════════
