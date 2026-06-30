@@ -132,8 +132,8 @@ select option{background:var(--panel)}
 .trip-hero-emoji{position:absolute;top:24px;right:32px;font-size:80px;z-index:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
 .btn-label{display:inline}
 /* ── Tab navigation dropdown ── */
-.tab-nav-wrap{position:relative;padding:14px 0 0;margin-bottom:20px}
-.tab-nav-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;font-size:14px;font-weight:600;color:var(--text);cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.tab-nav-wrap{position:relative;flex-shrink:0}
+.tab-nav-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
 .tab-nav-btn:hover,.tab-nav-btn:focus{background:var(--panel);border-color:var(--gold);color:var(--gold);outline:none}
 .tab-nav-arrow{color:var(--muted);font-size:11px;margin-left:2px}
 .tab-nav-drop{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.5);z-index:100;animation:pplIn .15s ease-out}
@@ -1025,28 +1025,6 @@ function renderTripShell(){
     ?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`
     :`<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`;
   const isLight=document.documentElement.dataset.theme==='light';
-  ha.innerHTML=`
-  <div style="display:flex;gap:6px;align-items:center">
-    <!-- Desktop: all action buttons visible -->
-    <div class="ha-desktop">
-      ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
-      <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
-      <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
-      ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
-      ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete">🗑</button>`:''}
-      <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
-      <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
-    </div>
-    <!-- Always visible: people + avatar -->
-    <div class="ppl-wrap" id="peopleBtnWrap">
-      <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
-      <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
-    </div>
-    <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">${_avatar}<span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span></div>
-  </div>`;
-  if(isAdmin())checkPendingBadge();
-  buildMobMenu();
-
   const isOwner=t.owner_id===ME?.id;
   const TABS=[
     {id:'overview',icon:'📋',label:'Overview'},
@@ -1059,6 +1037,37 @@ function renderTripShell(){
     // Travelers tab: owner-only — passport/visa data stays private from trip members
     ...(isOwner?[{id:'travelers',icon:'🔒',label:'Travelers'}]:[]),
   ];
+  ha.innerHTML=`
+  <div style="display:flex;gap:6px;align-items:center">
+    <!-- Desktop: all action buttons visible -->
+    <div class="ha-desktop">
+      ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
+      <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
+      <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
+      ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
+      ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete">🗑</button>`:''}
+      <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
+      <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
+    </div>
+    <!-- Always visible: tab nav + people + avatar -->
+    <div class="tab-nav-wrap" id="tabNavWrap">
+      <button class="tab-nav-btn" onclick="toggleTabNav(event)">
+        <span id="tabNavIcon">${TABS.find(x=>x.id===CUR.tab)?.icon||'📋'}</span>
+        <span id="tabNavLabel" class="btn-label">${TABS.find(x=>x.id===CUR.tab)?.label||'Overview'}</span>
+        <span class="tab-nav-arrow">▾</span>
+      </button>
+      <div class="tab-nav-drop hidden" id="tabNavDrop">
+        ${TABS.map(tb=>`<button class="tab-nav-item${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+      </div>
+    </div>
+    <div class="ppl-wrap" id="peopleBtnWrap">
+      <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
+      <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
+    </div>
+    <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">${_avatar}<span>${esc(ME?.name?.split(' ')[0]||ME?.email||'')}</span></div>
+  </div>`;
+  if(isAdmin())checkPendingBadge();
+  buildMobMenu();
 
   document.getElementById('root').innerHTML=`
   <div id="tripView">
@@ -1071,16 +1080,6 @@ function renderTripShell(){
           ${t.start_date?`<span>📅 ${fmt(t.start_date)}${t.end_date?' → '+fmt(t.end_date):''}${days?' ('+days+' days)':''}</span>`:''}
           <span>${cd.label}</span>
         </div>
-      </div>
-    </div>
-    <div class="tab-nav-wrap" id="tabNavWrap">
-      <button class="tab-nav-btn" onclick="toggleTabNav(event)">
-        <span id="tabNavIcon">${TABS.find(x=>x.id===CUR.tab)?.icon||'📋'}</span>
-        <span id="tabNavLabel">${TABS.find(x=>x.id===CUR.tab)?.label||'Overview'}</span>
-        <span class="tab-nav-arrow">▾</span>
-      </button>
-      <div class="tab-nav-drop hidden" id="tabNavDrop">
-        ${TABS.map(tb=>`<button class="tab-nav-item${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
       </div>
     </div>
     <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
