@@ -150,6 +150,13 @@ select option{background:var(--panel)}
 .tab-nav-item:hover{background:var(--panel2);color:var(--text)}
 .tab-nav-item.active{color:var(--gold);font-weight:700;background:rgba(245,197,66,.07)}
 
+/* ── Map ── */
+#tripMap{height:min(65vh,560px);border-radius:16px;border:1px solid var(--border);background:var(--panel2);z-index:1}
+.map-pin-wrap{background:none;border:none}
+.map-pin{width:32px;height:32px;border-radius:50%;background:var(--panel);border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text)}
+.leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
+
 /* ── Overview ── */
 .overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
@@ -524,6 +531,8 @@ button,a{touch-action:manipulation}
 }
 </style>
 <script>(function(){var t=localStorage.getItem('wtn-theme');if(t==='light')document.documentElement.dataset.theme='light';}());</script>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<script src="vendor/leaflet/leaflet.js" defer></script>
 </head>
 <body>
 
@@ -666,7 +675,7 @@ async function openTrip(id,tab='overview'){
   await loadTripDetail(id);
   renderTab();
 }
-const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Flights'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
+const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Flights'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 function setTab(tab){
   CUR.tab=tab;
   closeTabNav();
@@ -1044,6 +1053,7 @@ function renderTripShell(){
     {id:'flights',icon:'✈️',label:'Flights'},
     {id:'stays',icon:'🏨',label:'Stays'},
     {id:'activities',icon:'🎭',label:'Activities'},
+    {id:'map',icon:'🗺',label:'Map'},
     {id:'packing',icon:'🧳',label:'Packing'},
     {id:'budget',icon:'💰',label:'Budget'},
     // Travelers tab: owner-only — passport/visa data stays private from trip members
@@ -1112,6 +1122,7 @@ function renderTab(){
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
   else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
+  else if(CUR.tab==='map'){el.innerHTML=renderMapShell(t,d);initTripMap(t,d);}
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
   else if(CUR.tab==='budget')el.innerHTML=renderBudget(t,d);
   else if(CUR.tab==='travelers'){
@@ -1125,6 +1136,85 @@ function renderTab(){
       el.innerHTML=renderTravelers(t,d);
     }
   }
+}
+
+/* ── Map ── */
+let MAP=null;
+const GEO_KEY='wtn-geo-v1';
+function geoCache(){try{return JSON.parse(localStorage.getItem(GEO_KEY)||'{}')}catch{return{}}}
+function geoCacheSet(q,v){const c=geoCache();c[q]=v;try{localStorage.setItem(GEO_KEY,JSON.stringify(c))}catch{}}
+async function geocode(q){
+  const c=geoCache();
+  if(q in c)return c[q];
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`);
+    if(!res.ok)return null;
+    const js=await res.json();
+    const v=js?.[0]?{lat:+js[0].lat,lon:+js[0].lon}:null;
+    geoCacheSet(q,v);
+    return v;
+  }catch{return null}
+}
+function mapPlaces(t,d){
+  const suffix=[t.destination,t.country].filter(Boolean).join(', ');
+  const places=[];
+  (d.stays||[]).forEach(s=>places.push({
+    icon:'🏨',color:'var(--purple)',name:s.name,
+    sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
+    q:[s.address||s.name,suffix].filter(Boolean).join(', '),
+  }));
+  (d.events||[]).filter(e=>e.location||e.address).forEach(e=>{
+    const cat=CATS[e.category]||CATS.other;
+    places.push({
+      icon:cat.icon,color:'var(--gold)',name:e.title,
+      sub:[e.location,e.date?fmt(e.date):''].filter(Boolean).join(' · '),
+      q:[e.address||e.location,suffix].filter(Boolean).join(', '),
+    });
+  });
+  return places;
+}
+function renderMapShell(t,d){
+  const n=mapPlaces(t,d).length;
+  return `
+  <div class="section-head">
+    <h2 style="font-family:'Playfair Display',serif">🗺 Trip Map</h2>
+    <span id="mapStatus" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  ${n===0?`<p style="font-size:13px;color:var(--muted);margin-bottom:12px">No pinnable places yet — add stays or activities with a location or address and they'll show up here.</p>`:''}
+  <div id="tripMap"></div>
+  <div id="mapMissing" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>`;
+}
+async function initTripMap(t,d){
+  const el=document.getElementById('tripMap');if(!el)return;
+  if(typeof L==='undefined'){el.innerHTML='<p style="padding:20px;color:var(--muted)">Map library failed to load — check your connection and refresh.</p>';return;}
+  if(MAP){MAP.remove();MAP=null;}
+  MAP=L.map(el).setView([20,0],2);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(MAP);
+  const destQ=[t.destination,t.country].filter(Boolean).join(', ');
+  if(destQ){const g=await geocode(destQ);if(g&&MAP)MAP.setView([g.lat,g.lon],11);}
+  const places=mapPlaces(t,d);
+  const statusEl=document.getElementById('mapStatus');
+  const pts=[];let done=0;
+  for(const p of places){
+    if(CUR.tab!=='map'||!MAP)return;
+    const wasCached=(p.q in geoCache());
+    const g=await geocode(p.q);
+    done++;
+    if(statusEl)statusEl.textContent=done<places.length?`Locating places… ${done}/${places.length}`:'';
+    if(g){
+      pts.push([g.lat,g.lon]);
+      L.marker([g.lat,g.lon],{icon:L.divIcon({className:'map-pin-wrap',html:`<div class="map-pin" style="border-color:${p.color}">${p.icon}</div>`,iconSize:[34,34],iconAnchor:[17,17]})})
+        .addTo(MAP)
+        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}`);
+      if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
+      else MAP.setView(pts[0],13);
+    }else p.missing=true;
+    // Nominatim usage policy: max 1 request/sec (cached lookups are free)
+    if(!wasCached)await new Promise(r=>setTimeout(r,1100));
+  }
+  const missing=places.filter(p=>p.missing);
+  const missEl=document.getElementById('mapMissing');
+  if(missEl&&missing.length)missEl.textContent=`Couldn't pin: ${missing.map(m=>m.name).join(', ')} — add a fuller address to place them on the map.`;
 }
 
 /* ── Overview ── */
