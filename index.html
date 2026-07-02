@@ -157,6 +157,8 @@ select option{background:var(--panel)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text)}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
 
+.split-btn{padding:4px 9px;font-size:12px;flex-shrink:0;margin-left:8px}
+
 /* ── Offline sync pill ── */
 #syncPill{position:fixed;bottom:16px;left:16px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 15px;border-radius:30px;font-size:12px;font-weight:600;z-index:9998;cursor:pointer;box-shadow:var(--shadow);animation:pplIn .2s ease-out}
 
@@ -834,6 +836,14 @@ async function detectSchemaV2(){
   SCHEMA_V2=!error;
   return SCHEMA_V2;
 }
+// v3 = split columns on flights/stays/events (supabase/migration_v3.sql)
+let SCHEMA_V3=null;
+async function detectSchemaV3(){
+  if(SCHEMA_V3!==null)return SCHEMA_V3;
+  const {error}=await DB.from('wtn_flights').select('paid_by').limit(1);
+  SCHEMA_V3=!error;
+  return SCHEMA_V3;
+}
 
 // Exchange rates (frankfurter.dev, keyless) keyed by base ISO code; null = fetch failed
 let RATES={};
@@ -1146,7 +1156,10 @@ async function loadTripDetail(id){
       const {data:docs}=await DB.from('wtn_trip_docs').select('*').eq('trip_id',id).order('created_at',{ascending:false});
       TD[id].docs=docs||[];
     }
-    try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify(TD[id]))}catch{}
+    detectSchemaV3();
+    // Privacy: passport/visa data never touches localStorage — the offline
+    // cache stores everything except travelers
+    try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify({...TD[id],travelers:[]}))}catch{}
   }catch(e){
     // Network down — hydrate from last-synced copy (read-only until back online)
     try{
@@ -1352,11 +1365,14 @@ function renderTab(){
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
   else if(CUR.tab==='budget'){
     el.innerHTML=renderBudget(t,d);
-    // If any item is in a foreign currency, fetch rates once then re-render with conversions
+    // If conversions are needed (foreign-currency items or a display currency
+    // different from the trip's), fetch rates once then re-render
     const tripSym=t.currency||'$';
-    const iso=SYM2ISO[tripSym]||'USD';
-    if(RATES[iso]===undefined&&(d.budgetItems||[]).some(b=>b.currency&&b.currency!==tripSym)){
-      ensureRates(tripSym).then(()=>{if(CUR.tab==='budget')renderTab();});
+    const disp=BUDGET_DISP_CUR||tripSym;
+    const iso=SYM2ISO[disp]||'USD';
+    const needs=disp!==tripSym||(d.budgetItems||[]).some(b=>b.currency&&b.currency!==disp);
+    if(RATES[iso]===undefined&&needs){
+      ensureRates(disp).then(()=>{if(CUR.tab==='budget')renderTab();});
     }
   }
   else if(CUR.tab==='travelers'){
@@ -1374,38 +1390,82 @@ function renderTab(){
 
 /* ── Map ── */
 let MAP=null;
-const GEO_KEY='wtn-geo-v1';
+const GEO_KEY='wtn-geo-v2'; // v2: multi-attempt queries + fallback geocoder (v1 cached misses too aggressively)
 function geoCache(){try{return JSON.parse(localStorage.getItem(GEO_KEY)||'{}')}catch{return{}}}
 function geoCacheSet(q,v){const c=geoCache();c[q]=v;try{localStorage.setItem(GEO_KEY,JSON.stringify(c))}catch{}}
-async function geocode(q){
-  const c=geoCache();
-  if(q in c)return c[q];
+let GEO_LAST=0;
+async function geoNominatim(q){
+  // Nominatim usage policy: max 1 request/sec — globally throttled here
+  const wait=GEO_LAST+1100-Date.now();
+  if(wait>0)await new Promise(r=>setTimeout(r,wait));
+  GEO_LAST=Date.now();
   try{
-    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`);
-    if(!res.ok)return null;
+    const res=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
+    if(!res.ok)return undefined;                                // transient (throttled/5xx) — never cache
     const js=await res.json();
-    const v=js?.[0]?{lat:+js[0].lat,lon:+js[0].lon}:null;
-    geoCacheSet(q,v);
-    return v;
-  }catch{return null}
+    return js?.[0]?{lat:+js[0].lat,lon:+js[0].lon}:null;        // null = genuinely no match
+  }catch{return undefined}                                      // network/CSP failure — never cache
 }
+async function geoOpenMeteo(name){
+  try{
+    const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(name)}`);
+    if(!res.ok)return undefined;
+    const r=(await res.json())?.results?.[0];
+    return r?{lat:r.latitude,lon:r.longitude}:null;
+  }catch{return undefined}
+}
+async function geocodeTries(tries,nameOnly,cacheKey){
+  const c=geoCache();
+  if(cacheKey in c)return c[cacheKey];
+  let transient=false;
+  for(const q of tries.filter(Boolean)){
+    const g=await geoNominatim(q);
+    if(g){geoCacheSet(cacheKey,g);return g;}
+    if(g===undefined)transient=true;
+  }
+  if(nameOnly){
+    const g2=await geoOpenMeteo(nameOnly);
+    if(g2){geoCacheSet(cacheKey,g2);return g2;}
+    if(g2===undefined)transient=true;
+  }
+  if(!transient)geoCacheSet(cacheKey,null); // only cache confirmed misses, so retries stay possible
+  return null;
+}
+async function geocode(q){return geocodeTries([q],q,q);} // one-shot (destination centering, weather)
 function mapPlaces(t,d){
   const suffix=[t.destination,t.country].filter(Boolean).join(', ');
   const places=[];
-  (d.stays||[]).forEach(s=>places.push({
-    icon:'🏨',color:'var(--purple)',name:s.name,
-    sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
-    q:[s.address||s.name,suffix].filter(Boolean).join(', '),
-  }));
+  (d.stays||[]).forEach(s=>{
+    const addr=s.address;
+    places.push({
+      icon:'🏨',color:'var(--purple)',name:s.name,
+      sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
+      // Try the address in context, the raw address, then the place name in context
+      tries:[addr&&suffix?`${addr}, ${suffix}`:null, addr||null, s.name&&suffix?`${s.name}, ${suffix}`:s.name],
+      nameOnly:s.name||null,
+      qKey:`stay|${addr||s.name}|${suffix}`,
+    });
+  });
   (d.events||[]).filter(e=>e.location||e.address).forEach(e=>{
     const cat=CATS[e.category]||CATS.other;
+    const loc=e.address||e.location;
     places.push({
       icon:cat.icon,color:'var(--gold)',name:e.title,
       sub:[e.location,e.date?fmt(e.date):''].filter(Boolean).join(' · '),
-      q:[e.address||e.location,suffix].filter(Boolean).join(', '),
+      tries:[suffix?`${loc}, ${suffix}`:loc, loc, e.address&&e.location?`${e.location}, ${suffix}`:null],
+      nameOnly:e.location||null,
+      qKey:`ev|${loc}|${suffix}`,
     });
   });
   return places;
+}
+function retryMapPins(){
+  const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
+  const d=TD[t.id]||{};
+  const c=geoCache();
+  mapPlaces(t,d).forEach(p=>{if(c[p.qKey]===null)delete c[p.qKey];});
+  try{localStorage.setItem(GEO_KEY,JSON.stringify(c))}catch{}
+  renderTab();
 }
 function renderMapShell(t,d){
   const n=mapPlaces(t,d).length;
@@ -1431,8 +1491,7 @@ async function initTripMap(t,d){
   const pts=[];let done=0;
   for(const p of places){
     if(CUR.tab!=='map'||!MAP)return;
-    const wasCached=(p.q in geoCache());
-    const g=await geocode(p.q);
+    const g=await geocodeTries(p.tries,p.nameOnly,p.qKey);
     done++;
     if(statusEl)statusEl.textContent=done<places.length?`Locating places… ${done}/${places.length}`:'';
     if(g){
@@ -1443,12 +1502,11 @@ async function initTripMap(t,d){
       if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
       else MAP.setView(pts[0],13);
     }else p.missing=true;
-    // Nominatim usage policy: max 1 request/sec (cached lookups are free)
-    if(!wasCached)await new Promise(r=>setTimeout(r,1100));
   }
+  if(statusEl)statusEl.textContent=pts.length?`${pts.length}/${places.length} pinned`:'';
   const missing=places.filter(p=>p.missing);
   const missEl=document.getElementById('mapMissing');
-  if(missEl&&missing.length)missEl.textContent=`Couldn't pin: ${missing.map(m=>m.name).join(', ')} — add a fuller address to place them on the map.`;
+  if(missEl&&missing.length)missEl.innerHTML=`Couldn't pin: ${missing.map(m=>esc(m.name)).join(', ')} — a fuller address helps. <button class="btn sm ghost" onclick="retryMapPins()" style="margin-left:6px">↻ Retry lookups</button>`;
 }
 
 /* ── Calendar export (.ics) ── */
@@ -1509,11 +1567,39 @@ function wmoIcon(c){
   if(c<=48)return'🌫';if(c<=57)return'🌦';if(c<=67)return'🌧';
   if(c<=77)return'🌨';if(c<=82)return'🌧';if(c<=86)return'🌨';return'⛈';
 }
+function modalWxLocation(tripId){
+  const curLoc=localStorage.getItem('wtn-wx-'+tripId)||'';
+  modal('📍 Weather Location',`
+  <div class="field"><label>City / place for the forecast</label><input id="wx_loc" value="${esc(curLoc)}" placeholder="e.g. Deià, Majorca"></div>
+  <p style="font-size:12px;color:var(--muted)">Leave empty to use the trip destination.</p>
+  <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveWxLocation('${tripId}')">Save</button>
+  </div>`);
+}
+function saveWxLocation(tripId){
+  const v=$('#wx_loc').value.trim();
+  if(v)localStorage.setItem('wtn-wx-'+tripId,v);
+  else localStorage.removeItem('wtn-wx-'+tripId);
+  closeModal();
+  const t=TRIPS.find(x=>x.id===tripId);
+  if(t)loadWeather(t);
+}
 async function loadWeather(t){
   const el=document.getElementById('wxWidget');if(!el)return;
-  const destQ=[t.destination,t.country].filter(Boolean).join(', ');
-  if(!destQ)return;
-  const g=await geocode(destQ);if(!g)return;
+  const custom=localStorage.getItem('wtn-wx-'+t.id);
+  const destQ=custom||[t.destination,t.country].filter(Boolean).join(', ');
+  const editBtn=`<button class="btn sm ghost" onclick="modalWxLocation('${t.id}')" title="Change forecast location" style="font-size:11px;padding:3px 8px">📍 ${custom?'Change':'Set'} location</button>`;
+  if(!destQ){
+    el.innerHTML=`<div class="card" style="margin-bottom:16px"><div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2>${editBtn}</div><p class="muted" style="font-size:13px">Set a location to see the 7-day forecast.</p></div>`;
+    return;
+  }
+  const g=await geocode(destQ);
+  if(!g){
+    const cur0=document.getElementById('wxWidget');if(!cur0)return;
+    cur0.innerHTML=`<div class="card" style="margin-bottom:16px"><div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2>${editBtn}</div><p class="muted" style="font-size:13px">Couldn't find “${esc(destQ)}” — try a nearby city name.</p></div>`;
+    return;
+  }
   const useF=(navigator.language||'').startsWith('en-US');
   try{
     const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7${useF?'&temperature_unit=fahrenheit':''}`);
@@ -1521,7 +1607,7 @@ async function loadWeather(t){
     const js=await r.json();const D=js.daily;if(!D?.time)return;
     const cur=document.getElementById('wxWidget');if(!cur)return; // user navigated away
     cur.innerHTML=`<div class="card" style="margin-bottom:16px">
-      <div class="section-head"><h2 style="font-size:16px">🌤 Weather — ${esc(t.destination||t.country)}</h2><span style="font-size:11px;color:var(--dim)">next 7 days · °${useF?'F':'C'}</span></div>
+      <div class="section-head"><h2 style="font-size:16px">🌤 Weather — ${esc(custom||t.destination||t.country)}</h2><span style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">next 7 days · °${useF?'F':'C'}</span>${editBtn}</span></div>
       <div class="wx-row">${D.time.map((dtStr,i)=>`
         <div class="wx-day${t.start_date&&t.end_date&&dtStr>=t.start_date&&dtStr<=t.end_date?' on-trip':''}">
           <div class="wx-date">${new Date(dtStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</div>
@@ -2078,79 +2164,135 @@ function renderPacking(t,d){
 }
 
 /* ── Budget ── */
-function renderBudget(t,d){
-  const write=canWrite(t);
+/* Every expense on the trip, normalized: flights/stays/events (auto) +
+   manual budget items, each with its split info when the schema has it. */
+function collectExpenses(t,d,disp){
   const cur=t.currency||'$';
-
-  // Gather auto-items from flights, stays, events
-  const autoConf=[], autoPot=[];
+  disp=disp||cur;
+  const miniCats={food:'🍽️',activity:'🎯',transport:'🚗',shopping:'🛍️',other:'📌'};
+  // Auto items (flights/stays/events) are assumed to be in the trip currency;
+  // manual items carry their own. Everything is converted to `disp`.
+  const conv=(raw,from)=>{const c=convToTrip(+raw,from,disp);return c===null?+raw:c;};
+  const ex=[];
   (d.flights||[]).forEach(f=>{
     if(!f.cost)return;
-    const label=f.from_airport&&f.to_airport?`${f.from_airport} → ${f.to_airport}`:(f.airline||'Flight');
-    (f.confirmed?autoConf:autoPot).push({icon:'✈️',name:label,sub:f.airline||'',amt:+f.cost});
+    ex.push({kind:'flight',id:f.id,icon:'✈️',name:f.from_airport&&f.to_airport?`${f.from_airport} → ${f.to_airport}`:(f.airline||'Flight'),sub:f.airline||'',amt:conv(f.cost,cur),confirmed:!!f.confirmed,manual:false,paid_by:f.paid_by,split_with:f.split_with});
   });
   (d.stays||[]).forEach(s=>{
     if(!s.cost)return;
-    (s.confirmed?autoConf:autoPot).push({icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:+s.cost});
+    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:conv(s.cost,cur),confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
   });
   (d.events||[]).forEach(ev=>{
     if(!ev.cost)return;
-    const CATS={food:'🍽️',activity:'🎯',transport:'🚗',shopping:'🛍️',other:'📌'};
-    const icon=CATS[ev.category]||'📌';
-    (ev.confirmed?autoConf:autoPot).push({icon,name:ev.title||'Activity',sub:ev.location||'',amt:+ev.cost});
+    ex.push({kind:'event',id:ev.id,icon:miniCats[ev.category]||'📌',name:ev.title||'Activity',sub:ev.location||'',amt:conv(ev.cost,cur),confirmed:!!ev.confirmed,manual:false,paid_by:ev.paid_by,split_with:ev.split_with});
   });
+  (d.budgetItems||[]).forEach(b=>{
+    ex.push({kind:'budget',id:b.id,icon:'📋',name:b.name,sub:b.category||'',amt:conv(+b.actual||+b.planned||0,b.currency||cur),confirmed:true,manual:true,paid_by:b.paid_by,split_with:b.split_with});
+  });
+  return ex;
+}
+function canSplitKind(kind){return kind==='budget'?!!SCHEMA_V2:!!SCHEMA_V3;}
 
+let BUDGET_VIEW='items';
+function setBudgetView(v){BUDGET_VIEW=v;renderTab();}
+// Display currency for the Budget tab (view-level conversion; stored data is untouched).
+// Rates come from frankfurter.dev (ECB reference rates, updated every business day)
+// and are fetched fresh each session.
+let BUDGET_DISP_CUR=null;
+function setBudgetCur(v){
+  const t=TRIPS.find(x=>x.id===CUR.tripId);
+  BUDGET_DISP_CUR=v===(t?.currency||'$')?null:v;
+  ensureRates(v).then(()=>{if(CUR.tab==='budget')renderTab();});
+  renderTab();
+}
+
+function settleUpHtml(shared,nameOf,cur){
+  const bal={};
+  shared.forEach(b=>{
+    bal[b.paid_by]=(bal[b.paid_by]||0)+b.amt;
+    const share=b.amt/b.split_with.length;
+    b.split_with.forEach(u=>{bal[u]=(bal[u]||0)-share;});
+  });
+  const D=Object.entries(bal).filter(([,v])=>v<-0.01).sort((a,b)=>a[1]-b[1]).map(([u,v])=>[u,-v]);
+  const C=Object.entries(bal).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1]).map(([u,v])=>[u,v]);
+  const lines=[];
+  let i=0,j=0;
+  while(i<D.length&&j<C.length){
+    const pay=Math.min(D[i][1],C[j][1]);
+    lines.push(`<div class="today-row"><span>💸</span><span><b>${esc(nameOf[D[i][0]]||'?')}</b> owes <b>${esc(nameOf[C[j][0]]||'?')}</b></span><span style="margin-left:auto;color:var(--gold);font-weight:700">${formatCost(Math.round(pay*100)/100,cur)}</span></div>`);
+    D[i][1]-=pay;C[j][1]-=pay;
+    if(D[i][1]<0.01)i++;
+    if(C[j][1]<0.01)j++;
+  }
+  return {lines,bal};
+}
+function memberNames(t,d){
+  const nameOf={};
+  [{user_id:t.owner_id,profile:d.ownerProfile},...(d.members||[])].forEach(m=>{
+    const p=m.profile||{};nameOf[m.user_id]=p.name?.split(' ')[0]||p.email||'Someone';
+  });
+  return nameOf;
+}
+
+function renderBudget(t,d){
+  const write=canWrite(t);
+  const cur=t.currency||'$';
+  const disp=BUDGET_DISP_CUR||cur;
+  const expenses=collectExpenses(t,d,disp);
+  const nameOf=memberNames(t,d);
+
+  const subTabs=`
+  <div style="display:flex;gap:6px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+    <button class="btn sm ${BUDGET_VIEW!=='splits'?'primary':'ghost'}" onclick="setBudgetView('items')">💰 Budget</button>
+    <button class="btn sm ${BUDGET_VIEW==='splits'?'primary':'ghost'}" onclick="setBudgetView('splits')">🤝 Splits</button>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">💱 Show in
+      <select onchange="setBudgetCur(this.value)" style="width:auto;padding:5px 8px;font-size:12px">
+        ${CURRENCIES.map(c=>`<option${c===disp?' selected':''}>${c}</option>`).join('')}
+      </select>
+    </span>
+  </div>
+  ${disp!==cur?`<p style="font-size:12px;color:var(--dim);margin:-8px 0 14px">Amounts converted from ${esc(cur)} at today's ECB reference rate — the stored values are unchanged.</p>`:''}`;
+
+  if(BUDGET_VIEW==='splits')return`<div>
+    <div class="section-head"><h2>💰 Budget</h2></div>
+    ${subTabs}
+    ${renderSplits(t,d,expenses,nameOf,write)}
+  </div>`;
+
+  const autoConf=expenses.filter(e=>!e.manual&&e.confirmed);
+  const autoPot=expenses.filter(e=>!e.manual&&!e.confirmed);
   const confTotal=autoConf.reduce((a,x)=>a+x.amt,0);
   const potTotal=autoPot.reduce((a,x)=>a+x.amt,0);
   const manualItems=d.budgetItems||[];
   const itemAmt=b=>{
     const raw=+b.actual||+b.planned||0;
-    const c=convToTrip(raw,b.currency,cur);
+    const c=convToTrip(raw,b.currency||cur,disp);
     return c===null?raw:c;
   };
   const manualTotal=manualItems.reduce((a,b)=>a+itemAmt(b),0);
   const grandTotal=confTotal+potTotal+manualTotal;
 
-  // ── Settle up: who owes whom, from items with paid_by + split_with ──
-  const nameOf={};
-  [{user_id:t.owner_id,profile:d.ownerProfile},...(d.members||[])].forEach(m=>{
-    const p=m.profile||{};nameOf[m.user_id]=p.name?.split(' ')[0]||p.email||'Someone';
-  });
-  const splitItems=manualItems.filter(b=>b.paid_by&&Array.isArray(b.split_with)&&b.split_with.length&&(+b.actual||+b.planned));
+  // Compact settle-up summary at the bottom of the main budget view
+  const shared=expenses.filter(e=>e.paid_by&&Array.isArray(e.split_with)&&e.split_with.length&&e.amt);
   let settleHtml='';
-  if(splitItems.length){
-    const bal={};
-    splitItems.forEach(b=>{
-      const amt=itemAmt(b);
-      bal[b.paid_by]=(bal[b.paid_by]||0)+amt;
-      const share=amt/b.split_with.length;
-      b.split_with.forEach(u=>{bal[u]=(bal[u]||0)-share;});
-    });
-    const D=Object.entries(bal).filter(([,v])=>v<-0.01).sort((a,b)=>a[1]-b[1]).map(([u,v])=>[u,-v]);
-    const C=Object.entries(bal).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1]).map(([u,v])=>[u,v]);
-    const lines=[];
-    let i=0,j=0;
-    while(i<D.length&&j<C.length){
-      const pay=Math.min(D[i][1],C[j][1]);
-      lines.push(`<div class="today-row"><span>💸</span><span><b>${esc(nameOf[D[i][0]]||'?')}</b> owes <b>${esc(nameOf[C[j][0]]||'?')}</b></span><span style="margin-left:auto;color:var(--gold);font-weight:700">${formatCost(Math.round(pay*100)/100,cur)}</span></div>`);
-      D[i][1]-=pay;C[j][1]-=pay;
-      if(D[i][1]<0.01)i++;
-      if(C[j][1]<0.01)j++;
-    }
+  if(shared.length){
+    const {lines}=settleUpHtml(shared,nameOf,disp);
     settleHtml=`<div class="budget-group">
-      <div class="budget-group-head"><span>🤝 Settle Up</span><span>${splitItems.length} shared expense${splitItems.length!==1?'s':''}</span></div>
+      <div class="budget-group-head"><span>🤝 Settle Up</span><button class="btn sm ghost" onclick="setBudgetView('splits')" style="font-size:11px">View splits →</button></div>
       ${lines.length?lines.join(''):'<p class="muted" style="font-size:13px">All square! 🎉</p>'}
     </div>`;
   }
 
   function budgetLine(item){
+    const splittable=write&&canSplitKind(item.kind);
     return`<div class="budget-line">
       <div class="budget-line-icon">${item.icon}</div>
       <div class="budget-line-body">
         <div class="budget-line-name">${esc(item.name)}</div>
-        ${item.sub?`<div class="budget-line-sub">${esc(item.sub)}</div>`:''}
+        <div class="budget-line-sub">${esc(item.sub||'')}${item.paid_by&&item.split_with?.length?`${item.sub?' · ':''}🤝 ${esc(nameOf[item.paid_by]||'?')} paid, split ${item.split_with.length} way${item.split_with.length!==1?'s':''}`:''}</div>
       </div>
-      <div class="budget-line-amt">${formatCost(item.amt,cur)}</div>
+      <div class="budget-line-amt">${formatCost(Math.round(item.amt*100)/100,disp)}</div>
+      ${splittable?`<button class="btn sm ghost split-btn" onclick="modalSplit('${t.id}','${item.kind}','${item.id}')" title="Split this expense">💸</button>`:''}
     </div>`;
   }
 
@@ -2163,11 +2305,12 @@ function renderBudget(t,d){
 
   return`<div>
     <div class="section-head"><h2>💰 Budget</h2>${write?`<button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add Manual</button>`:''}</div>
+    ${subTabs}
     ${hasAny?`
     <div class="budget-summary">
-      <div class="budget-stat"><div class="bv" style="color:var(--green)">${formatCost(confTotal,cur)}</div><div class="bl">Confirmed</div></div>
-      <div class="budget-stat"><div class="bv" style="color:var(--orange)">${formatCost(potTotal,cur)}</div><div class="bl">Potential</div></div>
-      <div class="budget-stat"><div class="bv" style="color:var(--gold)">${formatCost(grandTotal,cur)}</div><div class="bl">Grand Total</div></div>
+      <div class="budget-stat"><div class="bv" style="color:var(--green)">${formatCost(Math.round(confTotal),disp)}</div><div class="bl">Confirmed</div></div>
+      <div class="budget-stat"><div class="bv" style="color:var(--orange)">${formatCost(Math.round(potTotal),disp)}</div><div class="bl">Potential</div></div>
+      <div class="budget-stat"><div class="bv" style="color:var(--gold)">${formatCost(Math.round(grandTotal),disp)}</div><div class="bl">Grand Total</div></div>
     </div>
     <div style="height:8px;background:var(--border);border-radius:4px;margin-bottom:24px;overflow:hidden;display:flex">
       <div style="height:100%;width:${confPct}%;background:var(--green);border-radius:4px 0 0 4px;transition:width .4s"></div>
@@ -2175,27 +2318,30 @@ function renderBudget(t,d){
     </div>
     ${autoConf.length?`
     <div class="budget-group">
-      <div class="budget-group-head bg-conf"><span>✓ Confirmed</span><span>${formatCost(confTotal,cur)}</span></div>
+      <div class="budget-group-head bg-conf"><span>✓ Confirmed</span><span>${formatCost(Math.round(confTotal),disp)}</span></div>
       ${autoConf.map(budgetLine).join('')}
     </div>`:''}
     ${autoPot.length?`
     <div class="budget-group">
-      <div class="budget-group-head bg-pot"><span>◷ Potential</span><span>${formatCost(potTotal,cur)}</span></div>
+      <div class="budget-group-head bg-pot"><span>◷ Potential</span><span>${formatCost(Math.round(potTotal),disp)}</span></div>
       ${autoPot.map(budgetLine).join('')}
     </div>`:''}
     ${manualItems.length?`
     <div class="budget-group">
-      <div class="budget-group-head"><span>📋 Manual Items</span><span>${formatCost(manualTotal,cur)}</span></div>
+      <div class="budget-group-head"><span>📋 Manual Items</span><span>${formatCost(Math.round(manualTotal),disp)}</span></div>
       ${manualItems.map(item=>`
       <div class="budget-item" onclick="${write?`modalBudgetItem('${t.id}','${item.id}')`:''}" style="${write?'':'cursor:default'}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px">
           <span style="font-weight:600;font-size:14px">${esc(item.name)}</span>
-          ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
+          <span style="display:flex;align-items:center;gap:8px">
+            ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
+            ${write&&SCHEMA_V2?`<button class="btn sm ghost split-btn" onclick="event.stopPropagation();modalSplit('${t.id}','budget','${item.id}')" title="Split this expense">💸</button>`:''}
+          </span>
         </div>
         <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
           <span style="color:var(--muted)">Budget: ${formatCost(item.planned,item.currency||cur)}</span>
           ${item.actual?`<span style="font-weight:600;color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,item.currency||cur)}</span>`:'<span class="muted">Not spent yet</span>'}
-          ${item.currency&&item.currency!==cur&&convToTrip(+item.actual||+item.planned||0,item.currency,cur)!==null?`<span style="color:var(--dim)">≈ ${formatCost(Math.round(convToTrip(+item.actual||+item.planned||0,item.currency,cur)),cur)}</span>`:''}
+          ${(item.currency||cur)!==disp&&convToTrip(+item.actual||+item.planned||0,item.currency||cur,disp)!==null?`<span style="color:var(--dim)">≈ ${formatCost(Math.round(convToTrip(+item.actual||+item.planned||0,item.currency||cur,disp)),disp)}</span>`:''}
           ${item.paid_by&&item.split_with?.length?`<span style="color:var(--cyan)">🤝 ${esc(nameOf[item.paid_by]||'?')} paid · split ${item.split_with.length} way${item.split_with.length!==1?'s':''}</span>`:''}
         </div>
         ${item.planned?`<div class="budget-bar"><div class="budget-bar-fill" style="width:${item.actual?Math.min(100,Math.round(item.actual/item.planned*100)):0}%;background:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}"></div></div>`:''}
@@ -2204,6 +2350,125 @@ function renderBudget(t,d){
     ${settleHtml}`
     :`<div class="empty"><div class="icon">💰</div><p>Costs added to flights, stays &amp; activities will appear here automatically.</p></div>`}
   </div>`;
+}
+
+/* ── Splits view: itemized receipt + per-person totals + settle up ── */
+function renderSplits(t,d,expenses,nameOf,write){
+  const cur=BUDGET_DISP_CUR||t.currency||'$'; // expenses are already converted to this
+  const migrateHint=(!SCHEMA_V3&&isAdmin())?`<div class="card" style="font-size:13px;color:var(--muted);margin-bottom:16px">🤝 To split flights, stays and activities (not just manual items), run <b>supabase/migration_v3.sql</b> in the Supabase SQL editor.</div>`:'';
+  const shared=expenses.filter(e=>e.paid_by&&Array.isArray(e.split_with)&&e.split_with.length&&e.amt);
+  const unassigned=expenses.filter(e=>e.amt&&!(e.paid_by&&e.split_with?.length));
+  if(!shared.length&&!unassigned.length)return migrateHint+`<div class="empty"><div class="icon">🤝</div><p>No expenses yet — add costs to flights, stays, activities or manual items, then split them here.</p></div>`;
+
+  const {lines}=settleUpHtml(shared,nameOf,cur);
+
+  // Per-person totals
+  const paid={},share={};
+  shared.forEach(e=>{
+    paid[e.paid_by]=(paid[e.paid_by]||0)+e.amt;
+    e.split_with.forEach(u=>{share[u]=(share[u]||0)+e.amt/e.split_with.length;});
+  });
+  const people=[...new Set([...Object.keys(paid),...Object.keys(share)])];
+  const sharedTotal=shared.reduce((a,e)=>a+e.amt,0);
+
+  return`
+  ${migrateHint}
+  ${shared.length?`
+  <div class="budget-group">
+    <div class="budget-group-head"><span>🤝 Settle Up</span><span>${shared.length} shared</span></div>
+    ${lines.length?lines.join(''):'<p class="muted" style="font-size:13px">All square! 🎉</p>'}
+  </div>
+  <div class="budget-group">
+    <div class="budget-group-head"><span>👥 Per Person</span><span>${formatCost(Math.round(sharedTotal),cur)} shared</span></div>
+    ${people.map(u=>{
+      const p=paid[u]||0,s=share[u]||0,net=p-s;
+      return`<div class="budget-line">
+        <div class="budget-line-icon">${(nameOf[u]||'?')[0].toUpperCase()}</div>
+        <div class="budget-line-body">
+          <div class="budget-line-name">${esc(nameOf[u]||'Someone')}</div>
+          <div class="budget-line-sub">paid ${formatCost(Math.round(p*100)/100,cur)} · share ${formatCost(Math.round(s*100)/100,cur)}</div>
+        </div>
+        <div class="budget-line-amt" style="color:${net>0.01?'var(--green)':net<-0.01?'var(--coral)':'var(--muted)'}">${net>0.01?'+':''}${formatCost(Math.round(net*100)/100,cur)}</div>
+      </div>`;
+    }).join('')}
+  </div>
+  <div class="budget-group">
+    <div class="budget-group-head"><span>🧾 Itemized Receipt</span><span>${formatCost(Math.round(sharedTotal),cur)}</span></div>
+    ${shared.map(e=>`
+    <div class="budget-line">
+      <div class="budget-line-icon">${e.icon}</div>
+      <div class="budget-line-body">
+        <div class="budget-line-name">${esc(e.name)}</div>
+        <div class="budget-line-sub">${esc(nameOf[e.paid_by]||'?')} paid · ${e.split_with.map(u=>esc(nameOf[u]||'?')).join(', ')} — ${formatCost(Math.round(e.amt/e.split_with.length*100)/100,cur)} each</div>
+      </div>
+      <div class="budget-line-amt">${formatCost(e.amt,cur)}</div>
+      ${write&&canSplitKind(e.kind)?`<button class="btn sm ghost split-btn" onclick="modalSplit('${t.id}','${e.kind}','${e.id}')" title="Edit split">✎</button>`:''}
+    </div>`).join('')}
+  </div>`:''}
+  ${unassigned.length?`
+  <div class="budget-group">
+    <div class="budget-group-head"><span>❔ Not Split Yet</span><span>${unassigned.length} item${unassigned.length!==1?'s':''}</span></div>
+    ${unassigned.map(e=>`
+    <div class="budget-line">
+      <div class="budget-line-icon">${e.icon}</div>
+      <div class="budget-line-body">
+        <div class="budget-line-name">${esc(e.name)}</div>
+        ${e.sub?`<div class="budget-line-sub">${esc(e.sub)}</div>`:''}
+      </div>
+      <div class="budget-line-amt">${formatCost(e.amt,cur)}</div>
+      ${write&&canSplitKind(e.kind)?`<button class="btn sm ghost split-btn" onclick="modalSplit('${t.id}','${e.kind}','${e.id}')" title="Split this expense">💸</button>`:''}
+    </div>`).join('')}
+  </div>`:''}`;
+}
+
+/* ── Split editor: works on flights, stays, events and manual items ── */
+const SPLIT_TABLES={flight:['wtn_flights','flights'],stay:['wtn_stays','stays'],event:['wtn_events','events'],budget:['wtn_budget_items','budgetItems']};
+function modalSplit(tripId,kind,id){
+  const t=TRIPS.find(x=>x.id===tripId);
+  const [table,key]=SPLIT_TABLES[kind]||[];
+  const row=(TD[tripId]?.[key]||[]).find(x=>x.id===id);
+  if(!row){toast('Item not found');return;}
+  const d0=TD[tripId]||{};
+  const people=[{user_id:t?.owner_id,profile:d0.ownerProfile||{}},...(d0.members||[])]
+    .map(m=>({id:m.user_id,name:m.profile?.name?.split(' ')[0]||m.profile?.email||'Member'}));
+  const label=row.name||row.title||(row.from_airport?`${row.from_airport} → ${row.to_airport}`:'Expense');
+  const amt=+row.cost||+row.actual||+row.planned||0;
+  modal('💸 Split Expense',`
+  <div style="display:flex;justify-content:space-between;align-items:center;background:var(--panel2);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:16px">
+    <span style="font-weight:600">${esc(label)}</span>
+    <span style="color:var(--gold);font-weight:700">${formatCost(amt,row.currency||t?.currency||'$')}</span>
+  </div>
+  <div class="field"><label>Paid by</label>
+    <select id="sp_paidby"><option value="">—</option>${people.map(p=>`<option value="${p.id}"${row.paid_by===p.id?' selected':''}>${esc(p.name)}</option>`).join('')}</select>
+  </div>
+  <div class="field"><label>Split between</label>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${people.map(p=>`<label style="display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer"><input type="checkbox" class="sp-split" value="${p.id}"${(row.split_with||[]).includes(p.id)?' checked':''} style="width:auto"> ${esc(p.name)}</label>`).join('')}
+    </div>
+    <button class="btn sm ghost" style="margin-top:8px" onclick="document.querySelectorAll('.sp-split').forEach(c=>c.checked=true)">Everyone</button>
+  </div>
+  <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+    ${row.paid_by||row.split_with?.length?`<button class="btn danger" onclick="saveSplit('${tripId}','${kind}','${id}',true)">Remove split</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveSplit('${tripId}','${kind}','${id}')">Save Split</button>
+  </div>`);
+}
+async function saveSplit(tripId,kind,id,clear){
+  const [table]=SPLIT_TABLES[kind]||[];
+  if(!table)return;
+  let paid_by=null,split_with=null;
+  if(!clear){
+    paid_by=$('#sp_paidby').value||null;
+    const sel=[...document.querySelectorAll('.sp-split:checked')].map(x=>x.value);
+    split_with=sel.length?sel:null;
+    if(paid_by&&!split_with){toast('Pick who shares this expense');return;}
+    if(!paid_by&&split_with){toast('Pick who paid');return;}
+  }
+  const {error}=await DB.from(table).update({paid_by,split_with}).eq('id',id);
+  if(error){toast('Could not save split');return;}
+  closeModal();
+  toast(clear?'Split removed':'🤝 Split saved ✓');
+  await loadTripDetail(tripId);renderTab();
 }
 
 /* ═══════════════════════════════════════════════
