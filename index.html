@@ -1108,6 +1108,9 @@ async function afterSignIn(user){
   }
 
   renderAuthHeader();
+  // Warm up schema feature flags so modals opened from the dashboard
+  // (e.g. Edit Trip's More Destinations) see them without opening a trip first
+  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -1688,10 +1691,14 @@ function wmoIcon(c){
 }
 function modalWxLocation(tripId){
   const curLoc=localStorage.getItem('wtn-wx-'+tripId)||'';
+  const t=TRIPS.find(x=>x.id===tripId);
+  const nDests=t?tripDests(t).length:0;
   modal('📍 Weather Location',`
+  ${curLoc&&nDests>1?`<p style="font-size:13px;color:var(--gold);margin-bottom:12px">⚠️ A custom location is set, so only it is shown. Clear it to see the forecast for all ${nDests} trip destinations.</p>`:''}
   <div class="field"><label>City / place for the forecast</label><input id="wx_loc" value="${esc(curLoc)}" placeholder="e.g. Deià, Majorca"></div>
-  <p style="font-size:12px;color:var(--muted)">Leave empty to use the trip destination.</p>
+  <p style="font-size:12px;color:var(--muted)">Leave empty to show ${nDests>1?'all '+nDests+' trip destinations':'the trip destination'}.</p>
   <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+    ${curLoc?`<button class="btn ghost" onclick="document.getElementById('wx_loc').value='';saveWxLocation('${tripId}')">↺ Use trip destination${nDests>1?'s':''}</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
     <button class="btn primary" onclick="saveWxLocation('${tripId}')">Save</button>
   </div>`);
