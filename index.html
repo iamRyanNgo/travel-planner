@@ -159,6 +159,15 @@ select option{background:var(--panel)}
 
 .split-btn{padding:4px 9px;font-size:12px;flex-shrink:0;margin-left:8px}
 
+/* ── Itinerary day context strips (staying tonight / travel in progress) ── */
+.day-ctx-wrap{margin:2px 0 10px;padding-left:2px}
+.day-ctx{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:7px 12px;border-radius:9px;margin-bottom:6px;cursor:pointer;border:1px solid transparent;transition:.12s}
+.day-ctx:hover{filter:brightness(1.15)}
+.ctx-stay{background:rgba(167,139,250,.08);color:var(--purple);border-color:rgba(167,139,250,.22)}
+.ctx-travel{background:rgba(74,144,226,.08);color:var(--blue);border-color:rgba(74,144,226,.22)}
+.day-ctx-sub{color:var(--muted);font-weight:500}
+.ev-transport{color:var(--cyan)}
+
 /* ── Offline sync pill ── */
 #syncPill{position:fixed;bottom:16px;left:16px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 15px;border-radius:30px;font-size:12px;font-weight:600;z-index:9998;cursor:pointer;box-shadow:var(--shadow);animation:pplIn .2s ease-out}
 
@@ -864,6 +873,24 @@ const TRANSPORT_MODES={
   transfer:{icon:'🚕',label:'Transfer',plural:'Transfers'},
 };
 function transportMode(f){return TRANSPORT_MODES[f.mode]?f.mode:'flight';}
+// v5 = "getting there" transport on activities (supabase/migration_v5.sql)
+let SCHEMA_V5=null;
+async function detectSchemaV5(){
+  if(SCHEMA_V5!==null)return SCHEMA_V5;
+  const {error}=await DB.from('wtn_events').select('transport').limit(1);
+  SCHEMA_V5=!error;
+  return SCHEMA_V5;
+}
+const EVENT_TRANSPORT={
+  walk:{icon:'🚶',label:'Walking'},
+  car:{icon:'🚗',label:'Car'},
+  taxi:{icon:'🚕',label:'Taxi / Rideshare'},
+  transit:{icon:'🚇',label:'Public transit'},
+  train:{icon:'🚆',label:'Train'},
+  bus:{icon:'🚌',label:'Bus'},
+  bike:{icon:'🚴',label:'Bike'},
+  ferry:{icon:'⛴️',label:'Boat / Ferry'},
+};
 
 // Exchange rates keyed by base ISO code; null = all sources failed.
 // Primary: frankfurter.dev (ECB reference rates, business-daily). ECB doesn't
@@ -1187,7 +1214,7 @@ async function loadTripDetail(id){
       const {data:docs}=await DB.from('wtn_trip_docs').select('*').eq('trip_id',id).order('created_at',{ascending:false});
       TD[id].docs=docs||[];
     }
-    detectSchemaV3();detectSchemaV4();
+    detectSchemaV3();detectSchemaV4();detectSchemaV5();
     // Privacy: passport/visa data never touches localStorage — the offline
     // cache stores everything except travelers
     try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify({...TD[id],travelers:[]}))}catch{}
@@ -1941,6 +1968,20 @@ function renderItinerary(t,d){
       const color=dayColors[idx%dayColors.length];
       const collapsed=ITIN_COLLAPSED.has(date);
 
+      // Context strips: where you're sleeping tonight + travel in progress
+      const nightStays=(d.stays||[]).filter(s=>s.check_in&&s.check_out&&date>=s.check_in&&date<s.check_out);
+      const enRoute=(d.flights||[]).filter(f=>f.depart_date&&f.arrive_date&&date>f.depart_date&&date<f.arrive_date);
+      const ctxHtml=[
+        ...nightStays.map(s=>{
+          const night=diffDays(s.check_in,date)+1,total=diffDays(s.check_in,s.check_out);
+          return`<div class="day-ctx ctx-stay" onclick="setTab('stays')">🏨 ${esc(s.name)} <span class="day-ctx-sub">· night ${night} of ${total}</span></div>`;
+        }),
+        ...enRoute.map(f=>{
+          const md=TRANSPORT_MODES[transportMode(f)];
+          return`<div class="day-ctx ctx-travel" onclick="setTab('flights')">${md.icon} ${esc(f.airline||md.label)}${f.from_airport?` · ${esc(f.from_airport)} → ${esc(f.to_airport||'')}`:''} <span class="day-ctx-sub">· ongoing</span></div>`;
+        }),
+      ].join('');
+
       // Merge events and auto-items sorted by time
       const allItems=[];
       dayEvents.forEach(ev=>allItems.push({sortTime:ev.time||'23:59',html:eventCard(ev,write)}));
@@ -1961,7 +2002,7 @@ function renderItinerary(t,d){
             <button class="day-collapse-btn ${collapsed?'collapsed':''}" onclick="event.stopPropagation();toggleItinDay('${date}')">▼</button>
           </div>
         </div>
-        ${collapsed?'':`<div class="timeline">
+        ${collapsed?'':`${ctxHtml?`<div class="day-ctx-wrap">${ctxHtml}</div>`:''}<div class="timeline">
           ${allItems.length?allItems.map(i=>i.html).join(''):`<div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No items yet.</div>`}
         </div>`}
       </div>`;
@@ -1982,6 +2023,7 @@ function eventCard(ev,write){
         <div class="event-meta">
           ${ev.time?`<span>🕐 ${ev.time}${ev.duration?' · '+ev.duration+'m':''}</span>`:''}
           ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
+          ${ev.transport&&EVENT_TRANSPORT[ev.transport]?`<span class="ev-transport">${EVENT_TRANSPORT[ev.transport].icon} ${EVENT_TRANSPORT[ev.transport].label}</span>`:''}
           ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
         </div>
       </div>
@@ -3306,7 +3348,12 @@ function modalEvent(tripId,date,_,evId){
     <div class="field flex1"><label>Start Time</label><input id="ev_time" type="time" value="${ev.time||''}"></div>
     <div class="field flex1"><label>Duration (min)</label><input id="ev_dur" type="number" value="${ev.duration||''}" placeholder="120"></div>
   </div>
-  <div class="field"><label>Location</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="Venue name, city"></div>
+  <div class="row">
+    <div class="field flex1"><label>Location</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="Venue name, city"></div>
+    ${SCHEMA_V5?`<div class="field" style="width:170px"><label>Getting there</label>
+      <select id="ev_transport"><option value="">—</option>${Object.entries(EVENT_TRANSPORT).map(([k,v])=>`<option value="${k}"${k===(ev.transport||'')?' selected':''}>${v.icon} ${v.label}</option>`).join('')}</select>
+    </div>`:''}
+  </div>
   <div class="row">
     <div class="field flex1"><label>Cost</label><input id="ev_cost" type="number" value="${ev.cost||''}"></div>
     <div class="field" style="width:150px"><label>Currency</label><select id="ev_cur">${curOptions(ev.currency||t?.currency||'$')}</select></div>
@@ -3334,6 +3381,7 @@ async function saveEvent(tripId,evId){
     cost:$('#ev_cost').value?+$('#ev_cost').value:null,currency:$('#ev_cur').value,
     confirmed:$('#ev_conf').checked,confirm_num:$('#ev_confnum').value.trim()||null,
     notes:$('#ev_notes').value.trim()||null};
+  if(SCHEMA_V5)data.transport=$('#ev_transport')?.value||null;
   if(evId){
     await DB.from('wtn_events').update(data).eq('id',evId);
     toast('Event updated');
