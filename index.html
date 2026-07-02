@@ -131,8 +131,16 @@ select option{background:var(--panel)}
 .trip-hero-content .trip-dates{font-size:14px;color:rgba(255,255,255,.7);display:flex;gap:16px;flex-wrap:wrap}
 .trip-hero-emoji{position:absolute;top:24px;right:32px;font-size:80px;z-index:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,.5))}
 .btn-label{display:inline}
-/* ── Tab navigation dropdown ── */
-.tab-nav-wrap{position:relative;flex-shrink:0}
+/* ── Horizontal tab bar (desktop) ── */
+.trip-tabs-wrap{position:relative;margin-bottom:20px;padding-top:14px}
+.trip-tabs-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none}
+.trip-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
+.trip-tabs::-webkit-scrollbar{display:none}
+.trip-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;color:var(--muted);background:none;border:1px solid transparent;cursor:pointer;white-space:nowrap;transition:.15s;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.trip-tab:hover{background:var(--panel2);color:var(--text);border-color:var(--border)}
+.trip-tab.active{background:var(--panel2);color:var(--gold);border-color:var(--border2)}
+/* ── Tab navigation dropdown (mobile header) ── */
+.tab-nav-wrap{position:relative;flex-shrink:0;display:none}
 .tab-nav-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
 .tab-nav-btn:hover,.tab-nav-btn:focus{background:var(--panel);border-color:var(--gold);color:var(--gold);outline:none}
 .tab-nav-arrow{color:var(--muted);font-size:11px;margin-left:2px}
@@ -355,6 +363,9 @@ button,a{touch-action:manipulation}
   #breadcrumb{display:none}
   .btn-label{display:none}
   .ha-desktop{display:none!important}
+  /* Show header tab dropdown on mobile; hide horizontal bar */
+  .tab-nav-wrap{display:flex}
+  .trip-tabs-wrap{display:none}
   /* Prevent brand from crowding the people/avatar buttons */
   .brand{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
   /* Event cards: tighter on mobile */
@@ -665,6 +676,7 @@ function setTab(tab){
     const ico=document.getElementById('tabNavIcon');if(ico)ico.textContent=meta.icon;
   }
   document.querySelectorAll('.tab-nav-item').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
+  document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
   renderTab();
 }
 function toggleTabNav(e){e&&e.stopPropagation();document.getElementById('tabNavDrop')?.classList.toggle('hidden');}
@@ -1080,6 +1092,11 @@ function renderTripShell(){
           ${t.start_date?`<span>📅 ${fmt(t.start_date)}${t.end_date?' → '+fmt(t.end_date):''}${days?' ('+days+' days)':''}</span>`:''}
           <span>${cd.label}</span>
         </div>
+      </div>
+    </div>
+    <div class="trip-tabs-wrap">
+      <div class="trip-tabs">
+        ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
       </div>
     </div>
     <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
