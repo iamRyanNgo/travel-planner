@@ -1561,7 +1561,7 @@ function mapPlaces(t,d){
     const addr=s.address;
     const suffix=s.region||mainSuffix; // geocode within the item's own region when tagged
     places.push({
-      icon:'🏨',color:'var(--purple)',name:s.name,
+      icon:'🏨',color:'var(--purple)',name:s.name,region:s.region||null,
       sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
       // Try the address in context, the raw address, then the place name in context
       tries:[addr&&suffix?`${addr}, ${suffix}`:null, addr||null, s.name&&suffix?`${s.name}, ${suffix}`:s.name],
@@ -1574,7 +1574,7 @@ function mapPlaces(t,d){
     const loc=e.address||e.location;
     const suffix=e.region||mainSuffix;
     places.push({
-      icon:cat.icon,color:'var(--gold)',name:e.title,
+      icon:cat.icon,color:'var(--gold)',name:e.title,region:e.region||null,
       sub:[e.location,e.date?fmt(e.date):''].filter(Boolean).join(' · '),
       tries:[suffix?`${loc}, ${suffix}`:loc, loc, e.address&&e.location?`${e.location}, ${suffix}`:null],
       nameOnly:e.location||null,
@@ -1623,7 +1623,7 @@ async function initTripMap(t,d){
       pts.push([g.lat,g.lon]);
       L.marker([g.lat,g.lon],{icon:L.divIcon({className:'map-pin-wrap',html:`<div class="map-pin" style="border-color:${p.color}">${p.icon}</div>`,iconSize:[34,34],iconAnchor:[17,17]})})
         .addTo(MAP)
-        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}`)
+        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}${p.region&&!REGION_FILTER&&tripDests(t).length>1?`<br><button class="btn sm ghost" style="margin-top:6px;font-size:11px" data-r="${esc(p.region)}" onclick="setRegionFilter(this.dataset.r)">🔍 Only show ${esc(p.region.split(',')[0])}</button>`:''}`)
         // Clicking a pin glides the map to that spot (popup still opens)
         .on('click',ev=>{if(MAP)MAP.flyTo(ev.latlng,Math.max(MAP.getZoom(),15),{duration:.6});});
       if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
