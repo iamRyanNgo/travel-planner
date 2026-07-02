@@ -1,4 +1,4 @@
-const CACHE = 'wtn-v5';
+const CACHE = 'wtn-v6';
 
 self.addEventListener('install', e => {
   // No HTML precaching — navigation always goes to the network so the page
@@ -27,20 +27,29 @@ self.addEventListener('fetch', e => {
 
   if (request.method !== 'GET') return;
 
-  // Skip Supabase + Unsplash — always live data
-  if (url.hostname.includes('supabase.co') || url.hostname === 'api.unsplash.com') return;
+  // Skip Supabase + Unsplash + geo/weather APIs — always live data
+  if (url.hostname.includes('supabase.co') || url.hostname === 'api.unsplash.com' ||
+      url.hostname.endsWith('openstreetmap.org') || url.hostname.endsWith('open-meteo.com') ||
+      url.hostname.endsWith('frankfurter.dev')) return;
 
-  // HTML navigation requests: let them go straight to the network.
-  // Using navigation preload means there's zero SW overhead — the browser
-  // starts the fetch while the SW boots. Never caching HTML prevents the
-  // blank-page-on-load issue caused by serving stale content.
+  // HTML navigation: network-first so the page is never stale, but keep the
+  // last good copy so the app still opens with no connection (trip data is
+  // then served from localStorage by the app itself).
   if (request.mode === 'navigate') {
     e.respondWith((async () => {
       try {
         const preload = await e.preloadResponse;
-        if (preload) return preload;
-      } catch {}
-      return fetch(request);
+        const res = preload || await fetch(request);
+        if (res && res.ok) {
+          const cache = await caches.open(CACHE);
+          cache.put('/', res.clone());
+        }
+        return res;
+      } catch (err) {
+        const cached = await caches.match('/');
+        if (cached) return cached;
+        throw err;
+      }
     })());
     return;
   }

@@ -157,6 +157,20 @@ select option{background:var(--panel)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text)}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
 
+/* ── Weather + Today ── */
+.wx-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.wx-row::-webkit-scrollbar{display:none}
+.wx-day{flex:1;min-width:64px;text-align:center;padding:10px 4px;border-radius:12px;border:1px solid transparent}
+.wx-day.on-trip{background:rgba(245,197,66,.07);border-color:var(--border2)}
+.wx-date{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.wx-icon{font-size:24px;margin:6px 0 4px}
+.wx-temp{font-size:14px;font-weight:700}
+.wx-temp.lo{font-size:12px;font-weight:500;color:var(--muted)}
+.wx-rain{font-size:10px;color:var(--cyan);min-height:14px;margin-top:2px}
+.today-card{margin-bottom:16px;border-color:var(--gold);box-shadow:0 0 0 1px rgba(245,197,66,.15)}
+.today-row{display:flex;align-items:baseline;gap:8px;padding:6px 0;font-size:14px}
+.today-time{font-size:12px;font-weight:700;color:var(--gold);min-width:44px;flex-shrink:0}
+
 /* ── Overview ── */
 .overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
@@ -709,6 +723,7 @@ function buildMobMenu(){
     updateMobMenu([
       isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
       `<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();exportICS('${t.id}')">📅 Export calendar</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`,
       write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:'',
       t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
@@ -899,35 +914,51 @@ async function signOut(){
    DATA LOADING
 ═══════════════════════════════════════════════ */
 async function loadTrips(){
-  const {data:owned} = await DB.from('wtn_trips').select('*').eq('owner_id',ME.id).order('created_at',{ascending:false});
-  const {data:memberships} = await DB.from('wtn_trip_members').select('trip_id, role, wtn_trips!trip_id(*)').eq('user_id',ME.id);
-  const memberTrips = (memberships||[]).map(m=>({...m.wtn_trips, _role:m.role})).filter(Boolean);
-  const seen=new Set((owned||[]).map(t=>t.id));
-  const all=[...(owned||[]),...memberTrips.filter(t=>!seen.has(t.id))];
-  TRIPS=all;
+  try{
+    const {data:owned} = await DB.from('wtn_trips').select('*').eq('owner_id',ME.id).order('created_at',{ascending:false});
+    const {data:memberships} = await DB.from('wtn_trip_members').select('trip_id, role, wtn_trips!trip_id(*)').eq('user_id',ME.id);
+    const memberTrips = (memberships||[]).map(m=>({...m.wtn_trips, _role:m.role})).filter(Boolean);
+    const seen=new Set((owned||[]).map(t=>t.id));
+    const all=[...(owned||[]),...memberTrips.filter(t=>!seen.has(t.id))];
+    TRIPS=all;
+    try{localStorage.setItem('wtn-cache-trips',JSON.stringify(all))}catch{}
+  }catch(e){
+    // Network down — fall back to last-synced copy so the itinerary is still readable
+    try{TRIPS=JSON.parse(localStorage.getItem('wtn-cache-trips')||'[]')}catch{TRIPS=[]}
+    if(TRIPS.length)toast('📡 Offline — showing last-synced trips');
+  }
 }
 
 async function loadTripDetail(id){
   const trip=TRIPS.find(x=>x.id===id);
-  const [
-    {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members},{data:ownerProfile},{data:travelers}
-  ] = await Promise.all([
-    DB.from('wtn_events').select('*').eq('trip_id',id).order('date').order('time'),
-    DB.from('wtn_flights').select('*').eq('trip_id',id).order('depart_date'),
-    DB.from('wtn_stays').select('*').eq('trip_id',id).order('check_in'),
-    DB.from('wtn_pack_items').select('*').eq('trip_id',id).order('category').order('created_at'),
-    DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at'),
-    DB.from('wtn_trip_members').select('*, wtn_profiles!user_id(id,name,email,picture)').eq('trip_id',id),
-    DB.from('wtn_profiles').select('id,name,email,picture').eq('id',trip?.owner_id||'').single(),
-    DB.from('wtn_travelers').select('*').eq('trip_id',id).order('name'),
-  ]);
-  TD[id]={
-    events:events||[], flights:flights||[], stays:stays||[],
-    packItems:packItems||[], budgetItems:budgetItems||[],
-    members:(members||[]).map(m=>({...m,profile:m.wtn_profiles})),
-    ownerProfile:ownerProfile||null,
-    travelers:travelers||[],
-  };
+  try{
+    const [
+      {data:events},{data:flights},{data:stays},{data:packItems},{data:budgetItems},{data:members},{data:ownerProfile},{data:travelers}
+    ] = await Promise.all([
+      DB.from('wtn_events').select('*').eq('trip_id',id).order('date').order('time'),
+      DB.from('wtn_flights').select('*').eq('trip_id',id).order('depart_date'),
+      DB.from('wtn_stays').select('*').eq('trip_id',id).order('check_in'),
+      DB.from('wtn_pack_items').select('*').eq('trip_id',id).order('category').order('created_at'),
+      DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at'),
+      DB.from('wtn_trip_members').select('*, wtn_profiles!user_id(id,name,email,picture)').eq('trip_id',id),
+      DB.from('wtn_profiles').select('id,name,email,picture').eq('id',trip?.owner_id||'').single(),
+      DB.from('wtn_travelers').select('*').eq('trip_id',id).order('name'),
+    ]);
+    TD[id]={
+      events:events||[], flights:flights||[], stays:stays||[],
+      packItems:packItems||[], budgetItems:budgetItems||[],
+      members:(members||[]).map(m=>({...m,profile:m.wtn_profiles})),
+      ownerProfile:ownerProfile||null,
+      travelers:travelers||[],
+    };
+    try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify(TD[id]))}catch{}
+  }catch(e){
+    // Network down — hydrate from last-synced copy (read-only until back online)
+    try{
+      const cached=localStorage.getItem('wtn-cache-td-'+id);
+      if(cached){TD[id]=JSON.parse(cached);toast('📡 Offline — showing last-synced trip data');}
+    }catch{}
+  }
   renderSidebar(id);
 }
 
@@ -1117,7 +1148,7 @@ function renderTab(){
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
-  if(CUR.tab==='overview')el.innerHTML=renderOverview(t,d);
+  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);}
   else if(CUR.tab==='itinerary')el.innerHTML=renderItinerary(t,d);
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
@@ -1217,6 +1248,89 @@ async function initTripMap(t,d){
   if(missEl&&missing.length)missEl.textContent=`Couldn't pin: ${missing.map(m=>m.name).join(', ')} — add a fuller address to place them on the map.`;
 }
 
+/* ── Calendar export (.ics) ── */
+function icsEsc(s){return String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n')}
+function exportICS(tripId){
+  const t=TRIPS.find(x=>x.id===tripId);const d=TD[tripId];
+  if(!t||!d){toast('Trip data still loading…');return;}
+  const out=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//WhereToNext//Trip//EN',`X-WR-CALNAME:${icsEsc(t.name)}`];
+  const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  const dt=(d8)=>d8.replace(/-/g,'');
+  const push=(uid,props)=>out.push('BEGIN:VEVENT',`UID:${uid}@wheretonext`,`DTSTAMP:${stamp}`,...props,'END:VEVENT');
+  (d.flights||[]).forEach(f=>{
+    if(!f.depart_date)return;
+    const props=[];
+    if(f.depart_time){
+      props.push(`DTSTART:${dt(f.depart_date)}T${f.depart_time.replace(':','')}00`);
+      if(f.arrive_date&&f.arrive_time)props.push(`DTEND:${dt(f.arrive_date)}T${f.arrive_time.replace(':','')}00`);
+    }else props.push(`DTSTART;VALUE=DATE:${dt(f.depart_date)}`);
+    props.push(`SUMMARY:${icsEsc(`✈️ ${f.from_airport||''}${f.to_airport?' → '+f.to_airport:''} ${f.airline||''} ${f.flight_num||''}`.replace(/\s+/g,' ').trim())}`);
+    if(f.confirm_num)props.push(`DESCRIPTION:${icsEsc('Confirmation: '+f.confirm_num)}`);
+    push('fl-'+f.id,props);
+  });
+  (d.stays||[]).forEach(s=>{
+    if(!s.check_in)return;
+    const props=[`DTSTART;VALUE=DATE:${dt(s.check_in)}`];
+    if(s.check_out)props.push(`DTEND;VALUE=DATE:${dt(s.check_out)}`);
+    props.push(`SUMMARY:${icsEsc('🏨 '+s.name)}`);
+    if(s.address)props.push(`LOCATION:${icsEsc(s.address)}`);
+    if(s.confirm_num)props.push(`DESCRIPTION:${icsEsc('Confirmation: '+s.confirm_num)}`);
+    push('st-'+s.id,props);
+  });
+  (d.events||[]).forEach(e=>{
+    if(!e.date)return;
+    const props=[];
+    if(e.time){
+      props.push(`DTSTART:${dt(e.date)}T${e.time.replace(':','')}00`);
+      if(e.duration){
+        const end=new Date(`${e.date}T${e.time}`);end.setMinutes(end.getMinutes()+ +e.duration);
+        props.push(`DTEND:${end.toLocaleDateString('en-CA').replace(/-/g,'')}T${String(end.getHours()).padStart(2,'0')}${String(end.getMinutes()).padStart(2,'0')}00`);
+      }
+    }else props.push(`DTSTART;VALUE=DATE:${dt(e.date)}`);
+    props.push(`SUMMARY:${icsEsc((CATS[e.category]||CATS.other).icon+' '+e.title)}`);
+    if(e.location||e.address)props.push(`LOCATION:${icsEsc(e.address||e.location)}`);
+    push('ev-'+e.id,props);
+  });
+  out.push('END:VCALENDAR');
+  const blob=new Blob([out.join('\r\n')],{type:'text/calendar'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${(t.name||'trip').replace(/[^\w\- ]+/g,'').trim()||'trip'}.ics`;
+  a.click();URL.revokeObjectURL(a.href);
+  toast('Calendar file downloaded ✓');
+}
+
+/* ── Weather (Open-Meteo, keyless) ── */
+function wmoIcon(c){
+  if(c===0)return'☀️';if(c<=2)return'🌤';if(c===3)return'☁️';
+  if(c<=48)return'🌫';if(c<=57)return'🌦';if(c<=67)return'🌧';
+  if(c<=77)return'🌨';if(c<=82)return'🌧';if(c<=86)return'🌨';return'⛈';
+}
+async function loadWeather(t){
+  const el=document.getElementById('wxWidget');if(!el)return;
+  const destQ=[t.destination,t.country].filter(Boolean).join(', ');
+  if(!destQ)return;
+  const g=await geocode(destQ);if(!g)return;
+  const useF=(navigator.language||'').startsWith('en-US');
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7${useF?'&temperature_unit=fahrenheit':''}`);
+    if(!r.ok)return;
+    const js=await r.json();const D=js.daily;if(!D?.time)return;
+    const cur=document.getElementById('wxWidget');if(!cur)return; // user navigated away
+    cur.innerHTML=`<div class="card" style="margin-bottom:16px">
+      <div class="section-head"><h2 style="font-size:16px">🌤 Weather — ${esc(t.destination||t.country)}</h2><span style="font-size:11px;color:var(--dim)">next 7 days · °${useF?'F':'C'}</span></div>
+      <div class="wx-row">${D.time.map((dtStr,i)=>`
+        <div class="wx-day${t.start_date&&t.end_date&&dtStr>=t.start_date&&dtStr<=t.end_date?' on-trip':''}">
+          <div class="wx-date">${new Date(dtStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</div>
+          <div class="wx-icon">${wmoIcon(D.weather_code[i])}</div>
+          <div class="wx-temp">${Math.round(D.temperature_2m_max[i])}°</div>
+          <div class="wx-temp lo">${Math.round(D.temperature_2m_min[i])}°</div>
+          <div class="wx-rain">${(D.precipitation_probability_max?.[i]||0)>=30?`💧${D.precipitation_probability_max[i]}%`:''}</div>
+        </div>`).join('')}</div>
+    </div>`;
+  }catch{}
+}
+
 /* ── Overview ── */
 function renderOverview(t,d){
   const days=t.start_date&&t.end_date?diffDays(t.start_date,t.end_date)+1:0;
@@ -1297,7 +1411,27 @@ function renderOverview(t,d){
     </div>`;
   }
 
+  // ── "Today" day-of dashboard (only while the trip is happening) ──
+  const todayStr=new Date().toLocaleDateString('en-CA');
+  let todayHtml='';
+  if(t.start_date&&t.end_date&&todayStr>=t.start_date&&todayStr<=t.end_date){
+    const dayNum=diffDays(t.start_date,todayStr)+1;
+    const evToday=d.events.filter(e=>e.date===todayStr).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
+    const flToday=d.flights.filter(f=>f.depart_date===todayStr);
+    const stayTonight=d.stays.find(s=>s.check_in&&s.check_out&&todayStr>=s.check_in&&todayStr<s.check_out)||d.stays.find(s=>s.check_in===todayStr);
+    const rows=[
+      ...flToday.map(f=>`<div class="today-row"><span class="today-time">${f.depart_time||''}</span> ✈️ ${esc(`${f.from_airport||''} → ${f.to_airport||''}`)} ${esc(f.airline||'')}${f.confirm_num?` · <b>${esc(f.confirm_num)}</b>`:''}</div>`),
+      ...evToday.map(e=>`<div class="today-row"><span class="today-time">${e.time||''}</span> ${(CATS[e.category]||CATS.other).icon} ${esc(e.title)}${e.location?` · <span style="color:var(--muted)">${esc(e.location)}</span>`:''}</div>`),
+    ];
+    todayHtml=`<div class="card today-card">
+      <div class="section-head"><h2 style="font-size:17px">📍 Today — Day ${dayNum} of ${days}</h2><span style="font-size:12px;color:var(--muted)">${fmt(todayStr)}</span></div>
+      ${rows.length?rows.join(''):'<p style="font-size:13px;color:var(--muted)">Nothing scheduled today — enjoy the freedom! 🏖</p>'}
+      ${stayTonight?`<div class="today-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:10px"><span class="today-time">🌙</span> Tonight: <b>${esc(stayTonight.name)}</b>${stayTonight.address?` · <span style="color:var(--muted)">${esc(stayTonight.address)}</span>`:''}</div>`:''}
+    </div>`;
+  }
+
   return`
+  ${todayHtml}
   <div class="overview-grid">
     <div class="stat-card"><div class="stat-val">${days||'—'}</div><div class="stat-label">Days</div></div>
     <div class="stat-card"><div class="stat-val">${d.events.length}</div><div class="stat-label">Events</div></div>
@@ -1307,6 +1441,7 @@ function renderOverview(t,d){
     ${totalActual?`<div class="stat-card"><div class="stat-val" style="font-size:20px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="stat-label">Spent</div></div>`:''}
   </div>
   ${funStats.length?`<div class="fun-stats">${funStats.map(funStatCard).join('')}</div>`:''}
+  <div id="wxWidget"></div>
 
   <!-- Members -->
   <div class="card" style="margin-bottom:16px">
@@ -1455,6 +1590,7 @@ function renderItinerary(t,d){
       <button class="btn sm ghost" onclick="toggleItinHideEmpty()" style="${ITIN_HIDE_EMPTY?'background:var(--border2);color:var(--text)':''}">
         ${ITIN_HIDE_EMPTY?'👁 Show all days':`🙈 Hide empty days${emptyCount?' ('+emptyCount+')':''}`}
       </button>
+      <button class="btn sm ghost" onclick="exportICS('${t.id}')" title="Download .ics for Google/Apple Calendar">📅 Export to calendar</button>
     </div>
     ${days.map((date,idx)=>{
       const dayEvents=d.events.filter(e=>e.date===date).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
@@ -1688,6 +1824,7 @@ function renderPacking(t,d){
     <div class="section-head"><h2>🧳 Packing List</h2>
       <div class="row">
         <span class="muted" style="align-self:center;font-size:13px">${packed}/${total} packed</span>
+        ${write?`<button class="btn sm ghost" onclick="modalPackTemplates('${t.id}')">✨ Templates</button>`:''}
         ${write?`<button class="btn primary" onclick="modalPackItem('${t.id}')">＋ Add</button>`:''}
       </div>
     </div>
@@ -1714,7 +1851,7 @@ function renderPacking(t,d){
       </div>`;
     }).join('')}
     ${!total?`<div class="empty"><div class="icon">🧳</div><p>Nothing added yet.</p>
-      ${write?`<button class="btn gold" style="margin-top:16px" onclick="seedPackItems('${t.id}')">📋 Load Starter List</button>`:''}
+      ${write?`<button class="btn gold" style="margin-top:16px" onclick="modalPackTemplates('${t.id}')">✨ Start from a Template</button>`:''}
     </div>`:''}
   </div>`;
 }
@@ -2807,20 +2944,69 @@ async function packQuickKey(e,el){
   await DB.from('wtn_pack_items').insert({trip_id:el.dataset.trip,name,category:el.dataset.cat,qty:1});
   toast('Added ✓');await loadTripDetail(el.dataset.trip);renderTab();
 }
-async function seedPackItems(tripId){
-  const starter=[
+const PACK_TEMPLATES={
+  essentials:{icon:'🎒',label:'Travel Essentials',lists:[
     {cat:'Documents',items:['Passport','Flight tickets','Hotel confirmations','Travel insurance','Driver\'s license']},
-    {cat:'Clothing',items:['T-shirts','Pants/Jeans','Underwear','Socks','Jacket','Walking shoes','Sandals','Swimwear']},
+    {cat:'Clothing',items:['T-shirts','Pants/Jeans','Underwear','Socks','Jacket','Walking shoes']},
     {cat:'Toiletries',items:['Toothbrush','Toothpaste','Deodorant','Shampoo','Sunscreen','Moisturizer']},
     {cat:'Electronics',items:['Phone charger','Power bank','Universal adapter','Earphones']},
     {cat:'Health',items:['Pain reliever','Antihistamine','Band-aids','Hand sanitizer','Prescription meds']},
     {cat:'Misc',items:['Reusable water bottle','Day bag','Neck pillow','Luggage locks']},
-  ];
-  const rows=[];
-  starter.forEach(({cat,items})=>items.forEach(name=>rows.push({trip_id:tripId,name,category:cat,qty:1,packed:false})));
-  await DB.from('wtn_pack_items').insert(rows);
-  toast('Starter list loaded ✓');await loadTripDetail(tripId);renderTab();
+  ]},
+  beach:{icon:'🏖',label:'Beach / Resort',lists:[
+    {cat:'Clothing',items:['Swimwear','Cover-up','Flip flops','Sun hat','Sunglasses','Light dresses/shorts']},
+    {cat:'Toiletries',items:['Reef-safe sunscreen','After-sun lotion','Lip balm SPF']},
+    {cat:'Misc',items:['Beach towel','Dry bag','Snorkel gear','Waterproof phone pouch','Beach bag','Kindle/book']},
+  ]},
+  ski:{icon:'⛷',label:'Ski / Winter',lists:[
+    {cat:'Clothing',items:['Ski jacket','Ski pants','Base layers','Ski socks','Gloves','Beanie','Neck gaiter','Sweaters']},
+    {cat:'Misc',items:['Goggles','Hand warmers','Ski pass holder','Helmet (or rent)','Lip balm','Après-ski boots']},
+    {cat:'Health',items:['High-SPF sunscreen','Muscle relief gel']},
+  ]},
+  city:{icon:'🏙',label:'City Break',lists:[
+    {cat:'Clothing',items:['Comfortable walking shoes','Smart casual outfit','Compact umbrella','Layers']},
+    {cat:'Electronics',items:['Portable charger','Camera','Offline maps downloaded']},
+    {cat:'Misc',items:['Crossbody/anti-theft bag','Transit card','Museum tickets']},
+  ]},
+  wedding:{icon:'💒',label:'Wedding / Formal Event',lists:[
+    {cat:'Clothing',items:['Formal outfit','Dress shoes','Accessories/jewelry','Backup outfit','Steamer-friendly garment bag']},
+    {cat:'Toiletries',items:['Hair styling tools','Makeup','Nail kit']},
+    {cat:'Misc',items:['Gift/card','Invitation','Speech notes','Safety pins','Stain remover pen']},
+  ]},
+  international:{icon:'🌏',label:'International Long-Haul',lists:[
+    {cat:'Documents',items:['Passport (6+ months validity)','Visa printouts','Vaccination records','Currency (cash)','Copies of documents']},
+    {cat:'Electronics',items:['Universal adapter','Voltage converter','eSIM/local SIM plan']},
+    {cat:'Health',items:['Jet lag melatonin','Compression socks','Rehydration salts','Motion sickness tablets']},
+    {cat:'Misc',items:['Eye mask','Ear plugs','Travel pillow','Pen for customs forms']},
+  ]},
+};
+function modalPackTemplates(tripId){
+  modal('✨ Packing Templates',`
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Add a ready-made list — items you already have are skipped, and you can add multiple templates.</p>
+  ${Object.entries(PACK_TEMPLATES).map(([k,tpl])=>{
+    const n=tpl.lists.reduce((a,l)=>a+l.items.length,0);
+    return`<button class="mob-menu-item" style="border:1px solid var(--border);margin-bottom:8px;padding:14px" onclick="applyPackTemplate('${tripId}','${k}')">
+      <span style="font-size:20px">${tpl.icon}</span>
+      <span style="flex:1"><b>${tpl.label}</b><br><span style="font-size:12px;color:var(--muted)">${n} items</span></span>
+      <span style="color:var(--gold)">＋</span>
+    </button>`;
+  }).join('')}`);
 }
+async function applyPackTemplate(tripId,key){
+  const tpl=PACK_TEMPLATES[key];if(!tpl)return;
+  const existing=new Set((TD[tripId]?.packItems||[]).map(i=>i.name.toLowerCase()));
+  const rows=[];
+  tpl.lists.forEach(({cat,items})=>items.forEach(name=>{
+    if(!existing.has(name.toLowerCase()))rows.push({trip_id:tripId,name,category:cat,qty:1,packed:false});
+  }));
+  if(!rows.length){toast('All of those items are already on your list');return;}
+  const {error}=await DB.from('wtn_pack_items').insert(rows);
+  if(error){toast('Could not add items');return;}
+  closeModal();
+  toast(`${tpl.icon} ${rows.length} items added ✓`);
+  await loadTripDetail(tripId);renderTab();
+}
+async function seedPackItems(tripId){modalPackTemplates(tripId);}
 
 /* ── Budget Modal ── */
 function modalBudgetItem(tripId,bId){
