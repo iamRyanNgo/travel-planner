@@ -2609,6 +2609,11 @@ function syncDate(srcEl,dstId,plusDays=0){
   const target=d.toLocaleDateString('en-CA');
   if(!dst.value||dst.value<srcEl.value)dst.value=target;
 }
+// Same idea for times: fill the paired time when it's still empty
+function syncTime(srcEl,dstId){
+  const dst=document.getElementById(dstId);
+  if(dst&&srcEl.value&&!dst.value)dst.value=srcEl.value;
+}
 
 /* ── Print Modal ── */
 const PRINT_TABS=[
@@ -3490,7 +3495,7 @@ function modalFlight(tripId,flId,presetDate){
   </div>
   <div class="row">
     <div class="field flex1"><label>Depart</label><input id="fl_ddate" type="date" value="${defD}" onchange="syncDate(this,'fl_adate')"></div>
-    <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}"></div>
+    <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}" onchange="syncTime(this,'fl_atime')"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Arrive</label><input id="fl_adate" type="date" value="${defA}"></div>
@@ -3525,7 +3530,7 @@ function modalFlight(tripId,flId,presetDate){
     </div>
     <div class="row">
       <div class="field flex1"><label>Depart</label><input id="fl_r_ddate" type="date" value="${retD}" onchange="syncDate(this,'fl_r_adate')"></div>
-      <div class="field flex1"><label>Time</label><input id="fl_r_dtime" type="time"></div>
+      <div class="field flex1"><label>Time</label><input id="fl_r_dtime" type="time" onchange="syncTime(this,'fl_r_atime')"></div>
     </div>
     <div class="row">
       <div class="field flex1"><label>Arrive</label><input id="fl_r_adate" type="date" value="${retD}"></div>
@@ -3600,7 +3605,7 @@ function modalStay(tripId,stId,presetDate){
   </div>
   <div class="row">
     <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.check_in||''}" onchange="syncDate(this,'st_co',1)"></div>
-    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.check_in_time||''}"></div>
+    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.check_in_time||''}" onchange="syncTime(this,'st_cot')"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Check-out Date</label><input id="st_co" type="date" value="${s.check_out||''}"></div>
