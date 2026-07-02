@@ -1519,7 +1519,12 @@ async function geoNominatim(q){
     const res=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=en&q=${encodeURIComponent(q)}`);
     if(!res.ok)return undefined;                                // transient (throttled/5xx) — never cache
     const js=await res.json();
-    return js?.[0]?{lat:+js[0].lat,lon:+js[0].lon}:null;        // null = genuinely no match
+    if(!js?.[0])return null;                                    // null = genuinely no match
+    // label = "Place, Country" from the resolved result, so UIs can show
+    // what was actually matched rather than what was typed
+    const parts=(js[0].display_name||'').split(', ');
+    const label=parts.length>1?`${parts[0]}, ${parts[parts.length-1]}`:parts[0]||null;
+    return {lat:+js[0].lat,lon:+js[0].lon,label};
   }catch{return undefined}                                      // network/CSP failure — never cache
 }
 async function geoOpenMeteo(name){
@@ -1527,7 +1532,7 @@ async function geoOpenMeteo(name){
     const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(name)}`);
     if(!res.ok)return undefined;
     const r=(await res.json())?.results?.[0];
-    return r?{lat:r.latitude,lon:r.longitude}:null;
+    return r?{lat:r.latitude,lon:r.longitude,label:`${r.name}${r.country?', '+r.country:''}`}:null;
   }catch{return undefined}
 }
 async function geocodeTries(tries,nameOnly,cacheKey){
@@ -1723,7 +1728,7 @@ async function loadWeather(t){
   }
   const useF=(navigator.language||'').startsWith('en-US');
   el.innerHTML=`<div class="card" style="margin-bottom:16px">
-    <div class="section-head"><h2 style="font-size:16px">🌤 Weather${dests.length===1?' — '+esc((custom||dests[0]).split(',')[0]):''}</h2><span style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">next 7 days · °${useF?'F':'C'}</span>${editBtn}</span></div>
+    <div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2><span style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">Open-Meteo · next 7 days · °${useF?'F':'C'}</span>${editBtn}</span></div>
     <div id="wxBody"><p class="muted" style="font-size:12px">Loading forecast…</p></div>
   </div>`;
   let any=false;
@@ -1741,8 +1746,10 @@ async function loadWeather(t){
       const D=(await r.json()).daily;if(!D?.time)continue;
       body=document.getElementById('wxBody');if(!body)return;
       any=true;
+      // Show the place the geocoder actually resolved (with country) so a
+      // wrong match is immediately visible
       body.insertAdjacentHTML('beforeend',`
-        ${dests.length>1?`<div style="font-size:12px;font-weight:700;color:var(--gold);margin:${di?'14px':'2px'} 0 4px">📍 ${esc(dq.split(',')[0])}</div>`:''}
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin:${di?'14px':'2px'} 0 4px">📍 ${esc(g.label||dq)}</div>
         <div class="wx-row">${D.time.map((dtStr,i)=>`
         <div class="wx-day${t.start_date&&t.end_date&&dtStr>=t.start_date&&dtStr<=t.end_date?' on-trip':''}">
           <div class="wx-date">${new Date(dtStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</div>
