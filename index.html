@@ -1615,7 +1615,9 @@ async function initTripMap(t,d){
       pts.push([g.lat,g.lon]);
       L.marker([g.lat,g.lon],{icon:L.divIcon({className:'map-pin-wrap',html:`<div class="map-pin" style="border-color:${p.color}">${p.icon}</div>`,iconSize:[34,34],iconAnchor:[17,17]})})
         .addTo(MAP)
-        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}`);
+        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}`)
+        // Clicking a pin glides the map to that spot (popup still opens)
+        .on('click',ev=>{if(MAP)MAP.flyTo(ev.latlng,Math.max(MAP.getZoom(),15),{duration:.6});});
       if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
       else MAP.setView(pts[0],13);
     }else p.missing=true;
@@ -2977,7 +2979,8 @@ function modalTrip(id){
   <div class="field"><label>More Destinations</label>
     <div id="destChips" style="display:flex;flex-wrap:wrap;gap:6px;${(window._editDests||[]).length?'margin-bottom:8px':''}"></div>
     <div style="display:flex;gap:6px">
-      <input id="t_dest_extra" placeholder="e.g. Barcelona, Spain — Enter to add" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addDestChip();}">
+      <input id="t_dest_extra" placeholder="City (e.g. Barcelona)" style="flex:2" onkeydown="if(event.key==='Enter'){event.preventDefault();addDestChip();}">
+      <input id="t_dest_extra_country" placeholder="Country" value="${esc(t.country||'')}" style="flex:1.5" onkeydown="if(event.key==='Enter'){event.preventDefault();addDestChip();}">
       <button class="btn sm ghost" onclick="addDestChip()">＋ Add</button>
     </div>
   </div>`:''}
@@ -3064,10 +3067,13 @@ function renderDestChips(){
 }
 function addDestChip(){
   const inp=document.getElementById('t_dest_extra');if(!inp)return;
-  const v=inp.value.trim();if(!v)return;
+  const city=inp.value.trim();if(!city)return;
+  const ctry=document.getElementById('t_dest_extra_country')?.value.trim()||'';
+  // "City, Country" — unless the city field already carries its own country
+  const v=city.includes(',')||!ctry?city:`${city}, ${ctry}`;
   window._editDests=window._editDests||[];
   if(!window._editDests.some(x=>x.toLowerCase()===v.toLowerCase()))window._editDests.push(v);
-  inp.value='';
+  inp.value=''; // country stays put so multiple cities in one country add fast
   renderDestChips();
 }
 function removeDestChip(i){
