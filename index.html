@@ -157,6 +157,9 @@ select option{background:var(--panel)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text)}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
 
+/* ── Offline sync pill ── */
+#syncPill{position:fixed;bottom:16px;left:16px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 15px;border-radius:30px;font-size:12px;font-weight:600;z-index:9998;cursor:pointer;box-shadow:var(--shadow);animation:pplIn .2s ease-out}
+
 /* ── Weather + Today ── */
 .wx-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .wx-row::-webkit-scrollbar{display:none}
@@ -598,6 +601,151 @@ const UNSPLASH_KEY  = ''; // get a free key at unsplash.com/developers
 const DB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ═══════════════════════════════════════════════
+   OFFLINE WRITE QUEUE (outbox)
+   DB.from() is wrapped so that when an insert/update/delete fails at
+   the network level (offline), the operation is stored in localStorage,
+   applied to the local cache so the UI updates instantly, and replayed
+   to Supabase when the connection returns. Server-rejected ops (RLS,
+   validation) are NOT queued — only fetch-level failures are.
+   Conflict policy: last write wins.
+═══════════════════════════════════════════════ */
+const OUTBOX_KEY='wtn-outbox';
+function outbox(){try{return JSON.parse(localStorage.getItem(OUTBOX_KEY)||'[]')}catch{return[]}}
+function outboxSave(q){try{localStorage.setItem(OUTBOX_KEY,JSON.stringify(q))}catch{}}
+
+const _dbFrom = DB.from.bind(DB);
+DB.from = table => wrapBuilder(_dbFrom(table), {table, op:null, data:null, filters:[]});
+function wrapBuilder(target, desc){
+  return new Proxy(target, {
+    get(t, prop){
+      if(prop === 'then'){
+        if(!desc.op) return t.then.bind(t); // reads pass through untouched
+        const p = t.then(
+          res => res,
+          () => {
+            queueOp(desc);
+            // Mimic what the server would have returned so `.select().single()`
+            // call sites keep working (ids were fixed client-side in queueOp)
+            let data=null;
+            if(desc.op==='insert'||desc.op==='upsert'){
+              const rows=Array.isArray(desc.data)?desc.data:[desc.data];
+              data=desc.single?rows[0]:rows;
+            }
+            return {data, error:null, queued:true};
+          }
+        );
+        return p.then.bind(p);
+      }
+      const v = Reflect.get(t, prop);
+      if(typeof v !== 'function') return v;
+      return (...args) => {
+        if(prop==='insert'||prop==='upsert'){desc.op=prop;desc.data=args[0];}
+        else if(prop==='update'){desc.op='update';desc.data=args[0];}
+        else if(prop==='delete'){desc.op='delete';}
+        else if(prop==='single'||prop==='maybeSingle'){desc.single=true;}
+        else if(desc.op&&(prop==='eq'||prop==='in'||prop==='match'))desc.filters.push([prop,args[0],args[1]]);
+        const out = v.apply(t, args);
+        return out&&typeof out==='object'&&typeof out.then==='function' ? wrapBuilder(out, desc) : out;
+      };
+    }
+  });
+}
+
+let OFFLINE_TOAST_AT=0;
+function queueOp(desc){
+  if(desc.op==='insert'||desc.op==='upsert'){
+    // Fix ids client-side so the local cache and the eventual replay agree,
+    // and so an accidental double-replay hits a duplicate-key error instead
+    // of inserting twice.
+    const rows=Array.isArray(desc.data)?desc.data:[desc.data];
+    rows.forEach(r=>{if(r&&!r.id)r.id=crypto.randomUUID();});
+  }
+  const q=outbox();q.push(desc);outboxSave(q);
+  applyOpToLocal(desc);
+  updateSyncPill();
+  if(Date.now()-OFFLINE_TOAST_AT>8000){OFFLINE_TOAST_AT=Date.now();toast('📴 Saved offline — will sync when you\'re back online');}
+}
+
+const OUTBOX_TABLES={wtn_events:'events',wtn_flights:'flights',wtn_stays:'stays',wtn_pack_items:'packItems',wtn_budget_items:'budgetItems',wtn_travelers:'travelers',wtn_trip_docs:'docs'};
+function applyOpToLocal(desc){
+  try{
+    const eqId=(desc.filters.find(f=>f[0]==='eq'&&f[1]==='id')||[])[2];
+    if(desc.table==='wtn_trips'){
+      if(desc.op==='update'&&eqId){const t=TRIPS.find(x=>x.id===eqId);if(t)Object.assign(t,desc.data);localStorage.setItem('wtn-cache-trips',JSON.stringify(TRIPS));}
+      else if(desc.op==='insert'){
+        // Callers add the returned row to TRIPS themselves — only persist the
+        // cache here (deduped) so a reload while offline still shows the trip
+        const rows=(Array.isArray(desc.data)?desc.data:[desc.data]).map(r=>({created_at:new Date().toISOString(),...r}));
+        const merged=[...rows.filter(r=>!TRIPS.some(x=>x.id===r.id)),...TRIPS];
+        localStorage.setItem('wtn-cache-trips',JSON.stringify(merged));
+      }
+      else if(desc.op==='delete'&&eqId){const i=TRIPS.findIndex(x=>x.id===eqId);if(i>=0)TRIPS.splice(i,1);localStorage.setItem('wtn-cache-trips',JSON.stringify(TRIPS));}
+      return;
+    }
+    const key=OUTBOX_TABLES[desc.table];if(!key)return;
+    if(desc.op==='insert'||desc.op==='upsert'){
+      (Array.isArray(desc.data)?desc.data:[desc.data]).forEach(r=>{
+        const td=TD[r.trip_id];if(!td)return;
+        (td[key]=td[key]||[]).push({created_at:new Date().toISOString(),...r});
+        localStorage.setItem('wtn-cache-td-'+r.trip_id,JSON.stringify(td));
+      });
+    }else if(eqId){
+      for(const [tripId,td] of Object.entries(TD)){
+        const arr=td[key];if(!arr)continue;
+        const idx=arr.findIndex(x=>x.id===eqId);
+        if(idx<0)continue;
+        if(desc.op==='update')Object.assign(arr[idx],desc.data);
+        else arr.splice(idx,1);
+        localStorage.setItem('wtn-cache-td-'+tripId,JSON.stringify(td));
+        break;
+      }
+    }
+  }catch{}
+}
+
+let FLUSHING=false;
+async function flushOutbox(){
+  if(FLUSHING||!navigator.onLine)return;
+  const q=outbox();
+  if(!q.length){updateSyncPill();return;}
+  FLUSHING=true;
+  const remaining=[];let synced=0,dropped=0;
+  try{
+    for(const desc of q){
+      try{
+        let b=_dbFrom(desc.table);
+        b=desc.op==='insert'?b.insert(desc.data):desc.op==='upsert'?b.upsert(desc.data):desc.op==='update'?b.update(desc.data):b.delete();
+        for(const f of desc.filters)b=b[f[0]](f[1],f[2]);
+        const {error}=await b;
+        if(error){dropped++;console.warn('Outbox op rejected by server, dropping:',desc,error);}
+        else synced++;
+      }catch(e){remaining.push(desc);} // still offline — keep for next attempt
+    }
+  }finally{
+    outboxSave(remaining);FLUSHING=false;updateSyncPill();
+  }
+  if(synced){
+    toast(`☁️ ${synced} offline change${synced!==1?'s':''} synced ✓`);
+    if(CUR.view==='trip'&&CUR.tripId){await loadTripDetail(CUR.tripId);renderTab();}
+    else if(CUR.view==='dashboard'&&ME){await loadTrips();renderDashboard();}
+  }
+  if(dropped)toast(`⚠️ ${dropped} offline change${dropped!==1?'s':''} rejected by the server`);
+}
+function updateSyncPill(){
+  const n=outbox().length;
+  let el=document.getElementById('syncPill');
+  if(!n){el?.remove();return;}
+  if(!el){
+    el=document.createElement('div');el.id='syncPill';
+    el.title='Tap to retry now';el.onclick=()=>flushOutbox();
+    document.body.appendChild(el);
+  }
+  el.textContent=`📴 ${n} change${n!==1?'s':''} waiting to sync`;
+}
+window.addEventListener('online',()=>setTimeout(flushOutbox,800));
+setInterval(()=>{if(navigator.onLine&&ME&&outbox().length)flushOutbox();},30000);
+
+/* ═══════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════ */
 let ME      = null;
@@ -802,12 +950,21 @@ async function afterSignIn(user){
   // Trigger handles insert; retry a few times in case it's still propagating
   let profile = null, lastErr = null;
   for(let i=0;i<6;i++){
-    const {data,error} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
-    if(data){profile=data;break;}
-    lastErr=error;
+    try{
+      const {data,error} = await DB.from('wtn_profiles').select('*').eq('id',user.id).single();
+      if(data){profile=data;break;}
+      lastErr=error;
+    }catch(e){
+      // Network down — boot from the cached profile so the trip data
+      // (also cached) is still reachable offline
+      try{profile=JSON.parse(localStorage.getItem('wtn-cache-me')||'null')}catch{}
+      if(profile)break;
+      lastErr=e;
+    }
     await new Promise(r=>setTimeout(r,900));
   }
   ME = profile;
+  if(ME)try{localStorage.setItem('wtn-cache-me',JSON.stringify(ME))}catch{}
 
   if(!ME){
     document.getElementById('root').innerHTML=`<div class="loading-screen"><p style="color:var(--coral);max-width:380px;text-align:center">Could not load your profile. Try signing out and back in.<br><br><small style="color:var(--dim)">${lastErr?.message||'unknown error'}</small></p><button class="btn primary" onclick="signOut()" style="margin-top:16px">Sign out</button></div>`;
@@ -831,6 +988,9 @@ async function afterSignIn(user){
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
+  // Push any changes made offline last session, and surface the pending pill
+  updateSyncPill();
+  if(outbox().length)flushOutbox();
 }
 
 function showLoading(msg='Loading…'){
