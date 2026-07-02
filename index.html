@@ -904,34 +904,50 @@ function tripDests(t){
 // Active region filter (per session; cleared when opening a trip)
 let REGION_FILTER=null;
 function setRegionFilter(r){REGION_FILTER=r||null;renderTab();}
-function regionMatch(x){return x.region===REGION_FILTER;}
-function filterByRegion(d){
+// Effective region of an item: explicit tag wins, otherwise inferred by
+// matching the trip's destination cities against the item's own text
+// (location, address, city, name, title) — so tagging is rarely needed.
+function itemRegion(t,x){
+  if(x.region)return x.region;
+  const dests=tripDests(t);
+  if(dests.length<2)return null;
+  const hay=[x.location,x.address,x.city,x.name,x.title].filter(Boolean).join(' ').toLowerCase();
+  if(!hay)return null;
+  for(const dd of dests){
+    const city=dd.split(',')[0].trim().toLowerCase();
+    if(city&&hay.includes(city))return dd;
+  }
+  return null;
+}
+function filterByRegion(d,t){
   if(!REGION_FILTER)return d;
+  const m=x=>itemRegion(t,x)===REGION_FILTER;
   return {...d,
-    events:(d.events||[]).filter(regionMatch),
-    stays:(d.stays||[]).filter(regionMatch),
-    flights:(d.flights||[]).filter(regionMatch),
+    events:(d.events||[]).filter(m),
+    stays:(d.stays||[]).filter(m),
+    flights:(d.flights||[]).filter(m),
   };
 }
 function regionFilterBar(t,d){
   if(!SCHEMA_V6)return'';
   const dests=tripDests(t);
   if(dests.length<2)return'';
-  const untagged=REGION_FILTER?[...(d.events||[]),...(d.stays||[]),...(d.flights||[])].filter(x=>!x.region).length:0;
+  const unmatched=REGION_FILTER?[...(d.events||[]),...(d.stays||[]),...(d.flights||[])].filter(x=>!itemRegion(t,x)).length:0;
   return`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
     <button class="btn sm ${!REGION_FILTER?'primary':'ghost'}" onclick="setRegionFilter('')">🌍 All</button>
     ${dests.map(x=>`<button class="btn sm ${REGION_FILTER===x?'primary':'ghost'}" data-r="${esc(x)}" onclick="setRegionFilter(this.dataset.r)">📍 ${esc(x.split(',')[0])}</button>`).join('')}
-    ${untagged?`<span style="font-size:11px;color:var(--dim)">${untagged} untagged item${untagged!==1?'s':''} hidden — set a region on them to include them here</span>`:''}
+    ${unmatched?`<span style="font-size:11px;color:var(--dim)">${unmatched} item${unmatched!==1?'s':''} without a matching city hidden — mention the city in the item or set its region</span>`:''}
   </div>`;
 }
-// Region <select> for item modals (only when the trip has 2+ destinations)
+// Region <select> for item modals (only when the trip has 2+ destinations).
+// Usually unnecessary — the region is auto-detected from the item's city.
 function regionSelect(t,idAttr,current,isNew){
   if(!SCHEMA_V6)return'';
   const dests=tripDests(t);
   if(dests.length<2)return'';
   const sel=current||(isNew?REGION_FILTER:'')||'';
   return`<div class="field"><label>Region / Destination</label>
-    <select id="${idAttr}"><option value="">— whole trip —</option>${dests.map(x=>`<option value="${esc(x)}"${x===sel?' selected':''}>${esc(x)}</option>`).join('')}</select>
+    <select id="${idAttr}"><option value="">— auto (match by city) —</option>${dests.map(x=>`<option value="${esc(x)}"${x===sel?' selected':''}>${esc(x)}</option>`).join('')}</select>
   </div>`;
 }
 
@@ -1554,14 +1570,15 @@ async function geocodeTries(tries,nameOnly,cacheKey){
 }
 async function geocode(q){return geocodeTries([q],q,q);} // one-shot (destination centering, weather)
 function mapPlaces(t,d){
-  d=filterByRegion(d);
+  d=filterByRegion(d,t);
   const mainSuffix=[t.destination,t.country].filter(Boolean).join(', ');
   const places=[];
   (d.stays||[]).forEach(s=>{
     const addr=s.address;
-    const suffix=s.region||mainSuffix; // geocode within the item's own region when tagged
+    const region=itemRegion(t,s);
+    const suffix=region||mainSuffix; // geocode within the item's own region when known
     places.push({
-      icon:'🏨',color:'var(--purple)',name:s.name,region:s.region||null,
+      icon:'🏨',color:'var(--purple)',name:s.name,region,
       sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
       // Try the address in context, the raw address, then the place name in context
       tries:[addr&&suffix?`${addr}, ${suffix}`:null, addr||null, s.name&&suffix?`${s.name}, ${suffix}`:s.name],
@@ -1572,9 +1589,10 @@ function mapPlaces(t,d){
   (d.events||[]).filter(e=>e.location||e.address).forEach(e=>{
     const cat=CATS[e.category]||CATS.other;
     const loc=e.address||e.location;
-    const suffix=e.region||mainSuffix;
+    const region=itemRegion(t,e);
+    const suffix=region||mainSuffix;
     places.push({
-      icon:cat.icon,color:'var(--gold)',name:e.title,region:e.region||null,
+      icon:cat.icon,color:'var(--gold)',name:e.title,region,
       sub:[e.location,e.date?fmt(e.date):''].filter(Boolean).join(' · '),
       tries:[suffix?`${loc}, ${suffix}`:loc, loc, e.address&&e.location?`${e.location}, ${suffix}`:null],
       nameOnly:e.location||null,
@@ -2031,7 +2049,7 @@ function renderItinerary(t,d){
   if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
-  d=filterByRegion(d);
+  d=filterByRegion(d,t);
   const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
   const autoMap=itinAutoItems(d);
 
@@ -2148,7 +2166,7 @@ function flightLeg(f,label,cls){
 function renderFlights(t,d){
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
-  d=filterByRegion(d);
+  d=filterByRegion(d,t);
   const addBtn=write?`<button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add</button>`:'';
   const hint=(!SCHEMA_V4&&isAdmin())?`<div class="card" style="font-size:13px;color:var(--muted);margin-bottom:16px">🚆 To organize trains, buses, ferries and car rentals into their own sections, run <b>supabase/migration_v4.sql</b> in the Supabase SQL editor.</div>`:'';
   if(!d.flights.length)return`<div>
@@ -2264,7 +2282,7 @@ function renderFlights(t,d){
 function renderStays(t,d){
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
-  d=filterByRegion(d);
+  d=filterByRegion(d,t);
   return`<div>
     <div class="section-head"><h2>🏨 Accommodation</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
     ${regionBar}
@@ -2293,7 +2311,7 @@ function renderStays(t,d){
 function renderActivities(t,d){
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
-  d=filterByRegion(d);
+  d=filterByRegion(d,t);
   const catIds=['activity','sightseeing','food','shopping'];
   return`<div>
     <div class="section-head"><h2>🎭 Activities</h2>${write?`<button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add</button>`:''}</div>
