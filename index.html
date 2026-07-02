@@ -167,6 +167,10 @@ select option{background:var(--panel)}
 .ctx-travel{background:rgba(74,144,226,.08);color:var(--blue);border-color:rgba(74,144,226,.22)}
 .day-ctx-sub{color:var(--muted);font-weight:500}
 .ev-transport{color:var(--cyan)}
+/* Drag & drop activities between days */
+.event-card[draggable="true"]{cursor:grab}
+.event-card[draggable="true"]:active{cursor:grabbing}
+.day-block.drag-over{outline:2px dashed var(--gold);outline-offset:4px;border-radius:14px;background:rgba(245,197,66,.04)}
 
 /* ── Offline sync pill ── */
 #syncPill{position:fixed;bottom:16px;left:16px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 15px;border-radius:30px;font-size:12px;font-weight:600;z-index:9998;cursor:pointer;box-shadow:var(--shadow);animation:pplIn .2s ease-out}
@@ -1988,7 +1992,7 @@ function renderItinerary(t,d){
       autoItems.forEach(a=>allItems.push(a));
       allItems.sort((a,b)=>a.sortTime.localeCompare(b.sortTime));
 
-      return`<div class="day-block">
+      return`<div class="day-block" ${write?`ondragover="dragOverDay(event)" ondragleave="dragLeaveDay(event)" ondrop="dropOnDay(event,'${t.id}','${date}')"`:''}>
         <div class="day-header" onclick="toggleItinDay('${date}')">
           <div class="day-label">
             <div class="day-num" style="background:${color}20;color:${color}">D${idx+1}</div>
@@ -2016,7 +2020,7 @@ function eventCard(ev,write){
   const q=esc([ev.title,ev.location].filter(Boolean).join(' '));
   return`<div class="tl-event">
     <div class="tl-dot ${cat.dot}"></div>
-    <div class="event-card ${ev.confirmed?'confirmed':''}" onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
+    <div class="event-card ${ev.confirmed?'confirmed':''}" ${write?`draggable="true" ondragstart="dragEv(event,'${ev.id}')"`:''} onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="event-icon ${cat.cls}">${cat.icon}</div>
       <div class="event-body">
         <div class="event-title">${esc(ev.title)}</div>
@@ -3321,11 +3325,67 @@ function modalAddToDay(tripId,date){
     <span style="flex:1"><b>${title}</b><br><span style="font-size:12px;color:var(--muted)">${sub}</span></span>
     <span style="color:var(--gold)">＋</span>
   </button>`;
+  const d0=TD[tripId]||{};
+  const pickable=date?(d0.events||[]).filter(e=>e.date!==date).length:0;
   modal('＋ Add'+(date?` — ${fmtDay(date)}`:''),`
   <p style="font-size:13px;color:var(--muted);margin-bottom:14px">What would you like to add${when}?</p>
-  ${item('🎭','Activity / Event','Food, sightseeing, shopping, plans…',`closeModal();modalEvent('${tripId}','${date||''}')`)}
+  ${item('🎭','New Activity / Event','Food, sightseeing, shopping, plans…',`closeModal();modalEvent('${tripId}','${date||''}')`)}
+  ${date&&pickable?item('🗂','Pick from Activities',`Schedule or move an existing activity (${pickable})`,`modalPickActivity('${tripId}','${date}')`):''}
   ${item('✈️','Travel','Flight, train, bus, ferry, car rental…',`closeModal();modalFlight('${tripId}','','${date||''}')`)}
   ${item('🏨','Stay',date?'Hotel, Airbnb — check-in this day':'Hotel, Airbnb, resort…',`closeModal();modalStay('${tripId}','','${date||''}')`)}`);
+}
+
+/* ── Pick an existing activity onto a day (mobile-friendly counterpart to drag & drop) ── */
+function modalPickActivity(tripId,date){
+  const d=TD[tripId]||{};
+  const unscheduled=(d.events||[]).filter(e=>!e.date);
+  const scheduled=(d.events||[]).filter(e=>e.date&&e.date!==date);
+  const head=txt=>`<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin:12px 0 8px">${txt}</div>`;
+  const item=ev=>{
+    const cat=CATS[ev.category]||CATS.other;
+    return`<button class="mob-menu-item" style="border:1px solid var(--border);margin-bottom:8px;padding:12px" onclick="assignEventToDay('${tripId}','${ev.id}','${date}')">
+      <span style="font-size:18px">${cat.icon}</span>
+      <span style="flex:1"><b>${esc(ev.title)}</b>
+        <span style="display:block;font-size:12px;color:var(--muted)">${[ev.location?'📍 '+esc(ev.location):'',ev.date?'currently '+fmtDay(ev.date):'unscheduled'].filter(Boolean).join(' · ')}</span>
+      </span>
+      <span style="color:var(--gold)">＋</span>
+    </button>`;
+  };
+  modal(`🗂 Add to ${fmtDay(date)}`,`
+    ${!unscheduled.length&&!scheduled.length?`<p style="font-size:13px;color:var(--muted)">No other activities yet.</p>`:''}
+    ${unscheduled.length?head('Unscheduled')+unscheduled.map(item).join(''):''}
+    ${scheduled.length?head('Move from another day')+scheduled.map(item).join(''):''}
+    <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="closeModal();modalEvent('${tripId}','${date}')">＋ New Activity</button>
+    </div>`);
+}
+async function assignEventToDay(tripId,evId,date){
+  const {error}=await DB.from('wtn_events').update({date}).eq('id',evId);
+  if(error){toast('Could not move activity');return;}
+  closeModal();
+  toast(`Added to ${fmtDay(date)} ✓`);
+  await loadTripDetail(tripId);renderTab();
+}
+
+/* ── Drag & drop: move activities between itinerary days (desktop) ── */
+let DRAG_EV=null;
+function dragEv(e,id){
+  DRAG_EV=id;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',id);
+}
+function dragOverDay(e){e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drag-over');}
+function dragLeaveDay(e){e.currentTarget.classList.remove('drag-over');}
+async function dropOnDay(e,tripId,date){
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const id=e.dataTransfer.getData('text/plain')||DRAG_EV;
+  DRAG_EV=null;
+  if(!id)return;
+  const ev=(TD[tripId]?.events||[]).find(x=>x.id===id);
+  if(!ev||ev.date===date)return;
+  await assignEventToDay(tripId,id,date);
 }
 
 function modalEvent(tripId,date,_,evId){
