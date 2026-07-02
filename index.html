@@ -885,6 +885,56 @@ async function detectSchemaV5(){
   SCHEMA_V5=!error;
   return SCHEMA_V5;
 }
+// v6 = multiple destinations + region tags (supabase/migration_v6.sql)
+let SCHEMA_V6=null;
+async function detectSchemaV6(){
+  if(SCHEMA_V6!==null)return SCHEMA_V6;
+  const {error}=await DB.from('wtn_trips').select('destinations').limit(1);
+  SCHEMA_V6=!error;
+  return SCHEMA_V6;
+}
+// All destinations for a trip: primary + extras, deduped
+function tripDests(t){
+  const out=[];
+  const push=x=>{x=(x||'').trim();if(x&&!out.some(y=>y.toLowerCase()===x.toLowerCase()))out.push(x);};
+  push(t?.destination);
+  (Array.isArray(t?.destinations)?t.destinations:[]).forEach(push);
+  return out;
+}
+// Active region filter (per session; cleared when opening a trip)
+let REGION_FILTER=null;
+function setRegionFilter(r){REGION_FILTER=r||null;renderTab();}
+function regionMatch(x){return x.region===REGION_FILTER;}
+function filterByRegion(d){
+  if(!REGION_FILTER)return d;
+  return {...d,
+    events:(d.events||[]).filter(regionMatch),
+    stays:(d.stays||[]).filter(regionMatch),
+    flights:(d.flights||[]).filter(regionMatch),
+  };
+}
+function regionFilterBar(t,d){
+  if(!SCHEMA_V6)return'';
+  const dests=tripDests(t);
+  if(dests.length<2)return'';
+  const untagged=REGION_FILTER?[...(d.events||[]),...(d.stays||[]),...(d.flights||[])].filter(x=>!x.region).length:0;
+  return`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+    <button class="btn sm ${!REGION_FILTER?'primary':'ghost'}" onclick="setRegionFilter('')">🌍 All</button>
+    ${dests.map(x=>`<button class="btn sm ${REGION_FILTER===x?'primary':'ghost'}" data-r="${esc(x)}" onclick="setRegionFilter(this.dataset.r)">📍 ${esc(x.split(',')[0])}</button>`).join('')}
+    ${untagged?`<span style="font-size:11px;color:var(--dim)">${untagged} untagged item${untagged!==1?'s':''} hidden — set a region on them to include them here</span>`:''}
+  </div>`;
+}
+// Region <select> for item modals (only when the trip has 2+ destinations)
+function regionSelect(t,idAttr,current,isNew){
+  if(!SCHEMA_V6)return'';
+  const dests=tripDests(t);
+  if(dests.length<2)return'';
+  const sel=current||(isNew?REGION_FILTER:'')||'';
+  return`<div class="field"><label>Region / Destination</label>
+    <select id="${idAttr}"><option value="">— whole trip —</option>${dests.map(x=>`<option value="${esc(x)}"${x===sel?' selected':''}>${esc(x)}</option>`).join('')}</select>
+  </div>`;
+}
+
 const EVENT_TRANSPORT={
   walk:{icon:'🚶',label:'Walking'},
   car:{icon:'🚗',label:'Car'},
@@ -936,6 +986,7 @@ async function openTrip(id,tab='overview'){
   CUR={view:'trip',tripId:id,tab};
   ITIN_COLLAPSED=new Set();
   ITIN_HIDE_EMPTY=false;
+  REGION_FILTER=null;
   renderTripShell();
   await loadTripDetail(id);
   renderTab();
@@ -1218,7 +1269,7 @@ async function loadTripDetail(id){
       const {data:docs}=await DB.from('wtn_trip_docs').select('*').eq('trip_id',id).order('created_at',{ascending:false});
       TD[id].docs=docs||[];
     }
-    detectSchemaV3();detectSchemaV4();detectSchemaV5();
+    detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();
     // Privacy: passport/visa data never touches localStorage — the offline
     // cache stores everything except travelers
     try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify({...TD[id],travelers:[]}))}catch{}
@@ -1399,7 +1450,7 @@ function renderTripShell(){
       <div class="trip-hero-content">
         <h1>${esc(t.name)}</h1>
         <div class="trip-dates">
-          <span>📍 ${esc(t.destination||'')}${t.country?' · '+esc(t.country):''}</span>
+          <span>📍 ${esc(t.destination||'')}${Array.isArray(t.destinations)&&t.destinations.length?` +${t.destinations.length} more`:''}${t.country?' · '+esc(t.country):''}</span>
           ${t.start_date?`<span>📅 ${fmt(t.start_date)}${t.end_date?' → '+fmt(t.end_date):''}${days?' ('+days+' days)':''}</span>`:''}
           <span>${cd.label}</span>
         </div>
@@ -1495,10 +1546,12 @@ async function geocodeTries(tries,nameOnly,cacheKey){
 }
 async function geocode(q){return geocodeTries([q],q,q);} // one-shot (destination centering, weather)
 function mapPlaces(t,d){
-  const suffix=[t.destination,t.country].filter(Boolean).join(', ');
+  d=filterByRegion(d);
+  const mainSuffix=[t.destination,t.country].filter(Boolean).join(', ');
   const places=[];
   (d.stays||[]).forEach(s=>{
     const addr=s.address;
+    const suffix=s.region||mainSuffix; // geocode within the item's own region when tagged
     places.push({
       icon:'🏨',color:'var(--purple)',name:s.name,
       sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
@@ -1511,6 +1564,7 @@ function mapPlaces(t,d){
   (d.events||[]).filter(e=>e.location||e.address).forEach(e=>{
     const cat=CATS[e.category]||CATS.other;
     const loc=e.address||e.location;
+    const suffix=e.region||mainSuffix;
     places.push({
       icon:cat.icon,color:'var(--gold)',name:e.title,
       sub:[e.location,e.date?fmt(e.date):''].filter(Boolean).join(' · '),
@@ -1536,6 +1590,7 @@ function renderMapShell(t,d){
     <h2 style="font-family:'Playfair Display',serif">🗺 Trip Map</h2>
     <span id="mapStatus" style="font-size:12px;color:var(--muted)"></span>
   </div>
+  ${regionFilterBar(t,d)}
   ${n===0?`<p style="font-size:13px;color:var(--muted);margin-bottom:12px">No pinnable places yet — add stays or activities with a location or address and they'll show up here.</p>`:''}
   <div id="tripMap"></div>
   <div id="mapMissing" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>`;
@@ -1650,36 +1705,47 @@ function saveWxLocation(tripId){
 async function loadWeather(t){
   const el=document.getElementById('wxWidget');if(!el)return;
   const custom=localStorage.getItem('wtn-wx-'+t.id);
-  const destQ=custom||[t.destination,t.country].filter(Boolean).join(', ');
+  // Custom override shows just that place; otherwise every trip destination (max 5)
+  const dests=custom?[custom]:tripDests(t).map(x=>x.includes(',')||!t.country?x:`${x}, ${t.country}`).slice(0,5);
   const editBtn=`<button class="btn sm ghost" onclick="modalWxLocation('${t.id}')" title="Change forecast location" style="font-size:11px;padding:3px 8px">📍 ${custom?'Change':'Set'} location</button>`;
-  if(!destQ){
+  if(!dests.length){
     el.innerHTML=`<div class="card" style="margin-bottom:16px"><div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2>${editBtn}</div><p class="muted" style="font-size:13px">Set a location to see the 7-day forecast.</p></div>`;
     return;
   }
-  const g=await geocode(destQ);
-  if(!g){
-    const cur0=document.getElementById('wxWidget');if(!cur0)return;
-    cur0.innerHTML=`<div class="card" style="margin-bottom:16px"><div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2>${editBtn}</div><p class="muted" style="font-size:13px">Couldn't find “${esc(destQ)}” — try a nearby city name.</p></div>`;
-    return;
-  }
   const useF=(navigator.language||'').startsWith('en-US');
-  try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7${useF?'&temperature_unit=fahrenheit':''}`);
-    if(!r.ok)return;
-    const js=await r.json();const D=js.daily;if(!D?.time)return;
-    const cur=document.getElementById('wxWidget');if(!cur)return; // user navigated away
-    cur.innerHTML=`<div class="card" style="margin-bottom:16px">
-      <div class="section-head"><h2 style="font-size:16px">🌤 Weather — ${esc(custom||t.destination||t.country)}</h2><span style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">next 7 days · °${useF?'F':'C'}</span>${editBtn}</span></div>
-      <div class="wx-row">${D.time.map((dtStr,i)=>`
+  el.innerHTML=`<div class="card" style="margin-bottom:16px">
+    <div class="section-head"><h2 style="font-size:16px">🌤 Weather${dests.length===1?' — '+esc((custom||dests[0]).split(',')[0]):''}</h2><span style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">next 7 days · °${useF?'F':'C'}</span>${editBtn}</span></div>
+    <div id="wxBody"><p class="muted" style="font-size:12px">Loading forecast…</p></div>
+  </div>`;
+  let any=false;
+  for(const [di,dq] of dests.entries()){
+    const g=await geocode(dq);
+    let body=document.getElementById('wxBody');if(!body)return; // navigated away
+    if(di===0)body.innerHTML='';
+    if(!g){
+      body.insertAdjacentHTML('beforeend',`<p class="muted" style="font-size:12px;margin:6px 0">Couldn't find “${esc(dq)}” — try a nearby city name.</p>`);
+      continue;
+    }
+    try{
+      const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7${useF?'&temperature_unit=fahrenheit':''}`);
+      if(!r.ok)continue;
+      const D=(await r.json()).daily;if(!D?.time)continue;
+      body=document.getElementById('wxBody');if(!body)return;
+      any=true;
+      body.insertAdjacentHTML('beforeend',`
+        ${dests.length>1?`<div style="font-size:12px;font-weight:700;color:var(--gold);margin:${di?'14px':'2px'} 0 4px">📍 ${esc(dq.split(',')[0])}</div>`:''}
+        <div class="wx-row">${D.time.map((dtStr,i)=>`
         <div class="wx-day${t.start_date&&t.end_date&&dtStr>=t.start_date&&dtStr<=t.end_date?' on-trip':''}">
           <div class="wx-date">${new Date(dtStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'})}</div>
           <div class="wx-icon">${wmoIcon(D.weather_code[i])}</div>
           <div class="wx-temp">${Math.round(D.temperature_2m_max[i])}°</div>
           <div class="wx-temp lo">${Math.round(D.temperature_2m_min[i])}°</div>
           <div class="wx-rain">${(D.precipitation_probability_max?.[i]||0)>=30?`💧${D.precipitation_probability_max[i]}%`:''}</div>
-        </div>`).join('')}</div>
-    </div>`;
-  }catch{}
+        </div>`).join('')}</div>`);
+    }catch{}
+  }
+  const body=document.getElementById('wxBody');
+  if(body&&!any&&!body.innerHTML.trim())body.innerHTML=`<p class="muted" style="font-size:13px">Forecast unavailable right now.</p>`;
 }
 
 /* ── Overview ── */
@@ -1946,6 +2012,8 @@ function renderItinerary(t,d){
   const days=tripDays(t);
   if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
   const write=canWrite(t);
+  const regionBar=regionFilterBar(t,d);
+  d=filterByRegion(d);
   const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
   const autoMap=itinAutoItems(d);
 
@@ -1958,6 +2026,7 @@ function renderItinerary(t,d){
   });
 
   return`<div>
+    ${regionBar}
     <div class="itin-filter-bar">
       <button class="btn sm ghost" onclick="toggleItinHideEmpty()" style="${ITIN_HIDE_EMPTY?'background:var(--border2);color:var(--text)':''}">
         ${ITIN_HIDE_EMPTY?'👁 Show all days':`🙈 Hide empty days${emptyCount?' ('+emptyCount+')':''}`}
@@ -2060,10 +2129,13 @@ function flightLeg(f,label,cls){
 
 function renderFlights(t,d){
   const write=canWrite(t);
+  const regionBar=regionFilterBar(t,d);
+  d=filterByRegion(d);
   const addBtn=write?`<button class="btn primary" onclick="modalFlight('${t.id}')">＋ Add</button>`:'';
   const hint=(!SCHEMA_V4&&isAdmin())?`<div class="card" style="font-size:13px;color:var(--muted);margin-bottom:16px">🚆 To organize trains, buses, ferries and car rentals into their own sections, run <b>supabase/migration_v4.sql</b> in the Supabase SQL editor.</div>`:'';
   if(!d.flights.length)return`<div>
     <div class="section-head"><h2>✈️ Travel</h2>${addBtn}</div>
+    ${regionBar}
     ${hint}
     <div class="empty"><div class="icon">✈️</div><p>No travel added yet — flights, trains, buses, ferries, car rentals…</p></div>
   </div>`;
@@ -2087,6 +2159,7 @@ function renderFlights(t,d){
 
   return`<div>
     <div class="section-head"><h2>✈️ Travel</h2>${addBtn}</div>
+    ${regionBar}
     ${hint}
     ${cards.length&&otherModes.length?`<div class="budget-group-head" style="margin-bottom:10px"><span>✈️ Flights</span><span>${flightsOnly.length}</span></div>`:''}
     ${cards.map(c=>{
@@ -2172,8 +2245,11 @@ function renderFlights(t,d){
 /* ── Stays ── */
 function renderStays(t,d){
   const write=canWrite(t);
+  const regionBar=regionFilterBar(t,d);
+  d=filterByRegion(d);
   return`<div>
     <div class="section-head"><h2>🏨 Accommodation</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
+    ${regionBar}
     ${d.stays.length?d.stays.map(s=>`
     <div class="booking-card" onclick="${write?`modalStay('${t.id}','${s.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="booking-header">
@@ -2198,9 +2274,12 @@ function renderStays(t,d){
 /* ── Activities ── */
 function renderActivities(t,d){
   const write=canWrite(t);
+  const regionBar=regionFilterBar(t,d);
+  d=filterByRegion(d);
   const catIds=['activity','sightseeing','food','shopping'];
   return`<div>
     <div class="section-head"><h2>🎭 Activities</h2>${write?`<button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add</button>`:''}</div>
+    ${regionBar}
     ${catIds.map(catId=>{
       const catEvents=d.events.filter(e=>e.category===catId);
       if(!catEvents.length)return'';
@@ -2881,6 +2960,8 @@ function modalTrip(id){
   const travelers=t&&t.travelers?t.travelers:[];
   window._editTravelers=JSON.parse(JSON.stringify(travelers));
   window._editGradient=t.gradient_idx||0;
+  window._editDests=Array.isArray(t.destinations)?[...t.destinations]:[];
+  setTimeout(renderDestChips,0);
   const today=new Date().toISOString().slice(0,10);
   const nextWeek=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
   modal(id?'Edit Trip':'Plan a New Trip',`
@@ -2892,6 +2973,14 @@ function modalTrip(id){
     <div class="field flex1"><label>Destination</label><input id="t_dest" value="${esc(t.destination||'')}" placeholder="Tokyo, Japan"></div>
     <div class="field flex1"><label>Country</label><input id="t_country" value="${esc(t.country||'')}" placeholder="Japan"></div>
   </div>
+  ${SCHEMA_V6?`
+  <div class="field"><label>More Destinations</label>
+    <div id="destChips" style="display:flex;flex-wrap:wrap;gap:6px;${(window._editDests||[]).length?'margin-bottom:8px':''}"></div>
+    <div style="display:flex;gap:6px">
+      <input id="t_dest_extra" placeholder="e.g. Barcelona, Spain — Enter to add" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addDestChip();}">
+      <button class="btn sm ghost" onclick="addDestChip()">＋ Add</button>
+    </div>
+  </div>`:''}
   <div class="row">
     <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.start_date||(id?'':today)}" onchange="syncDate(this,'t_end')"></div>
     <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.end_date||(id?'':nextWeek)}"></div>
@@ -2963,6 +3052,28 @@ function handleBannerUpload(input){
   };
   reader.readAsDataURL(file);
 }
+function renderDestChips(){
+  const box=document.getElementById('destChips');if(!box)return;
+  const list=window._editDests||[];
+  box.style.marginBottom=list.length?'8px':'0';
+  box.innerHTML=list.map((x,i)=>`
+    <span style="display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:5px 6px 5px 12px;font-size:13px">
+      📍 ${esc(x)}
+      <button class="btn sm danger" style="padding:2px 7px;border-radius:14px" onclick="removeDestChip(${i})">✕</button>
+    </span>`).join('');
+}
+function addDestChip(){
+  const inp=document.getElementById('t_dest_extra');if(!inp)return;
+  const v=inp.value.trim();if(!v)return;
+  window._editDests=window._editDests||[];
+  if(!window._editDests.some(x=>x.toLowerCase()===v.toLowerCase()))window._editDests.push(v);
+  inp.value='';
+  renderDestChips();
+}
+function removeDestChip(i){
+  (window._editDests||[]).splice(i,1);
+  renderDestChips();
+}
 function addTraveler(){
   window._editTravelers=window._editTravelers||[];
   const i=window._editTravelers.length;
@@ -2986,6 +3097,11 @@ async function saveTrip(id){
     gradient_idx:window._editGradient||0,travelers,
     banner_url:$('#t_banner_url')?.value.trim()||null,
   };
+  if(SCHEMA_V6){
+    const pending=$('#t_dest_extra')?.value.trim();
+    if(pending)addDestChip(); // don't lose a destination typed but not yet added
+    data.destinations=window._editDests||[];
+  }
   if(id){
     await DB.from('wtn_trips').update(data).eq('id',id);
     const idx=TRIPS.findIndex(t=>t.id===id);
@@ -3424,6 +3540,7 @@ function modalEvent(tripId,date,_,evId){
     <div class="field flex1"><label>Start Time</label><input id="ev_time" type="time" value="${ev.time||''}"></div>
     <div class="field flex1"><label>Duration (min)</label><input id="ev_dur" type="number" value="${ev.duration||''}" placeholder="120"></div>
   </div>
+  ${regionSelect(t,'ev_region',ev.region,!evId)}
   <div class="row">
     <div class="field flex1"><label>Location</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="Venue name, city"></div>
     ${SCHEMA_V5?`<div class="field" style="width:170px"><label>Getting there</label>
@@ -3458,6 +3575,7 @@ async function saveEvent(tripId,evId){
     confirmed:$('#ev_conf').checked,confirm_num:$('#ev_confnum').value.trim()||null,
     notes:$('#ev_notes').value.trim()||null};
   if(SCHEMA_V5)data.transport=$('#ev_transport')?.value||null;
+  if(SCHEMA_V6)data.region=$('#ev_region')?.value||null;
   if(evId){
     await DB.from('wtn_events').update(data).eq('id',evId);
     toast('Event updated');
@@ -3493,6 +3611,7 @@ function modalFlight(tripId,flId,presetDate){
     <div class="field flex1"><label>Carrier / Company</label><input id="fl_airline" value="${esc(f.airline||'')}" placeholder="Swiss / JR / Hertz"></div>
     <div class="field flex1"><label>Flight / Route #</label><input id="fl_num" value="${esc(f.flight_num||'')}"></div>
   </div>
+  ${regionSelect(t,'fl_region',f.region,!flId)}
   <div class="row">
     <div class="field flex1"><label>Depart</label><input id="fl_ddate" type="date" value="${defD}" onchange="syncDate(this,'fl_adate')"></div>
     <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}" onchange="syncTime(this,'fl_atime')"></div>
@@ -3562,6 +3681,7 @@ async function saveFlight(tripId,flId){
     confirm_num:$('#fl_conf').value.trim()||null,cost:$('#fl_cost').value?+$('#fl_cost').value:null,
     confirmed:$('#fl_confirmed').checked,notes:$('#fl_notes').value.trim()||null};
   if(SCHEMA_V4)data.mode=$('#fl_mode')?.value||'flight';
+  if(SCHEMA_V6)data.region=$('#fl_region')?.value||null;
   if(flId){await DB.from('wtn_flights').update(data).eq('id',flId);toast('Updated ✓');}
   else{
     await DB.from('wtn_flights').insert(data);
@@ -3578,6 +3698,7 @@ async function saveFlight(tripId,flId){
           confirm_num:data.confirm_num,confirmed:data.confirmed,
         };
         if(SCHEMA_V4)ret.mode=data.mode;
+        if(SCHEMA_V6)ret.region=data.region;
         await DB.from('wtn_flights').insert(ret);
         toast('Round trip added ✓');
       }
@@ -3618,6 +3739,7 @@ function modalStay(tripId,stId,presetDate){
   <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
     <input type="checkbox" id="st_confirmed"${s.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Booking confirmed</label></div>
   <div class="field"><label>Address</label><input id="st_addr" value="${esc(s.address||'')}"></div>
+  ${regionSelect(t,'st_region',s.region,!stId)}
   <div class="field"><label>Notes</label><textarea id="st_notes" rows="2">${esc(s.notes||'')}</textarea></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
     ${stId?`<button class="btn danger" onclick="deleteStay('${tripId}','${stId}')">Delete</button>`:''}
@@ -3633,6 +3755,7 @@ async function saveStay(tripId,stId){
     confirm_num:$('#st_conf').value.trim()||null,phone:$('#st_phone').value.trim()||null,
     confirmed:$('#st_confirmed').checked,address:$('#st_addr').value.trim()||null,
     notes:$('#st_notes').value.trim()||null};
+  if(SCHEMA_V6)data.region=$('#st_region')?.value||null;
   if(stId){await DB.from('wtn_stays').update(data).eq('id',stId);toast('Updated');}
   else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
