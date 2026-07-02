@@ -675,6 +675,37 @@ const CATS={
 const PACK_CATS=['Clothing','Toiletries','Electronics','Documents','Health','Snacks','Entertainment','Misc'];
 const BUDGET_CATS=['Flights','Accommodation','Food & Drink','Activities','Transport','Shopping','Misc'];
 const CURRENCIES=['$','€','£','¥','₩','A$','C$','CHF','SEK','SGD','HKD','฿','₹'];
+const SYM2ISO={'$':'USD','€':'EUR','£':'GBP','¥':'JPY','₩':'KRW','A$':'AUD','C$':'CAD','CHF':'CHF','SEK':'SEK','SGD':'SGD','HKD':'HKD','฿':'THB','₹':'INR'};
+
+// v2 schema (expense splitting, documents) is optional — the UI stays hidden
+// until supabase/migration_v2.sql has been run. Detected once per session.
+let SCHEMA_V2=null;
+async function detectSchemaV2(){
+  if(SCHEMA_V2!==null)return SCHEMA_V2;
+  const {error}=await DB.from('wtn_trip_docs').select('id').limit(1);
+  SCHEMA_V2=!error;
+  return SCHEMA_V2;
+}
+
+// Exchange rates (frankfurter.dev, keyless) keyed by base ISO code; null = fetch failed
+let RATES={};
+async function ensureRates(baseSym){
+  const iso=SYM2ISO[baseSym||'$']||'USD';
+  if(RATES[iso]!==undefined)return;
+  try{
+    const r=await fetch(`https://api.frankfurter.dev/v1/latest?base=${iso}`);
+    RATES[iso]=r.ok?(await r.json()).rates:null;
+  }catch{RATES[iso]=null}
+}
+function convToTrip(amt,itemSym,tripSym){
+  if(!amt)return 0;
+  if(!itemSym||itemSym===tripSym)return +amt;
+  const from=SYM2ISO[itemSym],to=SYM2ISO[tripSym||'$']||'USD';
+  if(!from||from===to)return +amt;
+  const rates=RATES[to];
+  if(!rates||!rates[from])return null; // rates unavailable — caller shows the original amount
+  return +amt/rates[from];
+}
 const TRAVELER_COLORS=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171'];
 
 /* ═══════════════════════════════════════════════
@@ -951,6 +982,10 @@ async function loadTripDetail(id){
       ownerProfile:ownerProfile||null,
       travelers:travelers||[],
     };
+    if(await detectSchemaV2()){
+      const {data:docs}=await DB.from('wtn_trip_docs').select('*').eq('trip_id',id).order('created_at',{ascending:false});
+      TD[id].docs=docs||[];
+    }
     try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify(TD[id]))}catch{}
   }catch(e){
     // Network down — hydrate from last-synced copy (read-only until back online)
@@ -1155,7 +1190,15 @@ function renderTab(){
   else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
   else if(CUR.tab==='map'){el.innerHTML=renderMapShell(t,d);initTripMap(t,d);}
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
-  else if(CUR.tab==='budget')el.innerHTML=renderBudget(t,d);
+  else if(CUR.tab==='budget'){
+    el.innerHTML=renderBudget(t,d);
+    // If any item is in a foreign currency, fetch rates once then re-render with conversions
+    const tripSym=t.currency||'$';
+    const iso=SYM2ISO[tripSym]||'USD';
+    if(RATES[iso]===undefined&&(d.budgetItems||[]).some(b=>b.currency&&b.currency!==tripSym)){
+      ensureRates(tripSym).then(()=>{if(CUR.tab==='budget')renderTab();});
+    }
+  }
   else if(CUR.tab==='travelers'){
     if(t.owner_id!==ME?.id){
       el.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px;gap:12px;color:var(--muted);text-align:center;padding:32px">
@@ -1470,6 +1513,24 @@ function renderOverview(t,d){
     }).join('')}
     ${allMembers.length===1&&isOwner?`<p class="muted" style="font-size:13px;margin-top:8px">Invite others to collaborate on this trip.</p>`:''}
   </div>
+
+  ${Array.isArray(d.docs)?`
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-head">
+      <h2 style="font-size:16px">📎 Documents</h2>
+      ${write?`<label class="btn sm primary" style="cursor:pointer">＋ Upload<input type="file" style="display:none" onchange="uploadTripDoc('${t.id}',this)"></label>`:''}
+    </div>
+    ${d.docs.length?d.docs.map(doc=>`
+    <div class="member-card" style="cursor:pointer" onclick="openTripDoc('${doc.path}')">
+      <div class="member-avatar" style="background:var(--border2);font-size:16px">${doc.mime?.startsWith('image/')?'🖼':doc.mime==='application/pdf'?'📄':'📎'}</div>
+      <div class="member-info">
+        <div class="member-name">${esc(doc.name)}</div>
+        <div class="member-email">${doc.size?(doc.size/1048576).toFixed(1)+' MB':''}${doc.created_at?' · '+fmt(doc.created_at.slice(0,10)):''}</div>
+      </div>
+      ${write?`<button class="btn sm danger" onclick="event.stopPropagation();deleteTripDoc('${t.id}','${doc.id}','${doc.path}')" title="Delete">✕</button>`:''}
+    </div>`).join(''):`<p class="muted" style="font-size:13px">Attach boarding passes, confirmations, visas — anything you'll want handy on the go.</p>`}
+  </div>`
+  :(SCHEMA_V2===false&&isAdmin()?`<div class="card" style="margin-bottom:16px;font-size:13px;color:var(--muted)">📎 Documents &amp; expense splitting are ready to enable — run <b>supabase/migration_v2.sql</b> in the Supabase SQL editor to turn them on.</div>`:'')}
 
   ${travelers.length?`
   <div class="card" style="margin-bottom:16px">
@@ -1882,8 +1943,45 @@ function renderBudget(t,d){
   const confTotal=autoConf.reduce((a,x)=>a+x.amt,0);
   const potTotal=autoPot.reduce((a,x)=>a+x.amt,0);
   const manualItems=d.budgetItems||[];
-  const manualTotal=manualItems.reduce((a,b)=>a+(+b.actual||+b.planned||0),0);
+  const itemAmt=b=>{
+    const raw=+b.actual||+b.planned||0;
+    const c=convToTrip(raw,b.currency,cur);
+    return c===null?raw:c;
+  };
+  const manualTotal=manualItems.reduce((a,b)=>a+itemAmt(b),0);
   const grandTotal=confTotal+potTotal+manualTotal;
+
+  // ── Settle up: who owes whom, from items with paid_by + split_with ──
+  const nameOf={};
+  [{user_id:t.owner_id,profile:d.ownerProfile},...(d.members||[])].forEach(m=>{
+    const p=m.profile||{};nameOf[m.user_id]=p.name?.split(' ')[0]||p.email||'Someone';
+  });
+  const splitItems=manualItems.filter(b=>b.paid_by&&Array.isArray(b.split_with)&&b.split_with.length&&(+b.actual||+b.planned));
+  let settleHtml='';
+  if(splitItems.length){
+    const bal={};
+    splitItems.forEach(b=>{
+      const amt=itemAmt(b);
+      bal[b.paid_by]=(bal[b.paid_by]||0)+amt;
+      const share=amt/b.split_with.length;
+      b.split_with.forEach(u=>{bal[u]=(bal[u]||0)-share;});
+    });
+    const D=Object.entries(bal).filter(([,v])=>v<-0.01).sort((a,b)=>a[1]-b[1]).map(([u,v])=>[u,-v]);
+    const C=Object.entries(bal).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1]).map(([u,v])=>[u,v]);
+    const lines=[];
+    let i=0,j=0;
+    while(i<D.length&&j<C.length){
+      const pay=Math.min(D[i][1],C[j][1]);
+      lines.push(`<div class="today-row"><span>💸</span><span><b>${esc(nameOf[D[i][0]]||'?')}</b> owes <b>${esc(nameOf[C[j][0]]||'?')}</b></span><span style="margin-left:auto;color:var(--gold);font-weight:700">${formatCost(Math.round(pay*100)/100,cur)}</span></div>`);
+      D[i][1]-=pay;C[j][1]-=pay;
+      if(D[i][1]<0.01)i++;
+      if(C[j][1]<0.01)j++;
+    }
+    settleHtml=`<div class="budget-group">
+      <div class="budget-group-head"><span>🤝 Settle Up</span><span>${splitItems.length} shared expense${splitItems.length!==1?'s':''}</span></div>
+      ${lines.length?lines.join(''):'<p class="muted" style="font-size:13px">All square! 🎉</p>'}
+    </div>`;
+  }
 
   function budgetLine(item){
     return`<div class="budget-line">
@@ -1934,13 +2032,16 @@ function renderBudget(t,d){
           <span style="font-weight:600;font-size:14px">${esc(item.name)}</span>
           ${item.notes?`<span class="muted" style="font-size:12px">${esc(item.notes)}</span>`:''}
         </div>
-        <div style="display:flex;gap:16px;font-size:13px">
-          <span style="color:var(--muted)">Budget: ${formatCost(item.planned,cur)}</span>
-          ${item.actual?`<span style="font-weight:600;color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,cur)}</span>`:'<span class="muted">Not spent yet</span>'}
+        <div style="display:flex;gap:16px;font-size:13px;flex-wrap:wrap">
+          <span style="color:var(--muted)">Budget: ${formatCost(item.planned,item.currency||cur)}</span>
+          ${item.actual?`<span style="font-weight:600;color:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}">Actual: ${formatCost(item.actual,item.currency||cur)}</span>`:'<span class="muted">Not spent yet</span>'}
+          ${item.currency&&item.currency!==cur&&convToTrip(+item.actual||+item.planned||0,item.currency,cur)!==null?`<span style="color:var(--dim)">≈ ${formatCost(Math.round(convToTrip(+item.actual||+item.planned||0,item.currency,cur)),cur)}</span>`:''}
+          ${item.paid_by&&item.split_with?.length?`<span style="color:var(--cyan)">🤝 ${esc(nameOf[item.paid_by]||'?')} paid · split ${item.split_with.length} way${item.split_with.length!==1?'s':''}</span>`:''}
         </div>
         ${item.planned?`<div class="budget-bar"><div class="budget-bar-fill" style="width:${item.actual?Math.min(100,Math.round(item.actual/item.planned*100)):0}%;background:${+item.actual>+item.planned?'var(--coral)':'var(--green)'}"></div></div>`:''}
       </div>`).join('')}
-    </div>`:''}`
+    </div>`:''}
+    ${settleHtml}`
     :`<div class="empty"><div class="icon">💰</div><p>Costs added to flights, stays &amp; activities will appear here automatically.</p></div>`}
   </div>`;
 }
@@ -3008,17 +3109,58 @@ async function applyPackTemplate(tripId,key){
 }
 async function seedPackItems(tripId){modalPackTemplates(tripId);}
 
+/* ── Documents vault (requires migration_v2) ── */
+async function uploadTripDoc(tripId,input){
+  const file=input.files&&input.files[0];
+  input.value='';
+  if(!file)return;
+  if(file.size>10*1048576){toast('Max file size is 10 MB');return;}
+  toast('Uploading…');
+  const safe=(file.name||'file').replace(/[^\w.\- ()]+/g,'').slice(-80)||'file';
+  const path=`${tripId}/${crypto.randomUUID()}-${safe}`;
+  const {error:upErr}=await DB.storage.from('wtn-docs').upload(path,file,{contentType:file.type||'application/octet-stream'});
+  if(upErr){toast('Upload failed: '+(upErr.message||'storage error'));return;}
+  const {error:dbErr}=await DB.from('wtn_trip_docs').insert({trip_id:tripId,name:file.name,path,mime:file.type||null,size:file.size,uploaded_by:ME?.id});
+  if(dbErr){await DB.storage.from('wtn-docs').remove([path]);toast('Upload failed');return;}
+  toast('📎 Uploaded ✓');
+  await loadTripDetail(tripId);renderTab();
+}
+async function openTripDoc(path){
+  const {data}=await DB.storage.from('wtn-docs').createSignedUrl(path,3600);
+  if(data?.signedUrl)window.open(data.signedUrl,'_blank');
+  else toast('Could not open file');
+}
+async function deleteTripDoc(tripId,id,path){
+  await DB.from('wtn_trip_docs').delete().eq('id',id);
+  await DB.storage.from('wtn-docs').remove([path]);
+  toast('Document deleted');
+  await loadTripDetail(tripId);renderTab();
+}
+
 /* ── Budget Modal ── */
 function modalBudgetItem(tripId,bId){
   const t=TRIPS.find(x=>x.id===tripId);
   const b=bId?(TD[tripId]?.budgetItems||[]).find(x=>x.id===bId):{};
+  const d0=TD[tripId]||{};
+  const people=[{user_id:t?.owner_id,profile:d0.ownerProfile||{}},...(d0.members||[])]
+    .map(m=>({id:m.user_id,name:m.profile?.name?.split(' ')[0]||m.profile?.email||'Member'}));
   modal(bId?'Edit Budget Item':'Add Budget Item',`
   <div class="field"><label>Description</label><input id="b_name" value="${esc(b.name||'')}" placeholder="e.g. Round-trip flights"></div>
   <div class="field"><label>Category</label><select id="b_cat">${BUDGET_CATS.map(c=>`<option${c===(b.category||'Misc')?' selected':''}>${c}</option>`).join('')}</select></div>
   <div class="row">
-    <div class="field flex1"><label>Planned (${t?.currency||'$'})</label><input id="b_plan" type="number" value="${b.planned||''}"></div>
+    <div class="field flex1"><label>Planned</label><input id="b_plan" type="number" value="${b.planned||''}"></div>
     <div class="field flex1"><label>Actual Spent</label><input id="b_actual" type="number" value="${b.actual||''}"></div>
   </div>
+  ${SCHEMA_V2?`
+  <div class="row">
+    <div class="field flex1"><label>Currency</label><select id="b_cur">${CURRENCIES.map(c=>`<option${c===(b.currency||t?.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field flex1"><label>Paid by</label><select id="b_paidby"><option value="">—</option>${people.map(p=>`<option value="${p.id}"${b.paid_by===p.id?' selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+  </div>
+  <div class="field"><label>Split between</label>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${people.map(p=>`<label style="display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer"><input type="checkbox" class="b-split" value="${p.id}"${(b.split_with||[]).includes(p.id)?' checked':''} style="width:auto"> ${esc(p.name)}</label>`).join('')}
+    </div>
+  </div>`:''}
   <div class="field"><label>Notes</label><input id="b_notes" value="${esc(b.notes||'')}"></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
     ${bId?`<button class="btn danger" onclick="deleteBudgetItem('${tripId}','${bId}')">Delete</button>`:''}
@@ -3029,6 +3171,12 @@ function modalBudgetItem(tripId,bId){
 async function saveBudgetItem(tripId,bId){
   const name=$('#b_name').value.trim();if(!name){toast('Description required');return;}
   const data={trip_id:tripId,name,category:$('#b_cat').value,planned:+$('#b_plan').value||0,actual:+$('#b_actual').value||0,notes:$('#b_notes').value.trim()||null};
+  if(SCHEMA_V2){
+    data.currency=$('#b_cur')?.value||null;
+    data.paid_by=$('#b_paidby')?.value||null;
+    const sel=[...document.querySelectorAll('.b-split:checked')].map(x=>x.value);
+    data.split_with=sel.length?sel:null;
+  }
   if(bId){await DB.from('wtn_budget_items').update(data).eq('id',bId);toast('Updated');}
   else{await DB.from('wtn_budget_items').insert(data);toast('Added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
