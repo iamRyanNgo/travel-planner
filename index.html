@@ -1718,6 +1718,8 @@ function saveWxLocation(tripId){
 }
 async function loadWeather(t){
   const el=document.getElementById('wxWidget');if(!el)return;
+  // Trip is over — a forecast is no longer useful, hide the card
+  if(t.end_date&&new Date().toLocaleDateString('en-CA')>t.end_date){el.innerHTML='';return;}
   const custom=localStorage.getItem('wtn-wx-'+t.id);
   // Custom override shows just that place; otherwise every trip destination (max 5)
   const dests=custom?[custom]:tripDests(t).map(x=>x.includes(',')||!t.country?x:`${x}, ${t.country}`).slice(0,5);
