@@ -824,9 +824,9 @@ const CATS={
 };
 const PACK_CATS=['Clothing','Toiletries','Electronics','Documents','Health','Snacks','Entertainment','Misc'];
 const BUDGET_CATS=['Flights','Accommodation','Food & Drink','Activities','Transport','Shopping','Misc'];
-const CURRENCIES=['$','€','£','¥','₩','A$','C$','CHF','SEK','SGD','HKD','฿','₹'];
-const SYM2ISO={'$':'USD','€':'EUR','£':'GBP','¥':'JPY','₩':'KRW','A$':'AUD','C$':'CAD','CHF':'CHF','SEK':'SEK','SGD':'SGD','HKD':'HKD','฿':'THB','₹':'INR'};
-const CUR_NAMES={'$':'US Dollar','€':'Euro','£':'British Pound','¥':'Japanese Yen','₩':'Korean Won','A$':'Australian Dollar','C$':'Canadian Dollar','CHF':'Swiss Franc','SEK':'Swedish Krona','SGD':'Singapore Dollar','HKD':'Hong Kong Dollar','฿':'Thai Baht','₹':'Indian Rupee'};
+const CURRENCIES=['$','€','£','¥','₩','₫','A$','C$','CHF','SEK','SGD','HKD','฿','₹'];
+const SYM2ISO={'$':'USD','€':'EUR','£':'GBP','¥':'JPY','₩':'KRW','₫':'VND','A$':'AUD','C$':'CAD','CHF':'CHF','SEK':'SEK','SGD':'SGD','HKD':'HKD','฿':'THB','₹':'INR'};
+const CUR_NAMES={'$':'US Dollar','€':'Euro','£':'British Pound','¥':'Japanese Yen','₩':'Korean Won','₫':'Vietnamese Dong','A$':'Australian Dollar','C$':'Canadian Dollar','CHF':'Swiss Franc','SEK':'Swedish Krona','SGD':'Singapore Dollar','HKD':'Hong Kong Dollar','฿':'Thai Baht','₹':'Indian Rupee'};
 // <option> list rendered as "symbol — English name" (value stays the symbol)
 function curOptions(sel){return CURRENCIES.map(c=>`<option value="${c}"${c===sel?' selected':''}>${c} — ${CUR_NAMES[c]||c}</option>`).join('');}
 
@@ -848,15 +848,26 @@ async function detectSchemaV3(){
   return SCHEMA_V3;
 }
 
-// Exchange rates (frankfurter.dev, keyless) keyed by base ISO code; null = fetch failed
+// Exchange rates keyed by base ISO code; null = all sources failed.
+// Primary: frankfurter.dev (ECB reference rates, business-daily). ECB doesn't
+// list every currency (e.g. VND), so open.er-api.com (daily) fills the gaps.
 let RATES={};
 async function ensureRates(baseSym){
   const iso=SYM2ISO[baseSym||'$']||'USD';
   if(RATES[iso]!==undefined)return;
+  let rates=null;
   try{
     const r=await fetch(`https://api.frankfurter.dev/v1/latest?base=${iso}`);
-    RATES[iso]=r.ok?(await r.json()).rates:null;
-  }catch{RATES[iso]=null}
+    if(r.ok)rates=(await r.json()).rates;
+  }catch{}
+  try{
+    const r2=await fetch(`https://open.er-api.com/v6/latest/${iso}`);
+    if(r2.ok){
+      const extra=(await r2.json())?.rates||{};
+      rates=rates?{...extra,...rates}:extra; // ECB wins where both have a rate
+    }
+  }catch{}
+  RATES[iso]=rates&&Object.keys(rates).length?rates:null;
 }
 function convToTrip(amt,itemSym,tripSym){
   if(!amt)return 0;

@@ -30,7 +30,7 @@ self.addEventListener('fetch', e => {
   // Skip Supabase + Unsplash + geo/weather APIs — always live data
   if (url.hostname.includes('supabase.co') || url.hostname === 'api.unsplash.com' ||
       url.hostname.endsWith('openstreetmap.org') || url.hostname.endsWith('open-meteo.com') ||
-      url.hostname.endsWith('frankfurter.dev')) return;
+      url.hostname.endsWith('frankfurter.dev') || url.hostname.endsWith('open.er-api.com')) return;
 
   // HTML navigation: network-first so the page is never stale, but keep the
   // last good copy so the app still opens with no connection (trip data is
