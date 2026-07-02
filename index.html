@@ -826,6 +826,9 @@ const PACK_CATS=['Clothing','Toiletries','Electronics','Documents','Health','Sna
 const BUDGET_CATS=['Flights','Accommodation','Food & Drink','Activities','Transport','Shopping','Misc'];
 const CURRENCIES=['$','€','£','¥','₩','A$','C$','CHF','SEK','SGD','HKD','฿','₹'];
 const SYM2ISO={'$':'USD','€':'EUR','£':'GBP','¥':'JPY','₩':'KRW','A$':'AUD','C$':'CAD','CHF':'CHF','SEK':'SEK','SGD':'SGD','HKD':'HKD','฿':'THB','₹':'INR'};
+const CUR_NAMES={'$':'US Dollar','€':'Euro','£':'British Pound','¥':'Japanese Yen','₩':'Korean Won','A$':'Australian Dollar','C$':'Canadian Dollar','CHF':'Swiss Franc','SEK':'Swedish Krona','SGD':'Singapore Dollar','HKD':'Hong Kong Dollar','฿':'Thai Baht','₹':'Indian Rupee'};
+// <option> list rendered as "symbol — English name" (value stays the symbol)
+function curOptions(sel){return CURRENCIES.map(c=>`<option value="${c}"${c===sel?' selected':''}>${c} — ${CUR_NAMES[c]||c}</option>`).join('');}
 
 // v2 schema (expense splitting, documents) is optional — the UI stays hidden
 // until supabase/migration_v2.sql has been run. Detected once per session.
@@ -2247,7 +2250,7 @@ function renderBudget(t,d){
     <button class="btn sm ${BUDGET_VIEW==='splits'?'primary':'ghost'}" onclick="setBudgetView('splits')">🤝 Splits</button>
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">💱 Show in
       <select onchange="setBudgetCur(this.value)" style="width:auto;padding:5px 8px;font-size:12px">
-        ${CURRENCIES.map(c=>`<option${c===disp?' selected':''}>${c}</option>`).join('')}
+        ${curOptions(disp)}
       </select>
     </span>
   </div>
@@ -2767,7 +2770,7 @@ function modalTrip(id){
     <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.end_date||(id?'':nextWeek)}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Currency</label><select id="t_currency">${CURRENCIES.map(c=>`<option${c===(t.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field flex1"><label>Currency</label><select id="t_currency">${curOptions(t.currency||'$')}</select></div>
     <div class="field flex1"><label>Cover Style</label>
       <div class="gradient-picker" id="gpicker">
         ${GRADIENTS.map((g,i)=>`<div class="gp-swatch${(t.gradient_idx||0)===i?' sel':''}" style="background:${g}" onclick="selectGradient(${i})" data-idx="${i}"></div>`).join('')}
@@ -3223,7 +3226,7 @@ function modalEvent(tripId,date,_,evId){
   <div class="field"><label>Location</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="Venue name, city"></div>
   <div class="row">
     <div class="field flex1"><label>Cost</label><input id="ev_cost" type="number" value="${ev.cost||''}"></div>
-    <div class="field" style="width:80px"><label>Currency</label><select id="ev_cur">${CURRENCIES.map(c=>`<option${c===(ev.currency||t?.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field" style="width:150px"><label>Currency</label><select id="ev_cur">${curOptions(ev.currency||t?.currency||'$')}</select></div>
     <div class="field flex1" style="display:flex;align-items:flex-end;padding-bottom:2px">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:14px">
         <input type="checkbox" id="ev_conf"${ev.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Confirmed
@@ -3578,7 +3581,7 @@ function modalBudgetItem(tripId,bId){
   </div>
   ${SCHEMA_V2?`
   <div class="row">
-    <div class="field flex1"><label>Currency</label><select id="b_cur">${CURRENCIES.map(c=>`<option${c===(b.currency||t?.currency||'$')?' selected':''}>${c}</option>`).join('')}</select></div>
+    <div class="field flex1"><label>Currency</label><select id="b_cur">${curOptions(b.currency||t?.currency||'$')}</select></div>
     <div class="field flex1"><label>Paid by</label><select id="b_paidby"><option value="">—</option>${people.map(p=>`<option value="${p.id}"${b.paid_by===p.id?' selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
   </div>
   <div class="field"><label>Split between</label>
