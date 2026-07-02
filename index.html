@@ -2599,6 +2599,17 @@ function modal(title,body){
 }
 function closeModal(){document.getElementById('modalRoot').innerHTML='';}
 
+// When a start-type date changes, pull the paired end date along if it's
+// empty or now before the start (plusDays offsets, e.g. +1 night for stays)
+function syncDate(srcEl,dstId,plusDays=0){
+  const dst=document.getElementById(dstId);
+  if(!dst||!srcEl.value)return;
+  const d=new Date(srcEl.value+'T12:00:00');
+  d.setDate(d.getDate()+plusDays);
+  const target=d.toLocaleDateString('en-CA');
+  if(!dst.value||dst.value<srcEl.value)dst.value=target;
+}
+
 /* ── Print Modal ── */
 const PRINT_TABS=[
   {id:'overview',  icon:'📋',label:'Overview'},
@@ -2877,7 +2888,7 @@ function modalTrip(id){
     <div class="field flex1"><label>Country</label><input id="t_country" value="${esc(t.country||'')}" placeholder="Japan"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.start_date||(id?'':today)}"></div>
+    <div class="field flex1"><label>Start Date</label><input id="t_start" type="date" value="${t.start_date||(id?'':today)}" onchange="syncDate(this,'t_end')"></div>
     <div class="field flex1"><label>End Date</label><input id="t_end" type="date" value="${t.end_date||(id?'':nextWeek)}"></div>
   </div>
   <div class="row">
@@ -3478,7 +3489,7 @@ function modalFlight(tripId,flId,presetDate){
     <div class="field flex1"><label>Flight / Route #</label><input id="fl_num" value="${esc(f.flight_num||'')}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Depart</label><input id="fl_ddate" type="date" value="${defD}"></div>
+    <div class="field flex1"><label>Depart</label><input id="fl_ddate" type="date" value="${defD}" onchange="syncDate(this,'fl_adate')"></div>
     <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}"></div>
   </div>
   <div class="row">
@@ -3513,7 +3524,7 @@ function modalFlight(tripId,flId,presetDate){
       <div class="field flex1"><label>Seat</label><input id="fl_r_seat"></div>
     </div>
     <div class="row">
-      <div class="field flex1"><label>Depart</label><input id="fl_r_ddate" type="date" value="${retD}"></div>
+      <div class="field flex1"><label>Depart</label><input id="fl_r_ddate" type="date" value="${retD}" onchange="syncDate(this,'fl_r_adate')"></div>
       <div class="field flex1"><label>Time</label><input id="fl_r_dtime" type="time"></div>
     </div>
     <div class="row">
@@ -3588,7 +3599,7 @@ function modalStay(tripId,stId,presetDate){
     <div class="field flex1"><label>Cost (${t?.currency||'$'})</label><input id="st_cost" type="number" value="${s.cost||''}"></div>
   </div>
   <div class="row">
-    <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.check_in||''}"></div>
+    <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.check_in||''}" onchange="syncDate(this,'st_co',1)"></div>
     <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.check_in_time||''}"></div>
   </div>
   <div class="row">
