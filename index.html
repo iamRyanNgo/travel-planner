@@ -1726,6 +1726,12 @@ function modalWxLocation(tripId){
     <button class="btn primary" onclick="saveWxLocation('${tripId}')">Save</button>
   </div>`);
 }
+function toggleWxUnit(){
+  const cur=localStorage.getItem('wtn-wx-unit')||((navigator.language||'').startsWith('en-US')?'F':'C');
+  localStorage.setItem('wtn-wx-unit',cur==='F'?'C':'F');
+  const t=TRIPS.find(x=>x.id===CUR.tripId);
+  if(t)loadWeather(t);
+}
 function saveWxLocation(tripId){
   const v=$('#wx_loc').value.trim();
   if(v)localStorage.setItem('wtn-wx-'+tripId,v);
@@ -1746,9 +1752,13 @@ async function loadWeather(t){
     el.innerHTML=`<div class="card" style="margin-bottom:16px"><div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2>${editBtn}</div><p class="muted" style="font-size:13px">Set a location to see the 7-day forecast.</p></div>`;
     return;
   }
-  const useF=(navigator.language||'').startsWith('en-US');
+  const unitPref=localStorage.getItem('wtn-wx-unit');
+  const useF=unitPref?unitPref==='F':(navigator.language||'').startsWith('en-US');
   el.innerHTML=`<div class="card" style="margin-bottom:16px">
-    <div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2><span style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:var(--dim)">Open-Meteo · next 7 days · °${useF?'F':'C'}</span>${editBtn}</span></div>
+    <div class="section-head"><h2 style="font-size:16px">🌤 Weather</h2><span style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;color:var(--dim)">Open-Meteo · next 7 days · °${useF?'F':'C'}</span>
+      <button class="btn sm ghost" onclick="toggleWxUnit()" title="Switch temperature unit" style="font-size:11px;padding:3px 8px">⇄ °${useF?'C':'F'}</button>
+      ${editBtn}</span></div>
     <div id="wxBody"><p class="muted" style="font-size:12px">Loading forecast…</p></div>
   </div>`;
   let any=false;
