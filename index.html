@@ -4059,7 +4059,17 @@ async function deleteFlight(tripId,id){deleteRowUndo(tripId,'wtn_flights',id,'Tr
 /* ── Stay Modal ── */
 function modalStay(tripId,stId,presetDate){
   const t=TRIPS.find(x=>x.id===tripId);
-  const s=stId?(TD[tripId]?.stays||[]).find(x=>x.id===stId):{check_in:presetDate||''};
+  // Smart defaults: new stays start at the trip's start date (or the day
+  // they were added from) with checkout the next night — pickers open on
+  // the trip's dates instead of today's month
+  const ci=presetDate||t?.start_date||'';
+  let co='';
+  if(ci){
+    const d0=new Date(ci+'T12:00:00');d0.setDate(d0.getDate()+1);
+    co=d0.toLocaleDateString('en-CA');
+    if(t?.end_date&&co>t.end_date)co=t.end_date;
+  }
+  const s=stId?(TD[tripId]?.stays||[]).find(x=>x.id===stId):{check_in:ci,check_out:co};
   modal(stId?'Edit Stay':'Add Accommodation',`
   <div class="field"><label>Property Name</label><input id="st_name" value="${esc(s.name||'')}" placeholder="Park Hyatt Tokyo"></div>
   <div class="row">
