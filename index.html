@@ -148,6 +148,9 @@ select option{background:var(--panel)}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
 
 .split-btn{padding:4px 9px;font-size:12px;flex-shrink:0;margin-left:8px}
+.discuss-chip{display:inline-flex;align-items:center;gap:3px;background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:.12s}
+.discuss-chip:hover{border-color:var(--gold);color:var(--gold)}
+.discuss-chip.has-activity{color:var(--gold);border-color:rgba(245,197,66,.35);background:rgba(245,197,66,.06)}
 
 /* ── Itinerary day context strips (staying tonight / travel in progress) ── */
 .day-ctx-wrap{margin:2px 0 10px;padding-left:2px}
@@ -1007,6 +1010,14 @@ async function detectSchemaV7(){
   SCHEMA_V7=!error;
   return SCHEMA_V7;
 }
+// v8 = comments + votes on items (supabase/migration_v8.sql)
+let SCHEMA_V8=null;
+async function detectSchemaV8(){
+  if(SCHEMA_V8!==null)return SCHEMA_V8;
+  const {error}=await DB.from('wtn_comments').select('id').limit(1);
+  SCHEMA_V8=!error;
+  return SCHEMA_V8;
+}
 
 /* ── Live sync: reload the open trip when anyone else changes it ── */
 let RT_CHANNEL=null,RT_TIMER=null;
@@ -1015,7 +1026,7 @@ function subscribeTripRealtime(tripId){
     if(RT_CHANNEL){DB.removeChannel(RT_CHANNEL);RT_CHANNEL=null;}
     if(!DB.channel)return;
     let ch=DB.channel('trip-'+tripId);
-    ['wtn_events','wtn_flights','wtn_stays','wtn_pack_items','wtn_budget_items','wtn_trip_members','wtn_journal','wtn_trip_docs'].forEach(tbl=>{
+    ['wtn_events','wtn_flights','wtn_stays','wtn_pack_items','wtn_budget_items','wtn_trip_members','wtn_journal','wtn_trip_docs','wtn_comments','wtn_votes'].forEach(tbl=>{
       ch=ch.on('postgres_changes',{event:'*',schema:'public',table:tbl,filter:`trip_id=eq.${tripId}`},()=>{
         // Debounced: bursts of changes (and our own writes) collapse into one reload
         clearTimeout(RT_TIMER);
@@ -1218,7 +1229,7 @@ async function afterSignIn(user){
   renderAuthHeader();
   // Warm up schema feature flags so modals opened from the dashboard
   // (e.g. Edit Trip's More Destinations) see them without opening a trip first
-  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();
+  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();detectSchemaV8();
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -1384,6 +1395,14 @@ async function loadTripDetail(id){
     if(await detectSchemaV7()){
       const {data:journal}=await DB.from('wtn_journal').select('*').eq('trip_id',id).order('date');
       TD[id].journal=journal||[];
+    }
+    if(await detectSchemaV8()){
+      const [{data:comments},{data:votes}]=await Promise.all([
+        DB.from('wtn_comments').select('*').eq('trip_id',id).order('created_at'),
+        DB.from('wtn_votes').select('*').eq('trip_id',id),
+      ]);
+      TD[id].comments=comments||[];
+      TD[id].votes=votes||[];
     }
     // Privacy: passport/visa data never touches localStorage — the offline
     // cache stores everything except travelers
@@ -2386,6 +2405,7 @@ function eventCard(ev,write){
           ${ev.location?`<span>📍 <a href="${mapsUrl(ev.address||ev.location)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:underline dotted" title="Open in Maps">${esc(ev.location)}</a></span>`:''}
           ${ev.transport&&EVENT_TRANSPORT[ev.transport]?`<span class="ev-transport">${EVENT_TRANSPORT[ev.transport].icon} ${EVENT_TRANSPORT[ev.transport].label}</span>`:''}
           ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
+          ${discussChip('event',ev.id)}
         </div>
       </div>
       <div class="event-card-right">
@@ -2492,6 +2512,7 @@ function renderFlights(t,d){
               <div class="booking-title">${esc(f.from_airport||'')} → ${esc(f.to_airport||'')}</div>
               <div class="booking-sub">${esc(f.airline||'')}${f.flight_num?' · '+esc(f.flight_num):''}</div>
             </div>
+            ${discussChip('flight',f.id)}
             <span class="conf-badge ${f.confirmed?'confirmed':'pending'}">${f.confirmed?'CONFIRMED':'PENDING'}</span>
           </div>
           <div class="fl-legs">${flightLeg(f,'','')}</div>
@@ -2516,6 +2537,7 @@ function renderFlights(t,d){
               <div class="booking-title">${esc(f.from_airport||'')}${f.to_airport?' → '+esc(f.to_airport):''}</div>
               <div class="booking-sub">${esc(f.airline||md.label)}${f.flight_num?' · '+esc(f.flight_num):''}</div>
             </div>
+            ${discussChip('flight',f.id)}
             <span class="conf-badge ${f.confirmed?'confirmed':'pending'}">${f.confirmed?'CONFIRMED':'PENDING'}</span>
           </div>
           <div class="fl-legs">${flightLeg(f,'','')}</div>
@@ -2547,6 +2569,7 @@ function renderStays(t,d){
           <div class="booking-title">${esc(s.name)}</div>
           <div class="booking-sub">${s.address?`<a href="${mapsUrl(s.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:underline dotted" title="Open in Maps">📍 ${esc(s.address)}</a>`:''}${s.type?(s.address?' · ':'')+esc(s.type):''}</div>
         </div>
+        ${discussChip('stay',s.id)}
         <span class="conf-badge ${s.confirmed?'confirmed':'pending'}">${s.confirmed?'CONFIRMED':'PENDING'}</span>
       </div>
       <div class="booking-detail-grid">
@@ -2587,6 +2610,7 @@ function renderActivities(t,d){
                 ${ev.date?`<span>📅 ${fmtDay(ev.date)}</span>`:''}
                 ${ev.time?`<span>🕐 ${ev.time}</span>`:''}
                 ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
+                ${discussChip('event',ev.id)}
               </div>
             </div>
             <div class="event-card-right">
@@ -4513,6 +4537,105 @@ async function addSavedToTrip(tripId,savedId){
   closeModal();
   toast(`${tv.name} added ✓`);
   await loadTripDetail(tripId);renderTab();
+}
+
+/* ═══════════════════════════════════════════════
+   COMMENTS & VOTES — discuss and decide on any item
+═══════════════════════════════════════════════ */
+const DISCUSS_KINDS={event:['events',x=>x.title],stay:['stays',x=>x.name],flight:['flights',x=>`${x.from_airport||''} → ${x.to_airport||''}`],budget:['budgetItems',x=>x.name]};
+function voteSummary(kind,id){
+  const vs=(TD[CUR.tripId]?.votes||[]).filter(v=>v.target_kind===kind&&v.target_id===id);
+  return{
+    up:vs.filter(v=>v.vote===1).length,
+    down:vs.filter(v=>v.vote===-1).length,
+    mine:vs.find(v=>v.user_id===ME?.id)?.vote||0,
+    voters:vs,
+  };
+}
+function discussChip(kind,id){
+  if(!SCHEMA_V8)return'';
+  const {up,down}=voteSummary(kind,id);
+  const n=(TD[CUR.tripId]?.comments||[]).filter(c=>c.target_kind===kind&&c.target_id===id).length;
+  const bits=[up?`👍${up}`:'',down?`👎${down}`:'',`💬${n||''}`].filter(Boolean).join(' ');
+  return`<button class="discuss-chip${up||down||n?' has-activity':''}" onclick="event.stopPropagation();modalDiscuss('${kind}','${id}')" title="Discuss &amp; vote">${bits}</button>`;
+}
+function modalDiscuss(kind,id){
+  const tripId=CUR.tripId;
+  const t=TRIPS.find(x=>x.id===tripId);
+  const d=TD[tripId]||{};
+  const [key,labelFn]=DISCUSS_KINDS[kind]||[];
+  const item=(d[key]||[]).find(x=>x.id===id);
+  if(!item){toast('Item not found');return;}
+  const nameOf=memberNames(t,d);
+  const {up,down,mine,voters}=voteSummary(kind,id);
+  const comments=(d.comments||[]).filter(c=>c.target_kind===kind&&c.target_id===id);
+  const isOwner=t?.owner_id===ME?.id;
+  modal(`💬 ${esc(labelFn(item)||'Item')}`,`
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:6px">
+    <button class="btn ${mine===1?'primary':'ghost'}" onclick="castVote('${kind}','${id}',1)" style="flex:1;justify-content:center">👍 ${up||''}</button>
+    <button class="btn ${mine===-1?'danger':'ghost'}" onclick="castVote('${kind}','${id}',-1)" style="flex:1;justify-content:center">👎 ${down||''}</button>
+  </div>
+  ${voters.length?`<p style="font-size:11px;color:var(--dim);margin-bottom:14px;text-align:center">${voters.map(v=>`${v.vote===1?'👍':'👎'} ${esc(nameOf[v.user_id]||'?')}`).join(' · ')}</p>`:'<div style="margin-bottom:8px"></div>'}
+  <div style="max-height:40vh;overflow-y:auto;margin-bottom:12px">
+    ${comments.map(c=>`
+    <div style="padding:10px 0;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+        <span style="font-size:12px;font-weight:700;color:var(--gold)">${esc(nameOf[c.author_id]||'Someone')}</span>
+        <span style="display:flex;gap:8px;align-items:baseline">
+          <span style="font-size:11px;color:var(--dim)">${new Date(c.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})} ${new Date(c.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>
+          ${c.author_id===ME?.id||isOwner?`<button class="btn sm ghost" style="padding:1px 7px;font-size:11px" onclick="deleteComment('${kind}','${id}','${c.id}')">✕</button>`:''}
+        </span>
+      </div>
+      <div style="font-size:14px;line-height:1.55;white-space:pre-wrap">${esc(c.content)}</div>
+    </div>`).join('')||'<p class="muted" style="font-size:13px;padding:6px 0">No comments yet — start the discussion.</p>'}
+  </div>
+  <div style="display:flex;gap:8px">
+    <input id="cmt_input" placeholder="Add a comment…" style="flex:1" onkeydown="if(event.key==='Enter')postComment('${kind}','${id}')">
+    <button class="btn primary" onclick="postComment('${kind}','${id}')">Send</button>
+  </div>`);
+  setTimeout(()=>$('#cmt_input')?.focus(),60);
+}
+async function castVote(kind,id,v){
+  const tripId=CUR.tripId;
+  const votes=TD[tripId].votes=TD[tripId].votes||[];
+  const i=votes.findIndex(x=>x.target_kind===kind&&x.target_id===id&&x.user_id===ME.id);
+  const had=i>=0?votes[i].vote:0;
+  if(had===v){
+    votes.splice(i,1); // tap again to remove your vote
+    DB.from('wtn_votes').delete().match({target_kind:kind,target_id:id,user_id:ME.id}).then(()=>{});
+  }else{
+    if(i>=0)votes[i].vote=v;
+    else votes.push({trip_id:tripId,target_kind:kind,target_id:id,user_id:ME.id,vote:v});
+    DB.from('wtn_votes').upsert({trip_id:tripId,target_kind:kind,target_id:id,user_id:ME.id,vote:v},{onConflict:'target_kind,target_id,user_id'}).then(()=>{});
+  }
+  modalDiscuss(kind,id);
+  renderTab();
+}
+async function postComment(kind,id){
+  const inp=$('#cmt_input');
+  const content=inp?.value.trim();
+  if(!content)return;
+  const row={id:crypto.randomUUID(),trip_id:CUR.tripId,target_kind:kind,target_id:id,author_id:ME.id,content,created_at:new Date().toISOString()};
+  (TD[CUR.tripId].comments=TD[CUR.tripId].comments||[]).push(row);
+  modalDiscuss(kind,id);
+  renderTab();
+  DB.from('wtn_comments').insert(row).then(({error})=>{
+    if(error){
+      const arr=TD[CUR.tripId]?.comments||[];
+      const idx=arr.findIndex(x=>x.id===row.id);
+      if(idx>=0)arr.splice(idx,1);
+      toast('Could not post comment');
+      modalDiscuss(kind,id);
+    }
+  });
+}
+async function deleteComment(kind,id,cid){
+  const arr=TD[CUR.tripId]?.comments||[];
+  const idx=arr.findIndex(x=>x.id===cid);
+  if(idx>=0)arr.splice(idx,1);
+  modalDiscuss(kind,id);
+  renderTab();
+  DB.from('wtn_comments').delete().eq('id',cid).then(()=>{});
 }
 
 /* ═══════════════════════════════════════════════
