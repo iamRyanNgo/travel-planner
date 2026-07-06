@@ -160,6 +160,12 @@ select option{background:var(--panel)}
 .ctx-travel{background:rgba(74,144,226,.08);color:var(--blue);border-color:rgba(74,144,226,.22)}
 .day-ctx-sub{color:var(--muted);font-weight:500}
 .ev-transport{color:var(--cyan)}
+/* Idea placeholders: dashed + muted until upgraded to a real activity */
+.event-card.idea{border:1.5px dashed var(--border2);background:transparent;opacity:.9}
+.event-card.idea .event-title{color:var(--muted);font-style:italic}
+.idea-input{margin:4px 0 14px;padding:9px 14px;font-size:13px;background:transparent;border:1.5px dashed var(--border);border-radius:12px;color:var(--text);width:100%;transition:.15s}
+.idea-input::placeholder{color:var(--dim)}
+.idea-input:focus{border-color:var(--gold);border-style:solid;background:var(--panel)}
 /* Drag & drop activities between days */
 .event-card[draggable="true"]{cursor:grab}
 .event-card[draggable="true"]:active{cursor:grabbing}
@@ -884,6 +890,7 @@ const CATS={
   transport:{icon:'🚗',label:'Transport',cls:'cat-transport',dot:'dot-transport'},
   shopping:{icon:'🛍️',label:'Shopping',cls:'cat-shopping',dot:'dot-shopping'},
   sightseeing:{icon:'🏛️',label:'Sightseeing',cls:'cat-sightseeing',dot:'dot-sightseeing'},
+  idea:{icon:'💭',label:'Idea / Placeholder',cls:'cat-other',dot:'dot-other'},
   other:{icon:'📌',label:'Other',cls:'cat-other',dot:'dot-other'},
 };
 const PACK_CATS=['Clothing','Toiletries','Electronics','Documents','Health','Snacks','Entertainment','Misc'];
@@ -2372,7 +2379,8 @@ function renderItinerary(t,d){
           </div>
         </div>
         ${collapsed?'':`${ctxHtml?`<div class="day-ctx-wrap">${ctxHtml}</div>`:''}<div class="timeline">
-          ${allItems.length?allItems.map(i=>i.html).join(''):`<div style="color:var(--dim);font-size:13px;padding:8px 0 16px">No items yet.</div>`}
+          ${allItems.length?allItems.map(i=>i.html).join(''):`<div style="color:var(--dim);font-size:13px;padding:8px 0 6px">No items yet.</div>`}
+          ${write?`<input class="idea-input" placeholder="💭 Brainstorm this day… (Enter to add)" data-trip="${t.id}" data-date="${date}" onkeydown="ideaQuickKey(event,this)">`:''}
         </div>`}
       </div>`;
     }).join('')}
@@ -2399,12 +2407,34 @@ function itinScrollToday(t){
   document.body.appendChild(pill);
 }
 
+/* ── Idea placeholders: one-line brainstorms per day, upgradeable to real activities ── */
+async function ideaQuickKey(e,el){
+  if(e.key==='Escape'){el.value='';el.blur();return;}
+  if(e.key!=='Enter')return;
+  const title=el.value.trim();if(!title)return;
+  el.value='';
+  const tripId=el.dataset.trip,date=el.dataset.date;
+  const row={id:crypto.randomUUID(),trip_id:tripId,title,category:'idea',date,confirmed:false,created_at:new Date().toISOString()};
+  TD[tripId]?.events.push(row);
+  renderTab();
+  // keep brainstorming on the same day without re-tapping
+  setTimeout(()=>document.querySelector(`.idea-input[data-date="${date}"]`)?.focus(),50);
+  DB.from('wtn_events').insert(row).then(({error})=>{
+    if(error){
+      const arr=TD[tripId]?.events||[];
+      const idx=arr.findIndex(x=>x.id===row.id);
+      if(idx>=0){arr.splice(idx,1);renderTab();}
+      toast('Could not add idea');
+    }
+  });
+}
+
 function eventCard(ev,write){
   const cat=CATS[ev.category]||CATS.other;
   const q=esc([ev.title,ev.location].filter(Boolean).join(' '));
   return`<div class="tl-event">
     <div class="tl-dot ${cat.dot}"></div>
-    <div class="event-card ${ev.confirmed?'confirmed':''}" data-ev="${ev.id}" ${write?`draggable="true" ondragstart="dragEv(event,'${ev.id}')"`:''} onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
+    <div class="event-card ${ev.confirmed?'confirmed':''}${ev.category==='idea'?' idea':''}" data-ev="${ev.id}" ${write?`draggable="true" ondragstart="dragEv(event,'${ev.id}')"`:''} onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="event-icon ${cat.cls}">${cat.icon}</div>
       <div class="event-body">
         <div class="event-title">${esc(ev.title)}</div>
@@ -2597,7 +2627,7 @@ function renderActivities(t,d){
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
   d=filterByRegion(d,t);
-  const catIds=['activity','sightseeing','food','shopping'];
+  const catIds=['idea','activity','sightseeing','food','shopping'];
   return`<div>
     <div class="section-head"><h2>🎭 Activities</h2>${write?`<button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add</button>`:''}</div>
     ${regionBar}
