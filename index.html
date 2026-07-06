@@ -1725,7 +1725,7 @@ function renderTab(){
 
 /* ── Map ── */
 let MAP=null;
-const GEO_KEY='wtn-geo-v2'; // v2: multi-attempt queries + fallback geocoder (v1 cached misses too aggressively)
+const GEO_KEY='wtn-geo-v3'; // v3: Photon fuzzy search + address simplification (clears older cached misses)
 function geoCache(){try{return JSON.parse(localStorage.getItem(GEO_KEY)||'{}')}catch{return{}}}
 function geoCacheSet(q,v){const c=geoCache();c[q]=v;try{localStorage.setItem(GEO_KEY,JSON.stringify(c))}catch{}}
 let GEO_LAST=0;
@@ -1754,15 +1754,52 @@ async function geoOpenMeteo(name){
     return r?{lat:r.latitude,lon:r.longitude,label:`${r.name}${r.country?', '+r.country:''}`}:null;
   }catch{return undefined}
 }
+// Photon (komoot): fuzzy, typo-tolerant search over OSM — much better at
+// POI/hotel names and partial addresses than raw Nominatim. Keyless.
+async function geoPhoton(q){
+  try{
+    const res=await fetch(`https://photon.komoot.io/api/?limit=1&lang=en&q=${encodeURIComponent(q)}`);
+    if(!res.ok)return undefined;
+    const f=(await res.json())?.features?.[0];
+    if(!f)return null;
+    const [lon,lat]=f.geometry.coordinates;
+    const p=f.properties||{};
+    return{lat,lon,label:[p.name||p.street,p.city||p.state,p.country].filter(Boolean).slice(0,3).join(', ')||q};
+  }catch{return undefined}
+}
+// Addresses that fail whole often work once the hyper-local parts go:
+// "Block 6, Phuoc Hai, Hội An Đông, Đà Nẵng 51300, Vietnam"
+//  → "Phuoc Hai, Hội An Đông, Đà Nẵng, Vietnam" → "Hội An Đông, Đà Nẵng, Vietnam" → …
+function geoSimplify(q){
+  const parts=(q||'').split(',').map(s=>s.replace(/\b\d{4,6}\b/g,'').trim()).filter(Boolean);
+  const out=[];
+  for(let i=1;i<parts.length-1&&out.length<3;i++)out.push(parts.slice(i).join(', '));
+  return out;
+}
 async function geocodeTries(tries,nameOnly,cacheKey){
   const c=geoCache();
   if(cacheKey in c)return c[cacheKey];
   let transient=false;
-  for(const q of tries.filter(Boolean)){
+  const exact=tries.filter(Boolean);
+  // Pass 1: Photon (fast, fuzzy, unthrottled) over exact candidates
+  for(const q of exact){
+    const g=await geoPhoton(q);
+    if(g){geoCacheSet(cacheKey,g);return g;}
+    if(g===undefined)transient=true;
+  }
+  // Pass 2: Nominatim (strict, 1 req/s) over the first two candidates
+  for(const q of exact.slice(0,2)){
     const g=await geoNominatim(q);
     if(g){geoCacheSet(cacheKey,g);return g;}
     if(g===undefined)transient=true;
   }
+  // Pass 3: progressively simplified address → approximate area pin
+  for(const q of geoSimplify(exact[0]||'')){
+    const g=await geoPhoton(q);
+    if(g){const v={...g,approx:true};geoCacheSet(cacheKey,v);return v;}
+    if(g===undefined)transient=true;
+  }
+  // Pass 4: bare place-name lookup
   if(nameOnly){
     const g2=await geoOpenMeteo(nameOnly);
     if(g2){geoCacheSet(cacheKey,g2);return g2;}
@@ -1844,7 +1881,7 @@ async function initTripMap(t,d){
       pts.push([g.lat,g.lon]);
       L.marker([g.lat,g.lon],{icon:L.divIcon({className:'map-pin-wrap',html:`<div class="map-pin" style="border-color:${p.color}">${p.icon}</div>`,iconSize:[34,34],iconAnchor:[17,17]})})
         .addTo(MAP)
-        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}<br><a href="${mapsUrl(`${g.lat},${g.lon}`)}" target="_blank" rel="noopener" style="font-size:12px">🧭 Directions</a>${p.region&&!REGION_FILTER&&tripDests(t).length>1?`<br><button class="btn sm ghost" style="margin-top:6px;font-size:11px" data-r="${esc(p.region)}" onclick="setRegionFilter(this.dataset.r)">🔍 Only show ${esc(p.region.split(',')[0])}</button>`:''}`)
+        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}${g.approx?`<br><span style="font-size:11px;color:#b8860b">≈ approximate — pinned to ${esc(g.label||'the area')}</span>`:''}<br><a href="${mapsUrl(`${g.lat},${g.lon}`)}" target="_blank" rel="noopener" style="font-size:12px">🧭 Directions</a>${p.region&&!REGION_FILTER&&tripDests(t).length>1?`<br><button class="btn sm ghost" style="margin-top:6px;font-size:11px" data-r="${esc(p.region)}" onclick="setRegionFilter(this.dataset.r)">🔍 Only show ${esc(p.region.split(',')[0])}</button>`:''}`)
         // Clicking a pin glides the map to that spot (popup still opens)
         .on('click',ev=>{if(MAP)MAP.flyTo(ev.latlng,Math.max(MAP.getZoom(),15),{duration:.6});});
       if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
