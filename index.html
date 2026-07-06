@@ -42,7 +42,6 @@
 [data-theme="light"] .auth-card h1{background:linear-gradient(135deg,var(--text),var(--gold));-webkit-background-clip:text;background-clip:text}
 [data-theme="light"] .timeline::before{background:var(--border2)}
 [data-theme="light"] .mob-menu-drop{box-shadow:0 8px 32px rgba(0,0,0,.2)}
-[data-theme="light"] .tab-nav-drop{box-shadow:0 8px 32px rgba(0,0,0,.15)}
 [data-theme="light"] .ppl-dropdown{box-shadow:0 8px 32px rgba(0,0,0,.15)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -139,16 +138,7 @@ select option{background:var(--panel)}
 .trip-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;color:var(--muted);background:none;border:1px solid transparent;cursor:pointer;white-space:nowrap;transition:.15s;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .trip-tab:hover{background:var(--panel2);color:var(--text);border-color:var(--border)}
 .trip-tab.active{background:var(--panel2);color:var(--gold);border-color:var(--border2)}
-/* ── Tab navigation dropdown (mobile header) ── */
-.tab-nav-wrap{position:relative;flex-shrink:0;display:none}
-.tab-nav-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
-.tab-nav-btn:hover,.tab-nav-btn:focus{background:var(--panel);border-color:var(--gold);color:var(--gold);outline:none}
-.tab-nav-arrow{color:var(--muted);font-size:11px;margin-left:2px}
-.tab-nav-drop{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:6px;box-shadow:0 16px 48px rgba(0,0,0,.5);z-index:100;animation:pplIn .15s ease-out}
-.tab-nav-drop.hidden{display:none}
-.tab-nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;font-size:14px;font-weight:500;color:var(--muted);background:none;border:none;border-radius:9px;cursor:pointer;text-align:left;font-family:inherit;transition:.12s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-.tab-nav-item:hover{background:var(--panel2);color:var(--text)}
-.tab-nav-item.active{color:var(--gold);font-weight:700;background:rgba(245,197,66,.07)}
+.trip-tab .tt-label{display:inline}
 
 /* ── Map ── */
 #tripMap{height:min(65vh,560px);border-radius:16px;border:1px solid var(--border);background:var(--panel2);z-index:1}
@@ -402,9 +392,12 @@ button,a{touch-action:manipulation}
   #breadcrumb{display:none}
   .btn-label{display:none}
   .ha-desktop{display:none!important}
-  /* Show header tab dropdown on mobile; hide horizontal bar */
-  .tab-nav-wrap{display:flex}
-  .trip-tabs-wrap{display:none}
+  /* Tab slider: sticky under the header, swipeable pills with snap */
+  .trip-tabs-wrap{position:sticky;top:calc(58px + env(safe-area-inset-top,0px));z-index:40;background:var(--bg);margin:0 -14px 14px;padding:8px 14px}
+  .trip-tabs-wrap::after{background:linear-gradient(to right,transparent,var(--bg));width:28px}
+  .trip-tabs{gap:8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding:2px 14px 4px 0}
+  .trip-tab{scroll-snap-align:center;padding:9px 15px;font-size:13px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;color:var(--muted)}
+  .trip-tab.active{background:rgba(245,197,66,.12);color:var(--gold);border-color:var(--gold);font-weight:700}
   /* Prevent brand from crowding the people/avatar buttons */
   .brand{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
   /* Event cards: tighter on mobile */
@@ -1010,18 +1003,11 @@ async function openTrip(id,tab='overview'){
 const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 function setTab(tab){
   CUR.tab=tab;
-  closeTabNav();
-  const meta=TAB_META[tab];
-  if(meta){
-    const lbl=document.getElementById('tabNavLabel');if(lbl)lbl.textContent=meta.label;
-    const ico=document.getElementById('tabNavIcon');if(ico)ico.textContent=meta.icon;
-  }
-  document.querySelectorAll('.tab-nav-item').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
   document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
+  // Keep the active pill visible in the mobile slider
+  document.querySelector('.trip-tab.active')?.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
   renderTab();
 }
-function toggleTabNav(e){e&&e.stopPropagation();document.getElementById('tabNavDrop')?.classList.toggle('hidden');}
-function closeTabNav(){document.getElementById('tabNavDrop')?.classList.add('hidden');}
 function toggleTheme(){
   const html=document.documentElement;
   const isLight=html.dataset.theme==='light';
@@ -1442,17 +1428,7 @@ function renderTripShell(){
       <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
       <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
     </div>
-    <!-- Always visible: tab nav + people + avatar -->
-    <div class="tab-nav-wrap" id="tabNavWrap">
-      <button class="tab-nav-btn" onclick="toggleTabNav(event)">
-        <span id="tabNavIcon">${TABS.find(x=>x.id===CUR.tab)?.icon||'📋'}</span>
-        <span id="tabNavLabel" class="btn-label">${TABS.find(x=>x.id===CUR.tab)?.label||'Overview'}</span>
-        <span class="tab-nav-arrow">▾</span>
-      </button>
-      <div class="tab-nav-drop hidden" id="tabNavDrop">
-        ${TABS.map(tb=>`<button class="tab-nav-item${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
-      </div>
-    </div>
+    <!-- Always visible: people + avatar (tabs live in the slider below the header) -->
     <div class="ppl-wrap" id="peopleBtnWrap">
       <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
       <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
@@ -4211,7 +4187,7 @@ async function openPhotoPanel(btn){
 ═══════════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');closeMobMenu();closeTabNav();}
+  if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');closeMobMenu();}
   if(e.key==='n'&&CUR.view==='dashboard')modalTrip();
 });
 document.addEventListener('click',e=>{
@@ -4219,8 +4195,6 @@ document.addEventListener('click',e=>{
   if(wrap&&!wrap.contains(e.target))document.getElementById('peopleDropdown')?.classList.add('hidden');
   const drop=document.getElementById('mobMenuDrop');
   if(drop&&!drop.contains(e.target)&&!e.target.closest('.user-chip'))closeMobMenu();
-  const tnWrap=document.getElementById('tabNavWrap');
-  if(tnWrap&&!tnWrap.contains(e.target))closeTabNav();
 });
 
 /* ═══════════════════════════════════════════════
