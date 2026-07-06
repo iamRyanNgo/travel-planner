@@ -1018,6 +1018,14 @@ async function detectSchemaV8(){
   SCHEMA_V8=!error;
   return SCHEMA_V8;
 }
+// v9 = trusted traveler + membership numbers (supabase/migration_v9.sql)
+let SCHEMA_V9=null;
+async function detectSchemaV9(){
+  if(SCHEMA_V9!==null)return SCHEMA_V9;
+  const {error}=await DB.from('wtn_travelers').select('known_traveler_number').limit(1);
+  SCHEMA_V9=!error;
+  return SCHEMA_V9;
+}
 
 /* ── Live sync: reload the open trip when anyone else changes it ── */
 let RT_CHANNEL=null,RT_TIMER=null;
@@ -1229,7 +1237,7 @@ async function afterSignIn(user){
   renderAuthHeader();
   // Warm up schema feature flags so modals opened from the dashboard
   // (e.g. Edit Trip's More Destinations) see them without opening a trip first
-  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();detectSchemaV8();
+  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();detectSchemaV8();detectSchemaV9();
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -4341,6 +4349,12 @@ function renderTravelers(t,d){
         <div class="traveler-field"><span class="traveler-field-icon">📅</span><div class="traveler-field-body"><div class="traveler-field-label">Visa Expiry</div><div class="traveler-field-val${vExp?' '+vExp:''}">${fmtDate(tv.visa_expiry)}${vExp==='warn'?' ⚠️':vExp==='ok'?' ✓':''}</div></div></div>
         ${tv.visa_notes?`<div class="traveler-field"><span class="traveler-field-icon">💬</span><div class="traveler-field-body"><div class="traveler-field-label">Visa Notes</div><div class="traveler-field-val">${esc(tv.visa_notes)}</div></div></div>`:''}
         `:''}
+        ${tv.known_traveler_number||tv.redress_number||tv.memberships?`
+        <div class="traveler-section-head">Trusted Traveler &amp; Memberships</div>
+        ${tv.known_traveler_number?`<div class="traveler-field"><span class="traveler-field-icon">🛃</span><div class="traveler-field-body"><div class="traveler-field-label">Known Traveler # (Global Entry)</div><div class="traveler-field-val">${esc(tv.known_traveler_number)}</div></div></div>`:''}
+        ${tv.redress_number?`<div class="traveler-field"><span class="traveler-field-icon">🔖</span><div class="traveler-field-body"><div class="traveler-field-label">Redress #</div><div class="traveler-field-val">${esc(tv.redress_number)}</div></div></div>`:''}
+        ${tv.memberships?`<div class="traveler-field"><span class="traveler-field-icon">🎫</span><div class="traveler-field-body"><div class="traveler-field-label">Loyalty Memberships</div><div class="traveler-field-val" style="white-space:pre-wrap">${esc(tv.memberships)}</div></div></div>`:''}
+        `:''}
         ${tv.emergency_contact_name||tv.emergency_contact_phone?`
         <div class="traveler-section-head">Emergency Contact</div>
         <div class="traveler-field"><span class="traveler-field-icon">👤</span><div class="traveler-field-body"><div class="traveler-field-label">Name</div><div class="traveler-field-val">${esc(tv.emergency_contact_name||'—')}</div></div></div>
@@ -4405,6 +4419,13 @@ function travelerFormHTML(tv){
     <div class="field flex1"><label>Visa Expiry</label><input id="tv_vexp" type="date" value="${tv.visa_expiry||''}"></div>
   </div>
   <div class="field"><label>Visa Notes</label><input id="tv_vnotes" value="${esc(tv.visa_notes||'')}" placeholder="e.g. Applied, single-entry, arrival stamp"></div>
+  ${SCHEMA_V9?`
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:8px 0 12px;padding-top:8px;border-top:1px solid var(--border)">Trusted Traveler &amp; Memberships</div>
+  <div class="row">
+    <div class="field flex1"><label>Known Traveler # (Global Entry / TSA Pre✓)</label><input id="tv_ktn" value="${esc(tv.known_traveler_number||'')}" placeholder="e.g. 98XXXXXXX"></div>
+    <div class="field flex1"><label>Redress #</label><input id="tv_redress" value="${esc(tv.redress_number||'')}" placeholder="Optional"></div>
+  </div>
+  <div class="field"><label>Loyalty Memberships</label><textarea id="tv_member" rows="2" placeholder="Delta SkyMiles #ABC123, Marriott Bonvoy #98765…">${esc(tv.memberships||'')}</textarea></div>`:''}
   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:8px 0 12px;padding-top:8px;border-top:1px solid var(--border)">Emergency Contact</div>
   <div class="row">
     <div class="field flex1"><label>Contact Name</label><input id="tv_ecname" value="${esc(tv.emergency_contact_name||'')}" placeholder="Full name"></div>
@@ -4418,7 +4439,13 @@ function travelerFormHTML(tv){
   <div class="field"><label>Notes</label><textarea id="tv_notes" rows="2" placeholder="Allergies, medical info, special requirements…">${esc(tv.notes||'')}</textarea></div>`;
 }
 function readTravelerForm(){
+  const extra=SCHEMA_V9?{
+    known_traveler_number:$('#tv_ktn')?.value.trim()||null,
+    redress_number:$('#tv_redress')?.value.trim()||null,
+    memberships:$('#tv_member')?.value.trim()||null,
+  }:{};
   return{
+    ...extra,
     name:$('#tv_name').value.trim(),role:$('#tv_role').value.trim()||null,
     email:$('#tv_email').value.trim()||null,phone:$('#tv_phone').value.trim()||null,
     nationality:$('#tv_nat').value.trim()||null,date_of_birth:$('#tv_dob').value||null,
