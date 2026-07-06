@@ -999,6 +999,40 @@ function regionSelect(t,idAttr,current,isNew){
   </div>`;
 }
 
+// v7 = journal + saved travelers + realtime (supabase/migration_v7.sql)
+let SCHEMA_V7=null;
+async function detectSchemaV7(){
+  if(SCHEMA_V7!==null)return SCHEMA_V7;
+  const {error}=await DB.from('wtn_journal').select('id').limit(1);
+  SCHEMA_V7=!error;
+  return SCHEMA_V7;
+}
+
+/* ── Live sync: reload the open trip when anyone else changes it ── */
+let RT_CHANNEL=null,RT_TIMER=null;
+function subscribeTripRealtime(tripId){
+  try{
+    if(RT_CHANNEL){DB.removeChannel(RT_CHANNEL);RT_CHANNEL=null;}
+    if(!DB.channel)return;
+    let ch=DB.channel('trip-'+tripId);
+    ['wtn_events','wtn_flights','wtn_stays','wtn_pack_items','wtn_budget_items','wtn_trip_members','wtn_journal','wtn_trip_docs'].forEach(tbl=>{
+      ch=ch.on('postgres_changes',{event:'*',schema:'public',table:tbl,filter:`trip_id=eq.${tripId}`},()=>{
+        // Debounced: bursts of changes (and our own writes) collapse into one reload
+        clearTimeout(RT_TIMER);
+        RT_TIMER=setTimeout(async()=>{
+          if(CUR.view==='trip'&&CUR.tripId===tripId&&!document.getElementById('modalRoot').innerHTML){
+            await loadTripDetail(tripId);renderTab();
+          }
+        },500);
+      });
+    });
+    RT_CHANNEL=ch.subscribe();
+  }catch{}
+}
+function unsubscribeTripRealtime(){
+  try{if(RT_CHANNEL){DB.removeChannel(RT_CHANNEL);RT_CHANNEL=null;}}catch{}
+}
+
 const EVENT_TRANSPORT={
   walk:{icon:'🚶',label:'Walking'},
   car:{icon:'🚗',label:'Car'},
@@ -1055,6 +1089,7 @@ async function openTrip(id,tab='overview'){
   renderTripShell();
   await loadTripDetail(id);
   renderTab();
+  if(await detectSchemaV7())subscribeTripRealtime(id);
 }
 const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 function setTab(tab){
@@ -1091,18 +1126,24 @@ function buildMobMenu(){
     const write=canWrite(t);
     updateMobMenu([
       isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
+      `<button class="mob-menu-item" onclick="closeMobMenu();modalSearch()">🔍 Search</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();exportICS('${t.id}')">📅 Export calendar</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`,
       write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:'',
       t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${themeIcon} ${themeLabel}</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }else{
     updateMobMenu([
       isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
+      `<button class="mob-menu-item" onclick="closeMobMenu();modalSearch()">🔍 Search</button>`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
+      `<button class="mob-menu-item" onclick="closeMobMenu();exportAllData()">⬇ Export my data</button>`,
+      `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       `<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${themeIcon} ${themeLabel}</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
@@ -1177,7 +1218,7 @@ async function afterSignIn(user){
   renderAuthHeader();
   // Warm up schema feature flags so modals opened from the dashboard
   // (e.g. Edit Trip's More Destinations) see them without opening a trip first
-  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();
+  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -1340,6 +1381,10 @@ async function loadTripDetail(id){
       TD[id].docs=docs||[];
     }
     detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();
+    if(await detectSchemaV7()){
+      const {data:journal}=await DB.from('wtn_journal').select('*').eq('trip_id',id).order('date');
+      TD[id].journal=journal||[];
+    }
     // Privacy: passport/visa data never touches localStorage — the offline
     // cache stores everything except travelers
     try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify({...TD[id],travelers:[]}))}catch{}
@@ -1404,15 +1449,22 @@ async function rejectRequest(reqId, userId){
 ═══════════════════════════════════════════════ */
 function renderDashboard(){
   CUR.view='dashboard';
+  unsubscribeTripRealtime();
   document.getElementById('todayPill')?.remove();
   document.getElementById('breadcrumb').innerHTML='';
   document.getElementById('headerActions').innerHTML='';
   renderAuthHeader();
   const headerActions = document.getElementById('headerActions');
+  headerActions.innerHTML += `<button class="btn sm ghost ha-desktop" onclick="modalSearch()" title="Search everything (press /)">🔍</button>`;
   headerActions.innerHTML += `<button class="btn primary" onclick="modalTrip()">＋ New Trip</button>`;
   if(!TRIPS.some(t=>t.name&&t.name.includes('Joy'))){
     headerActions.innerHTML += `<button class="btn gold" onclick="seedJejuTrip()" title="Load Ryan & Joy\'s Jeju wedding itinerary">💒 Ryan & Joy</button>`;
   }
+
+  // Past trips fold away into an archive section
+  const todayStr=new Date().toLocaleDateString('en-CA');
+  const pastTrips=TRIPS.filter(t=>t.end_date&&t.end_date<todayStr);
+  const activeTrips=TRIPS.filter(t=>!pastTrips.includes(t));
 
   document.getElementById('root').innerHTML=`
   <div id="dashboard">
@@ -1420,13 +1472,20 @@ function renderDashboard(){
       <h1>Your Adventures</h1>
       <p class="muted">${TRIPS.length?`${TRIPS.length} trip${TRIPS.length>1?'s':''} — where to next?`:'Start planning your first adventure.'}</p>
     </div>
-    ${TRIPS.length?`<div class="trip-grid">${TRIPS.map(tripCard).join('')}</div>`:`
+    ${activeTrips.length?`<div class="trip-grid">${activeTrips.map(tripCard).join('')}</div>`:''}
+    ${!TRIPS.length?`
     <div class="empty">
       <div class="icon">🌍</div>
       <h3 style="margin-bottom:8px">No trips yet</h3>
       <p class="muted" style="margin-bottom:20px">Create your first trip and start building the perfect itinerary.</p>
       <button class="btn gold" onclick="modalTrip()">＋ Plan a Trip</button>
-    </div>`}
+    </div>`:''}
+    ${!activeTrips.length&&pastTrips.length?`<p class="muted" style="font-size:14px">No upcoming trips — time to plan the next one! ✈️</p>`:''}
+    ${pastTrips.length?`
+    <details style="margin-top:28px">
+      <summary style="cursor:pointer;font-size:14px;font-weight:700;color:var(--muted);padding:8px 0;user-select:none">🗂 Past adventures (${pastTrips.length})</summary>
+      <div class="trip-grid" style="margin-top:14px;opacity:.88">${pastTrips.map(tripCard).join('')}</div>
+    </details>`:''}
   </div>`;
 }
 
@@ -2003,8 +2062,40 @@ function renderOverview(t,d){
     </div>`;
   }
 
+  // ── Passport expiry check (travelers are owner-visible; warn before it bites) ──
+  let warnHtml='';
+  if(t.end_date&&(d.travelers||[]).length){
+    const limit=new Date(t.end_date+'T12:00:00');limit.setMonth(limit.getMonth()+6);
+    const risky=(d.travelers||[]).filter(tv=>tv.passport_expiry&&new Date(tv.passport_expiry+'T12:00:00')<limit);
+    if(risky.length)warnHtml=`<div class="card" style="margin-bottom:16px;border-color:var(--coral)">
+      <div style="font-weight:700;color:var(--coral);margin-bottom:6px">🛂 Passport check</div>
+      ${risky.map(tv=>{
+        const expired=new Date(tv.passport_expiry+'T12:00:00')<new Date();
+        return`<div style="font-size:13px;padding:2px 0">${esc(tv.name)} — passport ${expired?'<b style="color:var(--coral)">EXPIRED</b>':'expires <b>'+fmt(tv.passport_expiry)+'</b>'}</div>`;
+      }).join('')}
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">Many countries require 6 months of validity beyond your travel dates.</p>
+    </div>`;
+  }
+
+  // ── Trip recap once it's over: stats + the journal ──
+  let recapHtml='';
+  if(t.end_date&&todayStr>t.end_date){
+    const j=(d.journal||[]).filter(x=>x.content);
+    recapHtml=`<div class="card" style="margin-bottom:16px;border-color:var(--gold)">
+      <div class="section-head"><h2 style="font-size:17px">🎉 Trip Complete</h2><span style="font-size:12px;color:var(--muted)">${fmt(t.start_date)} → ${fmt(t.end_date)}</span></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:${j.length?'12px':'0'}">${days} days · ${d.events.length} activities · ${d.flights.length} travel legs · ${d.stays.length} stays</p>
+      ${j.map(en=>`<div style="padding:10px 0;border-top:1px solid var(--border)">
+        <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:4px">📔 ${fmt(en.date)}</div>
+        <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(en.content)}</div>
+      </div>`).join('')}
+      ${!j.length&&SCHEMA_V7?`<p style="font-size:12px;color:var(--dim)">No journal entries this time — on your next trip, tap 📔 on any itinerary day to capture memories.</p>`:''}
+    </div>`;
+  }
+
   return`
   ${todayHtml}
+  ${warnHtml}
+  ${recapHtml}
   <div class="overview-grid">
     <div class="stat-card"><div class="stat-val">${days||'—'}</div><div class="stat-label">Days</div></div>
     <div class="stat-card"><div class="stat-val">${d.events.length}</div><div class="stat-label">Events</div></div>
@@ -2197,10 +2288,31 @@ function renderItinerary(t,d){
       const color=dayColors[idx%dayColors.length];
       const collapsed=ITIN_COLLAPSED.has(date);
 
+      // Conflict detection: overlapping timed events + clashes with flights
+      const toMin=s=>{const[p,q]=(s||'0:0').split(':');return +p*60+(+q||0);};
+      const conflicts=[];
+      const timed=dayEvents.filter(e=>e.time);
+      for(let a=0;a<timed.length;a++)for(let b=a+1;b<timed.length;b++){
+        const A=timed[a],B=timed[b];
+        const as=toMin(A.time),ae=as+(+A.duration||60);
+        const bs=toMin(B.time),be=bs+(+B.duration||60);
+        if(as<be&&bs<ae)conflicts.push(`“${A.title}” overlaps “${B.title}”`);
+      }
+      (d.flights||[]).forEach(f=>{
+        const md=TRANSPORT_MODES[transportMode(f)].label.toLowerCase();
+        if(f.arrive_date===date&&f.arrive_time)timed.forEach(ev=>{if(toMin(ev.time)<toMin(f.arrive_time))conflicts.push(`“${ev.title}” starts before your ${md} arrives (${f.arrive_time})`);});
+        if(f.depart_date===date&&f.depart_time)timed.forEach(ev=>{if(toMin(ev.time)>toMin(f.depart_time))conflicts.push(`“${ev.title}” is after your ${md} departs (${f.depart_time})`);});
+      });
+      const confHtml=conflicts.length?`<div class="day-ctx" style="background:rgba(240,90,90,.08);color:var(--coral);border-color:rgba(240,90,90,.25);cursor:default">⚠️ ${conflicts.map(esc).join(' · ')}</div>`:'';
+
+      // Journal preview (tap to edit)
+      const jEntry=SCHEMA_V7?(d.journal||[]).find(j=>j.date===date&&j.content):null;
+      const jHtml=jEntry?`<div class="day-ctx" style="background:rgba(245,197,66,.06);color:var(--text);border-color:rgba(245,197,66,.2)" onclick="modalJournal('${t.id}','${date}')">📔 <span style="font-weight:500;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(jEntry.content.slice(0,90))}${jEntry.content.length>90?'…':''}</span></div>`:'';
+
       // Context strips: where you're sleeping tonight + travel in progress
       const nightStays=(d.stays||[]).filter(s=>s.check_in&&s.check_out&&date>=s.check_in&&date<s.check_out);
       const enRoute=(d.flights||[]).filter(f=>f.depart_date&&f.arrive_date&&date>f.depart_date&&date<f.arrive_date);
-      const ctxHtml=[
+      const ctxHtml=[confHtml,jHtml,
         ...nightStays.map(s=>{
           const night=diffDays(s.check_in,date)+1,total=diffDays(s.check_in,s.check_out);
           return`<div class="day-ctx ctx-stay" onclick="setTab('stays')">🏨 ${esc(s.name)} <span class="day-ctx-sub">· night ${night} of ${total}</span></div>`;
@@ -2227,6 +2339,7 @@ function renderItinerary(t,d){
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
+            ${SCHEMA_V7&&write?`<button class="btn sm ghost" onclick="event.stopPropagation();modalJournal('${t.id}','${date}')" title="Day journal" style="${(d.journal||[]).some(j=>j.date===date&&j.content)?'color:var(--gold);border-color:var(--gold)':''}">📔</button>`:''}
             ${write?`<button class="btn sm primary" onclick="event.stopPropagation();modalAddToDay('${t.id}','${date}')">＋ Add</button>`:''}
             <button class="day-collapse-btn ${collapsed?'collapsed':''}" onclick="event.stopPropagation();toggleItinDay('${date}')">▼</button>
           </div>
@@ -2642,6 +2755,17 @@ function renderBudget(t,d){
   const manualTotal=manualItems.reduce((a,b)=>a+itemAmt(b),0);
   const grandTotal=confTotal+potTotal+manualTotal;
 
+  // Budget alert: compare planned vs actual on manual items
+  const plannedSum=manualItems.reduce((a,b)=>a+(+b.planned||0),0);
+  const actualSum=manualItems.reduce((a,b)=>a+(+b.actual||0),0);
+  let alertHtml='';
+  if(plannedSum>0&&actualSum/plannedSum>=0.85){
+    const over=actualSum>plannedSum;
+    alertHtml=`<div class="card" style="margin-bottom:14px;border-color:${over?'var(--coral)':'var(--orange)'};font-size:13px">
+      ${over?'🚨':'⚠️'} <b>${over?'Over budget':'Approaching budget'}</b> — spent ${formatCost(Math.round(actualSum),cur)} of ${formatCost(Math.round(plannedSum),cur)} planned (${Math.round(actualSum/plannedSum*100)}%)
+    </div>`;
+  }
+
   // Compact settle-up summary at the bottom of the main budget view
   const shared=expenses.filter(e=>e.paid_by&&Array.isArray(e.split_with)&&e.split_with.length&&e.amt);
   let settleHtml='';
@@ -2676,6 +2800,7 @@ function renderBudget(t,d){
   return`<div>
     <div class="section-head"><h2>💰 Budget</h2>${write?`<button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add Manual</button>`:''}</div>
     ${subTabs}
+    ${alertHtml}
     ${hasAny?`
     <div class="budget-summary">
       <div class="budget-stat"><div class="bv" style="color:var(--green)">${formatCost(Math.round(confTotal),disp)}</div><div class="bl">Confirmed</div></div>
@@ -4174,7 +4299,8 @@ function renderTravelers(t,d){
       <span class="traveler-status ${c.cls}">${c.label}</span>
       <div class="traveler-header">
         <div class="traveler-avatar">${initials}</div>
-        <div><div class="traveler-name">${esc(tv.name)}</div><div class="traveler-role">${esc(tv.role||'Traveler')}</div></div>
+        <div style="flex:1"><div class="traveler-name">${esc(tv.name)}</div><div class="traveler-role">${esc(tv.role||'Traveler')}</div></div>
+        ${SCHEMA_V7?`<button class="btn sm ghost" onclick="event.stopPropagation();saveTravelerToAccount('${t.id}','${tv.id}')" title="Save to my account for future trips">💾</button>`:''}
       </div>
       <div class="traveler-fields">
         ${tv.nationality||tv.date_of_birth?`
@@ -4216,7 +4342,10 @@ function renderTravelers(t,d){
         <h2 style="font-size:20px;margin-bottom:4px">Travelers</h2>
         <p class="muted" style="font-size:13px">${travelers.length} traveler${travelers.length!==1?'s':''} — passport, visa, emergency contacts</p>
       </div>
-      ${write?`<button class="btn primary" onclick="modalTraveler('${t.id}')">＋ Add Traveler</button>`:''}
+      <div style="display:flex;gap:8px">
+        ${write&&SCHEMA_V7?`<button class="btn ghost" onclick="modalPickSavedTraveler('${t.id}')">🧳 From saved</button>`:''}
+        ${write?`<button class="btn primary" onclick="modalTraveler('${t.id}')">＋ Add Traveler</button>`:''}
+      </div>
     </div>
     ${travelers.length
       ?`<div class="traveler-grid">${travelers.map(travCard).join('')}</div>`
@@ -4225,9 +4354,9 @@ function renderTravelers(t,d){
   </div>`;
 }
 
-function modalTraveler(tripId,tvId){
-  const tv=tvId?(TD[tripId]?.travelers||[]).find(x=>x.id===tvId):{};
-  modal(tvId?'Edit Traveler':'Add Traveler',`
+// Shared traveler form (used by trip travelers AND account-level saved travelers)
+function travelerFormHTML(tv){
+  return`
   <div class="row">
     <div class="field flex1"><label>Full Name</label><input id="tv_name" value="${esc(tv.name||'')}" placeholder="As on passport"></div>
     <div class="field flex1"><label>Role / Group</label><input id="tv_role" value="${esc(tv.role||'')}" placeholder="e.g. Bridesmaid, Family"></div>
@@ -4262,18 +4391,11 @@ function modalTraveler(tripId,tvId){
     <div class="field flex1"><label>Seat Preference</label><input id="tv_seat" value="${esc(tv.seat_preference||'')}" placeholder="e.g. Window, Aisle"></div>
     <div class="field flex1"><label>Meal Preference</label><input id="tv_meal" value="${esc(tv.meal_preference||'')}" placeholder="e.g. Vegetarian, Halal"></div>
   </div>
-  <div class="field"><label>Notes</label><textarea id="tv_notes" rows="2" placeholder="Allergies, medical info, special requirements…">${esc(tv.notes||'')}</textarea></div>
-  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
-    ${tvId?`<button class="btn danger" onclick="deleteTraveler('${tripId}','${tvId}')">Delete</button>`:''}
-    <button class="btn ghost" onclick="closeModal()">Cancel</button>
-    <button class="btn primary" onclick="saveTraveler('${tripId}','${tvId||''}')">Save</button>
-  </div>`);
+  <div class="field"><label>Notes</label><textarea id="tv_notes" rows="2" placeholder="Allergies, medical info, special requirements…">${esc(tv.notes||'')}</textarea></div>`;
 }
-
-async function saveTraveler(tripId,tvId){
-  const name=$('#tv_name').value.trim();if(!name){toast('Name is required');return;}
-  const data={
-    trip_id:tripId,name,role:$('#tv_role').value.trim()||null,
+function readTravelerForm(){
+  return{
+    name:$('#tv_name').value.trim(),role:$('#tv_role').value.trim()||null,
     email:$('#tv_email').value.trim()||null,phone:$('#tv_phone').value.trim()||null,
     nationality:$('#tv_nat').value.trim()||null,date_of_birth:$('#tv_dob').value||null,
     passport_number:$('#tv_pnum').value.trim()||null,passport_country:$('#tv_pcountry').value.trim()||null,
@@ -4286,6 +4408,22 @@ async function saveTraveler(tripId,tvId){
     meal_preference:$('#tv_meal').value.trim()||null,
     notes:$('#tv_notes').value.trim()||null,
   };
+}
+function modalTraveler(tripId,tvId){
+  const tv=tvId?(TD[tripId]?.travelers||[]).find(x=>x.id===tvId):{};
+  modal(tvId?'Edit Traveler':'Add Traveler',`
+  ${travelerFormHTML(tv)}
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    ${tvId?`<button class="btn danger" onclick="deleteTraveler('${tripId}','${tvId}')">Delete</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveTraveler('${tripId}','${tvId||''}')">Save</button>
+  </div>`);
+}
+
+async function saveTraveler(tripId,tvId){
+  const form=readTravelerForm();
+  if(!form.name){toast('Name is required');return;}
+  const data={trip_id:tripId,...form};
   if(tvId){await DB.from('wtn_travelers').update(data).eq('id',tvId);toast('Traveler updated ✓');}
   else{await DB.from('wtn_travelers').insert(data);toast('Traveler added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
@@ -4295,6 +4433,179 @@ async function deleteTraveler(tripId,id){
   if(!confirm('Remove this traveler?'))return;
   await DB.from('wtn_travelers').delete().eq('id',id);
   toast('Removed');closeModal();await loadTripDetail(tripId);renderTab();
+}
+
+/* ═══════════════════════════════════════════════
+   SAVED TRAVELERS — account-level, reusable across trips
+═══════════════════════════════════════════════ */
+async function openMyTravelers(){
+  if(!SCHEMA_V7){toast('Run supabase/migration_v7.sql to enable saved travelers');return;}
+  const {data:list,error}=await DB.from('wtn_saved_travelers').select('*').eq('owner_id',ME.id).order('name');
+  if(error){toast('Could not load saved travelers');return;}
+  window._savedTravelers=list||[];
+  modal('🧳 My Travelers',`
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Saved to your account — add them to any trip without retyping passport details.</p>
+  ${(list||[]).map(tv=>`
+  <div class="member-card">
+    <div class="member-avatar" style="background:var(--border2)">${(tv.name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+    <div class="member-info">
+      <div class="member-name">${esc(tv.name)}</div>
+      <div class="member-email">${esc([tv.role,tv.passport_number?'🛂 ·· '+tv.passport_number.slice(-4):null].filter(Boolean).join(' · '))||'&nbsp;'}</div>
+    </div>
+    <button class="btn sm ghost" onclick="modalSavedTraveler('${tv.id}')" title="Edit">✎</button>
+    <button class="btn sm danger" onclick="deleteSavedTraveler('${tv.id}')" title="Delete">✕</button>
+  </div>`).join('')||'<p class="muted" style="font-size:13px">No saved travelers yet.</p>'}
+  <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Close</button>
+    <button class="btn primary" onclick="modalSavedTraveler()">＋ Add Traveler</button>
+  </div>`);
+}
+function modalSavedTraveler(id){
+  const tv=id?(window._savedTravelers||[]).find(x=>x.id===id):{};
+  modal(id?'Edit Saved Traveler':'New Saved Traveler',`
+  ${travelerFormHTML(tv||{})}
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="openMyTravelers()">‹ Back</button>
+    <button class="btn primary" onclick="saveSavedTraveler('${id||''}')">Save</button>
+  </div>`);
+}
+async function saveSavedTraveler(id){
+  const form=readTravelerForm();
+  if(!form.name){toast('Name is required');return;}
+  const {error}=id
+    ?await DB.from('wtn_saved_travelers').update(form).eq('id',id)
+    :await DB.from('wtn_saved_travelers').insert({...form,owner_id:ME.id});
+  if(error){toast('Could not save');return;}
+  toast('🧳 Saved ✓');
+  openMyTravelers();
+}
+async function deleteSavedTraveler(id){
+  await DB.from('wtn_saved_travelers').delete().eq('id',id);
+  toast('Removed');
+  openMyTravelers();
+}
+// Save a trip traveler up to the account
+async function saveTravelerToAccount(tripId,tvId){
+  if(!SCHEMA_V7){toast('Run supabase/migration_v7.sql first');return;}
+  const tv=(TD[tripId]?.travelers||[]).find(x=>x.id===tvId);if(!tv)return;
+  const {id,trip_id,created_at,region,...rest}=tv;
+  const {error}=await DB.from('wtn_saved_travelers').insert({...rest,owner_id:ME.id});
+  toast(error?'Could not save':`💾 ${tv.name} saved to your account ✓`);
+}
+// Add a saved traveler into the current trip
+async function modalPickSavedTraveler(tripId){
+  if(!SCHEMA_V7){toast('Run supabase/migration_v7.sql to enable saved travelers');return;}
+  const {data:list}=await DB.from('wtn_saved_travelers').select('*').eq('owner_id',ME.id).order('name');
+  if(!list?.length){toast('No saved travelers yet — add them under 🧳 My Travelers');return;}
+  window._savedTravelers=list;
+  modal('🧳 Add from Saved',list.map(tv=>`
+    <button class="mob-menu-item" style="border:1px solid var(--border);margin-bottom:6px" onclick="addSavedToTrip('${tripId}','${tv.id}')">
+      <span style="font-size:17px">🧳</span>
+      <span style="flex:1"><b>${esc(tv.name)}</b>${tv.role?`<br><span style="font-size:12px;color:var(--muted)">${esc(tv.role)}</span>`:''}</span>
+      <span style="color:var(--gold)">＋</span>
+    </button>`).join(''));
+}
+async function addSavedToTrip(tripId,savedId){
+  const tv=(window._savedTravelers||[]).find(x=>x.id===savedId);if(!tv)return;
+  const {id,owner_id,created_at,...rest}=tv;
+  const {error}=await DB.from('wtn_travelers').insert({...rest,trip_id:tripId});
+  if(error){toast('Could not add traveler');return;}
+  closeModal();
+  toast(`${tv.name} added ✓`);
+  await loadTripDetail(tripId);renderTab();
+}
+
+/* ═══════════════════════════════════════════════
+   TRIP JOURNAL
+═══════════════════════════════════════════════ */
+function modalJournal(tripId,date){
+  const j=(TD[tripId]?.journal||[]).find(x=>x.date===date);
+  modal(`📔 ${fmtDay(date)}`,`
+  <textarea id="jr_text" rows="8" placeholder="What happened today? Favorite meal, funny moment, a place to remember…" style="width:100%">${esc(j?.content||'')}</textarea>
+  <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveJournal('${tripId}','${date}')">Save</button>
+  </div>`);
+  setTimeout(()=>$('#jr_text')?.focus(),60);
+}
+async function saveJournal(tripId,date){
+  const content=$('#jr_text').value.trim();
+  const {error}=await DB.from('wtn_journal').upsert(
+    {trip_id:tripId,date,content,updated_by:ME?.id,updated_at:new Date().toISOString()},
+    {onConflict:'trip_id,date'});
+  if(error){toast('Could not save journal');return;}
+  closeModal();
+  toast('📔 Saved ✓');
+  await loadTripDetail(tripId);renderTab();
+}
+
+/* ═══════════════════════════════════════════════
+   GLOBAL SEARCH — across every trip and tab
+═══════════════════════════════════════════════ */
+function modalSearch(){
+  modal('🔍 Search',`
+  <input id="srch" placeholder="Activities, hotels, flights, expenses, packing…" oninput="searchDebounce()" style="margin-bottom:12px">
+  <div id="srchResults"><p class="muted" style="font-size:13px">Searches everything across all your trips.</p></div>`);
+  setTimeout(()=>$('#srch')?.focus(),60);
+}
+let SRCH_T=null;
+function searchDebounce(){clearTimeout(SRCH_T);SRCH_T=setTimeout(runSearch,300);}
+async function runSearch(){
+  const box=document.getElementById('srchResults');
+  const raw=$('#srch')?.value.trim()||'';
+  if(!box)return;
+  if(raw.length<2){box.innerHTML='<p class="muted" style="font-size:13px">Type at least 2 characters.</p>';return;}
+  box.innerHTML='<p class="muted" style="font-size:13px">Searching…</p>';
+  const q=raw.replace(/[,()%]/g,' ').trim();
+  const like=`%${q}%`;
+  let ev,st,fl,bu,pk;
+  try{
+    [ev,st,fl,bu,pk]=await Promise.all([
+      DB.from('wtn_events').select('id,trip_id,title,location,date').or(`title.ilike.${like},location.ilike.${like}`).limit(8),
+      DB.from('wtn_stays').select('id,trip_id,name,address').or(`name.ilike.${like},address.ilike.${like}`).limit(8),
+      DB.from('wtn_flights').select('id,trip_id,airline,from_airport,to_airport').or(`airline.ilike.${like},from_airport.ilike.${like},to_airport.ilike.${like}`).limit(8),
+      DB.from('wtn_budget_items').select('id,trip_id,name').ilike('name',like).limit(8),
+      DB.from('wtn_pack_items').select('id,trip_id,name').ilike('name',like).limit(8),
+    ]);
+  }catch{box.innerHTML='<p class="muted" style="font-size:13px">Search unavailable offline.</p>';return;}
+  if(($('#srch')?.value.trim()||'')!==raw)return; // stale response
+  const tname=id=>esc(TRIPS.find(t=>t.id===id)?.name||'');
+  const row=(icon,title,sub,tripId,tab)=>`<button class="mob-menu-item" style="border:1px solid var(--border);margin-bottom:6px" onclick="closeModal();openTrip('${tripId}','${tab}')"><span style="font-size:17px">${icon}</span><span style="flex:1"><b>${title}</b><br><span style="font-size:12px;color:var(--muted)">${sub}</span></span></button>`;
+  const ql=q.toLowerCase();
+  const trips=TRIPS.filter(t=>(t.name||'').toLowerCase().includes(ql)||(t.destination||'').toLowerCase().includes(ql)).slice(0,5);
+  const out=[
+    ...trips.map(t=>row(t.emoji||'🌍',esc(t.name),esc(t.destination||'Trip'),t.id,'overview')),
+    ...(ev?.data||[]).map(x=>row('🎭',esc(x.title),[tname(x.trip_id),x.date?fmt(x.date):null].filter(Boolean).join(' · '),x.trip_id,'activities')),
+    ...(st?.data||[]).map(x=>row('🏨',esc(x.name),tname(x.trip_id),x.trip_id,'stays')),
+    ...(fl?.data||[]).map(x=>row('✈️',esc(`${x.from_airport||''} → ${x.to_airport||''}`),[esc(x.airline||''),tname(x.trip_id)].filter(Boolean).join(' · '),x.trip_id,'flights')),
+    ...(bu?.data||[]).map(x=>row('💰',esc(x.name),tname(x.trip_id),x.trip_id,'budget')),
+    ...(pk?.data||[]).map(x=>row('🧳',esc(x.name),tname(x.trip_id),x.trip_id,'packing')),
+  ];
+  box.innerHTML=out.length?out.join(''):'<p class="muted" style="font-size:13px">Nothing found for “'+esc(raw)+'”.</p>';
+}
+
+/* ═══════════════════════════════════════════════
+   DATA EXPORT — everything you own, as JSON
+═══════════════════════════════════════════════ */
+async function exportAllData(){
+  toast('Preparing export…');
+  try{
+    const ids=TRIPS.map(t=>t.id);
+    const grab=async tbl=>(await DB.from(tbl).select('*').in('trip_id',ids)).data||[];
+    const out={exported_at:new Date().toISOString(),app:'WhereToNext',profile:{name:ME?.name,email:ME?.email},trips:TRIPS};
+    for(const tb of ['wtn_events','wtn_flights','wtn_stays','wtn_pack_items','wtn_budget_items','wtn_travelers'])
+      out[tb.replace('wtn_','')]=await grab(tb);
+    if(SCHEMA_V7){
+      out.journal=await grab('wtn_journal');
+      out.saved_travelers=(await DB.from('wtn_saved_travelers').select('*').eq('owner_id',ME.id)).data||[];
+    }
+    const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`wheretonext-export-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();URL.revokeObjectURL(a.href);
+    toast('⬇ Export downloaded ✓');
+  }catch{toast('Export failed — are you online?');}
 }
 
 /* ═══════════════════════════════════════════════
@@ -4355,6 +4666,7 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
   if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');closeMobMenu();}
   if(e.key==='n'&&CUR.view==='dashboard')modalTrip();
+  if(e.key==='/'&&ME){e.preventDefault();modalSearch();}
 });
 document.addEventListener('click',e=>{
   const wrap=document.getElementById('peopleBtnWrap');
