@@ -168,6 +168,15 @@ body{overscroll-behavior-y:contain}
 body.hdr-hide #appHeader{transform:translateY(-100%)}
 #ptrPill{position:fixed;top:calc(66px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border2);color:var(--muted);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;z-index:96;box-shadow:var(--shadow)}
 
+/* ── Tab swipe transitions + touch drag ── */
+.slide-in-r{animation:slideInR .3s cubic-bezier(.22,.9,.36,1)}
+.slide-in-l{animation:slideInL .3s cubic-bezier(.22,.9,.36,1)}
+@keyframes slideInR{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:none}}
+@keyframes slideInL{from{opacity:0;transform:translateX(-48px)}to{opacity:1;transform:none}}
+.ev-drag{color:var(--dim);font-size:15px;padding:4px 7px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;flex-shrink:0}
+.ev-drag:active{cursor:grabbing;color:var(--gold)}
+.drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.92;box-shadow:0 18px 44px rgba(0,0,0,.55);transform:rotate(1.5deg);border-radius:12px;background:var(--panel)}
+
 /* ── Mobile FAB + Today pill + skeletons ── */
 .fab{display:none;position:fixed;right:16px;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1a1a;font-size:26px;font-weight:700;border:none;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:95;cursor:pointer;align-items:center;justify-content:center;font-family:inherit;-webkit-tap-highlight-color:transparent}
 .fab:active{transform:scale(.92)}
@@ -1049,11 +1058,20 @@ async function openTrip(id,tab='overview'){
 }
 const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 function setTab(tab){
+  const prev=CUR.tab;
   CUR.tab=tab;
   document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
   // Keep the active pill visible in the mobile slider
   document.querySelector('.trip-tab.active')?.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
   renderTab();
+  // Directional slide-in: content enters from the side you're heading toward
+  const el=document.getElementById('tabContent');
+  if(el&&prev&&prev!==tab){
+    const dir=CUR_TABS.indexOf(tab)>CUR_TABS.indexOf(prev)?'slide-in-r':'slide-in-l';
+    el.classList.remove('slide-in-r','slide-in-l');
+    void el.offsetWidth; // restart the animation
+    el.classList.add(dir);
+  }
 }
 function toggleTheme(){
   const html=document.documentElement;
@@ -2260,6 +2278,7 @@ function eventCard(ev,write){
       <div class="event-card-right">
         ${ev.cost?`<div class="event-cost">${formatCost(ev.cost,ev.currency)}</div>`:''}
         <button class="photo-btn" data-ev="${ev.id}" data-q="${q}" onclick="event.stopPropagation();openPhotoPanel(this)" title="Search photos &amp; Instagram">📸</button>
+        ${write?`<span class="ev-drag" title="Drag to another day" onclick="event.stopPropagation()" ontouchstart="touchDragStart(event,'${ev.id}')">⠿</span>`:''}
       </div>
     </div>
     <div class="ev-photo-panel hidden" id="evp_${ev.id}"></div>
@@ -4371,6 +4390,21 @@ document.addEventListener('touchstart',e=>{
 
 document.addEventListener('touchmove',e=>{
   clearTimeout(LP_TIMER);
+  // Live swipe feedback: the tab content follows the finger with a rubber-band feel
+  if(SWIPE){
+    const t0=e.touches[0];
+    const dx=t0.clientX-SWIPE.x,dy=t0.clientY-SWIPE.y;
+    const el=document.getElementById('tabContent');
+    if(el&&Math.abs(dx)>18&&Math.abs(dx)>Math.abs(dy)*1.5){
+      SWIPE.tracking=true;
+      const idx=CUR_TABS.indexOf(CUR.tab);
+      // stiffen at the ends of the tab row so it feels like an edge
+      const atEdge=(dx>0&&idx<=0)||(dx<0&&idx>=CUR_TABS.length-1);
+      const pull=dx*(atEdge?0.12:0.35);
+      el.style.transform=`translateX(${pull}px)`;
+      el.style.opacity=String(1-Math.min(.3,Math.abs(pull)/420));
+    }
+  }
   if(!PTR)return;
   PTR.pulled=e.touches[0].clientY-PTR.y0;
   if(PTR.pulled>18&&window.scrollY<=0){
@@ -4402,12 +4436,21 @@ document.addEventListener('touchend',async e=>{
   if(!SWIPE)return;
   const t0=e.changedTouches[0];
   const dx=t0.clientX-SWIPE.x,dy=t0.clientY-SWIPE.y,dt=Date.now()-SWIPE.t;
+  const wasTracking=SWIPE.tracking;
   SWIPE=null;
+  // Spring the live-follow transform back (or hand off to the slide-in)
+  const el=document.getElementById('tabContent');
+  if(el&&wasTracking){
+    el.style.transition='transform .22s cubic-bezier(.22,.9,.36,1),opacity .22s';
+    el.style.transform='';el.style.opacity='';
+    setTimeout(()=>{if(el)el.style.transition='';},240);
+  }
   if(dt>600||Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*2)return;
   const idx=CUR_TABS.indexOf(CUR.tab);
   if(idx<0)return;
   const next=dx<0?idx+1:idx-1;
   if(next<0||next>=CUR_TABS.length)return;
+  if(el){el.style.transition='';el.style.transform='';el.style.opacity='';}
   setTab(CUR_TABS[next]);
 },{passive:false});
 
@@ -4420,6 +4463,59 @@ window.addEventListener('scroll',()=>{
   if(down!==HDR_HIDDEN){HDR_HIDDEN=down;document.body.classList.toggle('hdr-hide',down);}
   LASTY=y;
 },{passive:true});
+
+/* ── Touch drag: hold the ⠿ handle and drop an activity on another day ── */
+let TDRAG=null;
+function touchDragStart(e,evId){
+  e.preventDefault();e.stopPropagation();
+  const card=e.target.closest('.event-card');if(!card)return;
+  const touch=e.touches[0];
+  const r=card.getBoundingClientRect();
+  const ghost=card.cloneNode(true);
+  ghost.classList.add('drag-ghost');
+  ghost.style.width=r.width+'px';
+  document.body.appendChild(ghost);
+  TDRAG={evId,ghost,offX:touch.clientX-r.left,offY:touch.clientY-r.top};
+  positionDragGhost(touch);
+  card.style.opacity='.35';
+  TDRAG.src=card;
+  navigator.vibrate?.(10);
+  document.addEventListener('touchmove',touchDragMove,{passive:false});
+  document.addEventListener('touchend',touchDragEnd);
+}
+function positionDragGhost(t){
+  TDRAG.ghost.style.left=(t.clientX-TDRAG.offX)+'px';
+  TDRAG.ghost.style.top=(t.clientY-TDRAG.offY)+'px';
+}
+function touchDragMove(e){
+  if(!TDRAG)return;
+  e.preventDefault(); // the page must not scroll under the drag…
+  const t=e.touches[0];
+  positionDragGhost(t);
+  document.querySelectorAll('.day-block.drag-over').forEach(x=>x.classList.remove('drag-over'));
+  const day=document.elementFromPoint(t.clientX,t.clientY)?.closest('.day-block');
+  if(day)day.classList.add('drag-over');
+  // …but auto-scroll near the screen edges so far-away days are reachable
+  if(t.clientY<110)window.scrollBy(0,-14);
+  else if(t.clientY>innerHeight-110)window.scrollBy(0,14);
+}
+function touchDragEnd(e){
+  document.removeEventListener('touchmove',touchDragMove);
+  document.removeEventListener('touchend',touchDragEnd);
+  if(!TDRAG)return;
+  const t=e.changedTouches[0];
+  TDRAG.ghost.remove();
+  if(TDRAG.src)TDRAG.src.style.opacity='';
+  document.querySelectorAll('.day-block.drag-over').forEach(x=>x.classList.remove('drag-over'));
+  const day=document.elementFromPoint(t.clientX,t.clientY)?.closest('.day-block');
+  const evId=TDRAG.evId;
+  TDRAG=null;
+  if(day&&day.id?.startsWith('day-')){
+    const date=day.id.slice(4);
+    const ev=(TD[CUR.tripId]?.events||[]).find(x=>x.id===evId);
+    if(ev&&ev.date!==date){navigator.vibrate?.(15);assignEventToDay(CUR.tripId,evId,date);}
+  }
+}
 
 /* ── Long-press quick actions for activities ── */
 function eventActionSheet(evId){
