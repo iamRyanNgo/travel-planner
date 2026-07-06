@@ -714,7 +714,12 @@ function queueOp(desc){
   if(Date.now()-OFFLINE_TOAST_AT>8000){OFFLINE_TOAST_AT=Date.now();toast('📴 Saved offline — will sync when you\'re back online');}
 }
 
-const OUTBOX_TABLES={wtn_events:'events',wtn_flights:'flights',wtn_stays:'stays',wtn_pack_items:'packItems',wtn_budget_items:'budgetItems',wtn_travelers:'travelers',wtn_trip_docs:'docs'};
+const OUTBOX_TABLES={wtn_events:'events',wtn_flights:'flights',wtn_stays:'stays',wtn_pack_items:'packItems',wtn_budget_items:'budgetItems',wtn_trip_docs:'docs'};
+// Passport/visa data must never touch disk — strip travelers from every
+// TD cache write, no matter which code path persists it
+function cacheTD(tripId,td){
+  try{localStorage.setItem('wtn-cache-td-'+tripId,JSON.stringify({...td,travelers:[]}));}catch{}
+}
 function applyOpToLocal(desc){
   try{
     const eqId=(desc.filters.find(f=>f[0]==='eq'&&f[1]==='id')||[])[2];
@@ -735,7 +740,7 @@ function applyOpToLocal(desc){
       (Array.isArray(desc.data)?desc.data:[desc.data]).forEach(r=>{
         const td=TD[r.trip_id];if(!td)return;
         (td[key]=td[key]||[]).push({created_at:new Date().toISOString(),...r});
-        localStorage.setItem('wtn-cache-td-'+r.trip_id,JSON.stringify(td));
+        cacheTD(r.trip_id,td);
       });
     }else if(eqId){
       for(const [tripId,td] of Object.entries(TD)){
@@ -744,7 +749,7 @@ function applyOpToLocal(desc){
         if(idx<0)continue;
         if(desc.op==='update')Object.assign(arr[idx],desc.data);
         else arr.splice(idx,1);
-        localStorage.setItem('wtn-cache-td-'+tripId,JSON.stringify(td));
+        cacheTD(tripId,td);
         break;
       }
     }
@@ -1487,9 +1492,8 @@ async function loadTripDetail(id){
       TD[id].comments=comments||[];
       TD[id].votes=votes||[];
     }
-    // Privacy: passport/visa data never touches localStorage — the offline
-    // cache stores everything except travelers
-    try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify({...TD[id],travelers:[]}))}catch{}
+    // Privacy: passport/visa data never touches localStorage (see cacheTD)
+    cacheTD(id,TD[id]);
   }catch(e){
     // Network down — hydrate from last-synced copy (read-only until back online)
     try{
@@ -2192,7 +2196,7 @@ function renderOverview(t,d){
     const flToday=d.flights.filter(f=>f.depart_date===todayStr);
     const stayTonight=d.stays.find(s=>s.check_in&&s.check_out&&todayStr>=s.check_in&&todayStr<s.check_out)||d.stays.find(s=>s.check_in===todayStr);
     const rows=[
-      ...flToday.map(f=>`<div class="today-row"><span class="today-time">${f.depart_time||''}</span> ${TRANSPORT_MODES[transportMode(f)].icon} ${esc(`${f.from_airport||''} → ${f.to_airport||''}`)} ${esc(f.airline||'')}${f.confirm_num?` · <b>${esc(f.confirm_num)}</b>`:''}</div>`),
+      ...flToday.map(f=>`<div class="today-row"><span class="today-time">${esc(f.depart_time||'')}</span> ${TRANSPORT_MODES[transportMode(f)].icon} ${esc(`${f.from_airport||''} → ${f.to_airport||''}`)} ${esc(f.airline||'')}${f.confirm_num?` · <b>${esc(f.confirm_num)}</b>`:''}</div>`),
       ...evToday.map(e=>`<div class="today-row"><span class="today-time">${e.time||''}</span> ${(CATS[e.category]||CATS.other).icon} ${esc(e.title)}${e.location?` · <span style="color:var(--muted)">${esc(e.location)}</span>`:''}</div>`),
     ];
     todayHtml=`<div class="card today-card">
@@ -2338,7 +2342,7 @@ function itinAutoItems(d){
           <div class="itin-auto-icon">${md.icon}</div>
           <div class="itin-auto-body">
             <div class="itin-auto-title">Depart · ${esc(route)}</div>
-            <div class="itin-auto-meta">${f.depart_time?f.depart_time+' · ':''}${esc(depLabel)}</div>
+            <div class="itin-auto-meta">${f.depart_time?esc(f.depart_time)+' · ':''}${esc(depLabel)}</div>
           </div>
           <span class="itin-auto-tag tag-flight">${tag}</span>
         </div></div>`);
@@ -2350,7 +2354,7 @@ function itinAutoItems(d){
           <div class="itin-auto-icon">${isFlight?'🛬':md.icon}</div>
           <div class="itin-auto-body">
             <div class="itin-auto-title">Arrive · ${esc(route)}</div>
-            <div class="itin-auto-meta">${f.arrive_time?f.arrive_time+' · ':''}${esc(depLabel)}</div>
+            <div class="itin-auto-meta">${f.arrive_time?esc(f.arrive_time)+' · ':''}${esc(depLabel)}</div>
           </div>
           <span class="itin-auto-tag tag-flight">${tag}</span>
         </div></div>`);
@@ -2364,7 +2368,7 @@ function itinAutoItems(d){
           <div class="itin-auto-icon">🏨</div>
           <div class="itin-auto-body">
             <div class="itin-auto-title">Check-in · ${esc(s.name||'Accommodation')}</div>
-            <div class="itin-auto-meta">${s.check_in_time?s.check_in_time+' · ':''}${esc(s.city||s.address||'')}</div>
+            <div class="itin-auto-meta">${s.check_in_time?esc(s.check_in_time)+' · ':''}${esc(s.city||s.address||'')}</div>
           </div>
           <span class="itin-auto-tag tag-stay">STAY ›</span>
         </div></div>`);
@@ -2376,7 +2380,7 @@ function itinAutoItems(d){
           <div class="itin-auto-icon">🧳</div>
           <div class="itin-auto-body">
             <div class="itin-auto-title">Check-out · ${esc(s.name||'Accommodation')}</div>
-            <div class="itin-auto-meta">${s.check_out_time?s.check_out_time+' · ':''}${esc(s.city||s.address||'')}</div>
+            <div class="itin-auto-meta">${s.check_out_time?esc(s.check_out_time)+' · ':''}${esc(s.city||s.address||'')}</div>
           </div>
           <span class="itin-auto-tag tag-stay">STAY ›</span>
         </div></div>`);
@@ -2545,7 +2549,7 @@ function eventCard(ev,write){
       <div class="event-body">
         <div class="event-title">${esc(ev.title)}</div>
         <div class="event-meta">
-          ${ev.time?`<span>🕐 ${ev.time}${ev.duration?' · '+ev.duration+'m':''}</span>`:''}
+          ${ev.time?`<span>🕐 ${esc(ev.time)}${ev.duration?' · '+esc(String(ev.duration))+'m':''}</span>`:''}
           ${ev.location?`<span>📍 <a href="${mapsUrl(ev.address||ev.location)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:underline dotted" title="Open in Maps">${esc(ev.location)}</a></span>`:''}
           ${ev.transport&&EVENT_TRANSPORT[ev.transport]?`<span class="ev-transport">${EVENT_TRANSPORT[ev.transport].icon} ${EVENT_TRANSPORT[ev.transport].label}</span>`:''}
           ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
@@ -2569,12 +2573,12 @@ function flightLeg(f,label,cls){
     <div class="fl-leg-route">
       <div class="fl-leg-point">
         <div class="fl-leg-code">${esc(f.from_airport||'—')}</div>
-        ${f.depart_date?`<div class="fl-leg-time">${fmtShort(f.depart_date)}${f.depart_time?' · '+f.depart_time:''}</div>`:''}
+        ${f.depart_date?`<div class="fl-leg-time">${fmtShort(f.depart_date)}${f.depart_time?' · '+esc(f.depart_time):''}</div>`:''}
       </div>
       <div class="fl-leg-arrow">→</div>
       <div class="fl-leg-point">
         <div class="fl-leg-code">${esc(f.to_airport||'—')}</div>
-        ${f.arrive_date?`<div class="fl-leg-time">${fmtShort(f.arrive_date)}${f.arrive_time?' · '+f.arrive_time:''}</div>`:''}
+        ${f.arrive_date?`<div class="fl-leg-time">${fmtShort(f.arrive_date)}${f.arrive_time?' · '+esc(f.arrive_time):''}</div>`:''}
       </div>
     </div>
   </div>`;
@@ -2717,8 +2721,8 @@ function renderStays(t,d){
         <span class="conf-badge ${s.confirmed?'confirmed':'pending'}">${s.confirmed?'CONFIRMED':'PENDING'}</span>
       </div>
       <div class="booking-detail-grid">
-        ${s.check_in?`<div class="booking-detail"><div class="bd-label">Check-in</div><div class="bd-val">${fmtDay(s.check_in)}${s.check_in_time?' '+s.check_in_time:''}</div></div>`:''}
-        ${s.check_out?`<div class="booking-detail"><div class="bd-label">Check-out</div><div class="bd-val">${fmtDay(s.check_out)}${s.check_out_time?' '+s.check_out_time:''}</div></div>`:''}
+        ${s.check_in?`<div class="booking-detail"><div class="bd-label">Check-in</div><div class="bd-val">${fmtDay(s.check_in)}${s.check_in_time?' '+esc(s.check_in_time):''}</div></div>`:''}
+        ${s.check_out?`<div class="booking-detail"><div class="bd-label">Check-out</div><div class="bd-val">${fmtDay(s.check_out)}${s.check_out_time?' '+esc(s.check_out_time):''}</div></div>`:''}
         ${s.check_in&&s.check_out?`<div class="booking-detail"><div class="bd-label">Nights</div><div class="bd-val">${diffDays(s.check_in,s.check_out)}</div></div>`:''}
         ${s.cost?`<div class="booking-detail"><div class="bd-label">Total</div><div class="bd-val" style="color:var(--gold)">${formatCost(s.cost,t.currency)}</div></div>`:''}
         ${s.phone?`<div class="booking-detail"><div class="bd-label">Phone</div><div class="bd-val"><a href="tel:${esc(s.phone.replace(/[^\d+]/g,''))}" onclick="event.stopPropagation()" style="color:var(--cyan)">${esc(s.phone)}</a></div></div>`:''}
@@ -2752,7 +2756,7 @@ function renderActivities(t,d){
               <div class="event-title">${esc(ev.title)}</div>
               <div class="event-meta">
                 ${ev.date?`<span>📅 ${fmtDay(ev.date)}</span>`:''}
-                ${ev.time?`<span>🕐 ${ev.time}</span>`:''}
+                ${ev.time?`<span>🕐 ${esc(ev.time)}</span>`:''}
                 ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
                 ${discussChip('event',ev.id)}
               </div>
@@ -3338,7 +3342,7 @@ function renderSidebar(tripId){
     <div class="invite-link-row">
       <input class="invite-url-inp" id="invLinkInp" value="${esc(inviteUrl)}" readonly onclick="this.select()">
       <button class="btn sm" onclick="copyInvLink()">Copy</button>
-      ${navigator.share?`<button class="btn sm" onclick="shareInvLink('${esc(t.name)}')" title="Share via…">📤</button>`:''}
+      ${navigator.share?`<button class="btn sm" data-tname="${esc(t.name)}" onclick="shareInvLink(this.dataset.tname)" title="Share via…">📤</button>`:''}
     </div>
     <div class="invite-role-row">
       <select onchange="setInvRole('${tripId}',this.value)">
@@ -3788,11 +3792,11 @@ function modalFlight(tripId,flId,presetDate){
   ${regionSelect(t,'fl_region',f.region,!flId)}
   <div class="row">
     <div class="field flex1"><label>Depart</label><input id="fl_ddate" type="date" value="${defD}" onchange="syncDate(this,'fl_adate')"></div>
-    <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${f.depart_time||''}" onchange="syncTime(this,'fl_atime')"></div>
+    <div class="field flex1"><label>Time</label><input id="fl_dtime" type="time" value="${esc(f.depart_time||'')}" onchange="syncTime(this,'fl_atime')"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Arrive</label><input id="fl_adate" type="date" value="${defA}"></div>
-    <div class="field flex1"><label>Time</label><input id="fl_atime" type="time" value="${f.arrive_time||''}"></div>
+    <div class="field flex1"><label>Time</label><input id="fl_atime" type="time" value="${esc(f.arrive_time||'')}"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Seat</label><input id="fl_seat" value="${esc(f.seat||'')}"></div>
@@ -3906,11 +3910,11 @@ function modalStay(tripId,stId,presetDate){
   </div>
   <div class="row">
     <div class="field flex1"><label>Check-in Date</label><input id="st_ci" type="date" value="${s.check_in||''}" onchange="syncDate(this,'st_co',1)"></div>
-    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${s.check_in_time||''}" onchange="syncTime(this,'st_cot')"></div>
+    <div class="field flex1"><label>Check-in Time</label><input id="st_cit" type="time" value="${esc(s.check_in_time||'')}" onchange="syncTime(this,'st_cot')"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Check-out Date</label><input id="st_co" type="date" value="${s.check_out||''}"></div>
-    <div class="field flex1"><label>Check-out Time</label><input id="st_cot" type="time" value="${s.check_out_time||''}"></div>
+    <div class="field flex1"><label>Check-out Time</label><input id="st_cot" type="time" value="${esc(s.check_out_time||'')}"></div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Confirmation #</label><input id="st_conf" value="${esc(s.confirm_num||'')}"></div>
