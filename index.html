@@ -652,6 +652,7 @@ const DB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    Conflict policy: last write wins.
 ═══════════════════════════════════════════════ */
 const OUTBOX_KEY='wtn-outbox';
+let PENDING_WRITES=0,LAST_WRITE_AT=0;
 function outbox(){try{return JSON.parse(localStorage.getItem(OUTBOX_KEY)||'[]')}catch{return[]}}
 function outboxSave(q){try{localStorage.setItem(OUTBOX_KEY,JSON.stringify(q))}catch{}}
 
@@ -662,9 +663,14 @@ function wrapBuilder(target, desc){
     get(t, prop){
       if(prop === 'then'){
         if(!desc.op) return t.then.bind(t); // reads pass through untouched
+        // Track in-flight writes so live-sync reloads wait for them —
+        // otherwise our own realtime echo can re-render stale state
+        PENDING_WRITES++;
+        const settle=()=>{PENDING_WRITES=Math.max(0,PENDING_WRITES-1);LAST_WRITE_AT=Date.now();};
         const p = t.then(
-          res => res,
+          res => {settle();return res;},
           () => {
+            settle();
             queueOp(desc);
             // Mimic what the server would have returned so `.select().single()`
             // call sites keep working (ids were fixed client-side in queueOp)
@@ -1043,13 +1049,21 @@ function subscribeTripRealtime(tripId){
     let ch=DB.channel('trip-'+tripId);
     ['wtn_events','wtn_flights','wtn_stays','wtn_pack_items','wtn_budget_items','wtn_trip_members','wtn_journal','wtn_trip_docs','wtn_comments','wtn_votes'].forEach(tbl=>{
       ch=ch.on('postgres_changes',{event:'*',schema:'public',table:tbl,filter:`trip_id=eq.${tripId}`},()=>{
-        // Debounced: bursts of changes (and our own writes) collapse into one reload
-        clearTimeout(RT_TIMER);
-        RT_TIMER=setTimeout(async()=>{
+        // Debounced, and deferred while our own writes are in flight or very
+        // recent — otherwise the echo of our own edit reloads a snapshot that
+        // predates the next tap and visibly reverts it (the unchecking bug)
+        const attempt=async()=>{
+          if(PENDING_WRITES>0||Date.now()-LAST_WRITE_AT<1200){
+            clearTimeout(RT_TIMER);
+            RT_TIMER=setTimeout(attempt,700);
+            return;
+          }
           if(CUR.view==='trip'&&CUR.tripId===tripId&&!document.getElementById('modalRoot').innerHTML){
             await loadTripDetail(tripId);renderTab();
           }
-        },500);
+        };
+        clearTimeout(RT_TIMER);
+        RT_TIMER=setTimeout(attempt,500);
       });
     });
     RT_CHANNEL=ch.subscribe();
@@ -2712,26 +2726,26 @@ function renderPacking(t,d){
   return`<div>
     <div class="section-head"><h2>🧳 Packing List</h2>
       <div class="row">
-        <span class="muted" style="align-self:center;font-size:13px">${packed}/${total} packed</span>
+        <span class="muted" style="align-self:center;font-size:13px" id="packCount">${packed}/${total} packed</span>
         ${write?`<button class="btn sm ghost" onclick="modalPackTemplates('${t.id}')">✨ Templates</button>`:''}
         ${write?`<button class="btn primary" onclick="modalPackItem('${t.id}')">＋ Add</button>`:''}
       </div>
     </div>
     ${total?`<div style="height:6px;background:var(--border);border-radius:4px;margin-bottom:20px;overflow:hidden">
-      <div style="height:100%;width:${total?Math.round(packed/total*100):0}%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:4px;transition:width .4s"></div>
+      <div id="packBarFill" style="height:100%;width:${total?Math.round(packed/total*100):0}%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:4px;transition:width .4s"></div>
     </div>`:''}
     ${Object.entries(byCategory).filter(([,items])=>items.length).map(([cat,catItems])=>{
       const catPacked=catItems.filter(i=>i.packed).length;
       const qid=`qa_${cat.replace(/[^a-z0-9]/gi,'_').toLowerCase()}`;
-      return`<div class="pack-section">
+      return`<div class="pack-section" data-packcat="${esc(cat)}">
         <div class="pack-section-header">
-          <div class="pack-section-title">${cat} <span style="color:var(--dim)">(${catPacked}/${catItems.length})</span></div>
+          <div class="pack-section-title">${cat} <span style="color:var(--dim)" class="pack-cat-count">(${catPacked}/${catItems.length})</span></div>
           <div class="pack-progress"><div class="pack-progress-fill" style="width:${catItems.length?Math.round(catPacked/catItems.length*100):0}%"></div></div>
           ${write?`<button class="pack-cat-add" onclick="showPackQuickAdd('${qid}')" title="Add to ${esc(cat)}">＋</button>`:''}
         </div>
         ${write?`<div class="pack-quick-add hidden" id="${qid}"><input class="pack-quick-input" data-trip="${t.id}" data-cat="${esc(cat)}" placeholder="Item name — press Enter to add…" onkeydown="packQuickKey(event,this)"></div>`:''}
         ${catItems.map(item=>`
-        <div class="pack-item ${item.packed?'packed':''}" onclick="${write?`togglePack('${t.id}','${item.id}',${!item.packed})`:''}" style="${write?'':'cursor:default'}">
+        <div class="pack-item ${item.packed?'packed':''}" data-id="${item.id}" onclick="${write?`togglePack('${t.id}','${item.id}')`:''}" style="${write?'':'cursor:default'}">
           <div class="pack-check">${item.packed?'✓':''}</div>
           <div class="pack-name">${esc(item.name)}</div>
           ${item.qty>1?`<div class="pack-qty">×${item.qty}</div>`:''}
@@ -4203,12 +4217,45 @@ async function savePackItem(tripId){
   await DB.from('wtn_pack_items').insert({trip_id:tripId,name,category:$('#pk_cat').value,qty:+$('#pk_qty').value||1,notes:$('#pk_notes').value.trim()||null});
   toast('Added ✓');closeModal();await loadTripDetail(tripId);renderTab();
 }
-function togglePack(tripId,id,packed){
-  // Optimistic: flip locally right away, revert only if the server says no
+function togglePack(tripId,id){
+  // Toggle from the data (not a stale onclick arg), flip the row in place —
+  // no full re-render, so rapid taps can't fight each other or jump scroll
   const i=TD[tripId]?.packItems.find(x=>x.id===id);
-  if(i){i.packed=packed;renderTab();}
+  if(!i)return;
+  const packed=!i.packed;
+  i.packed=packed;
+  applyPackRow(id,packed);
+  refreshPackStats(tripId);
   DB.from('wtn_pack_items').update({packed}).eq('id',id).then(({error})=>{
-    if(error){if(i){i.packed=!packed;renderTab();}toast('Could not save — try again');}
+    if(error){
+      i.packed=!packed;
+      applyPackRow(id,!packed);
+      refreshPackStats(tripId);
+      toast('Could not save — try again');
+    }
+  });
+}
+function applyPackRow(id,packed){
+  const row=document.querySelector(`.pack-item[data-id="${id}"]`);
+  if(!row)return;
+  row.classList.toggle('packed',packed);
+  const check=row.querySelector('.pack-check');
+  if(check)check.textContent=packed?'✓':'';
+}
+function refreshPackStats(tripId){
+  const items=TD[tripId]?.packItems||[];
+  const packed=items.filter(i=>i.packed).length;
+  const pc=document.getElementById('packCount');
+  if(pc)pc.textContent=`${packed}/${items.length} packed`;
+  const pf=document.getElementById('packBarFill');
+  if(pf)pf.style.width=(items.length?Math.round(packed/items.length*100):0)+'%';
+  document.querySelectorAll('.pack-section[data-packcat]').forEach(sec=>{
+    const ci=items.filter(i=>i.category===sec.dataset.packcat);
+    const cp=ci.filter(i=>i.packed).length;
+    const lbl=sec.querySelector('.pack-cat-count');
+    if(lbl)lbl.textContent=`(${cp}/${ci.length})`;
+    const fill=sec.querySelector('.pack-progress-fill');
+    if(fill)fill.style.width=(ci.length?Math.round(cp/ci.length*100):0)+'%';
   });
 }
 async function deletePackItem(tripId,id){deleteRowUndo(tripId,'wtn_pack_items',id,'Item');}
