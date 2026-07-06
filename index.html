@@ -356,7 +356,8 @@ select option{background:var(--panel)}
 .modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--panel)}
 
 /* ── Toast ── */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:12px 22px;border-radius:30px;font-weight:600;font-size:14px;z-index:300;box-shadow:var(--shadow);animation:toastIn .25s ease-out}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:12px 22px;border-radius:30px;font-weight:600;font-size:14px;z-index:300;box-shadow:var(--shadow);animation:toastIn .25s ease-out;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.toast-action{background:var(--gold);color:#1a1a1a;border:none;border-radius:16px;padding:5px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 
 /* ── Category colors ── */
@@ -789,10 +790,40 @@ function tripDays(t){
   while(d<=end){days.push(d.toISOString().slice(0,10));d=new Date(d.getTime()+864e5);}
   return days;
 }
-function toast(msg){
+function toast(msg,action){
   const el=document.createElement('div');el.className='toast';el.textContent=msg;
+  if(action){
+    const b=document.createElement('button');
+    b.className='toast-action';b.textContent=action.label||'Undo';
+    b.onclick=()=>{el.remove();action.fn();};
+    el.appendChild(b);
+  }
   document.getElementById('toastRoot').appendChild(el);
-  setTimeout(()=>el.remove(),2400);
+  setTimeout(()=>el.remove(),action?6000:2400);
+}
+
+// Delete with a 6s Undo instead of a jarring confirm() dialog: the row is
+// removed optimistically + on the server, and Undo re-inserts it verbatim.
+const UNDO_TABLES={wtn_events:'events',wtn_flights:'flights',wtn_stays:'stays',wtn_pack_items:'packItems',wtn_budget_items:'budgetItems'};
+async function deleteRowUndo(tripId,table,id,label){
+  const key=UNDO_TABLES[table];
+  const arr=TD[tripId]?.[key]||[];
+  const idx=arr.findIndex(x=>x.id===id);
+  const row=idx>=0?{...arr[idx]}:null;
+  if(idx>=0){arr.splice(idx,1);}
+  closeModal();renderTab();
+  const {error}=await DB.from(table).delete().eq('id',id);
+  if(error){toast('Delete failed');await loadTripDetail(tripId);renderTab();return;}
+  toast(`${label} deleted`,{label:'Undo',fn:async()=>{
+    if(!row)return;
+    const {error:e2}=await DB.from(table).insert(row);
+    if(e2){toast('Could not restore');return;}
+    await loadTripDetail(tripId);renderTab();
+    toast('Restored ✓');
+  }});
+}
+function mapsUrl(q){
+  return (/iPad|iPhone|iPod/.test(navigator.userAgent)?'maps:?q=':'https://www.google.com/maps/search/?api=1&query=')+encodeURIComponent(q);
 }
 function $(s,r=document){return r.querySelector(s)}
 function $$(s,r=document){return[...r.querySelectorAll(s)]}
@@ -1617,7 +1648,7 @@ async function initTripMap(t,d){
       pts.push([g.lat,g.lon]);
       L.marker([g.lat,g.lon],{icon:L.divIcon({className:'map-pin-wrap',html:`<div class="map-pin" style="border-color:${p.color}">${p.icon}</div>`,iconSize:[34,34],iconAnchor:[17,17]})})
         .addTo(MAP)
-        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}${p.region&&!REGION_FILTER&&tripDests(t).length>1?`<br><button class="btn sm ghost" style="margin-top:6px;font-size:11px" data-r="${esc(p.region)}" onclick="setRegionFilter(this.dataset.r)">🔍 Only show ${esc(p.region.split(',')[0])}</button>`:''}`)
+        .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}<br><a href="${mapsUrl(`${g.lat},${g.lon}`)}" target="_blank" rel="noopener" style="font-size:12px">🧭 Directions</a>${p.region&&!REGION_FILTER&&tripDests(t).length>1?`<br><button class="btn sm ghost" style="margin-top:6px;font-size:11px" data-r="${esc(p.region)}" onclick="setRegionFilter(this.dataset.r)">🔍 Only show ${esc(p.region.split(',')[0])}</button>`:''}`)
         // Clicking a pin glides the map to that spot (popup still opens)
         .on('click',ev=>{if(MAP)MAP.flyTo(ev.latlng,Math.max(MAP.getZoom(),15),{duration:.6});});
       if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
@@ -1865,7 +1896,7 @@ function renderOverview(t,d){
     todayHtml=`<div class="card today-card">
       <div class="section-head"><h2 style="font-size:17px">📍 Today — Day ${dayNum} of ${days}</h2><span style="font-size:12px;color:var(--muted)">${fmt(todayStr)}</span></div>
       ${rows.length?rows.join(''):'<p style="font-size:13px;color:var(--muted)">Nothing scheduled today — enjoy the freedom! 🏖</p>'}
-      ${stayTonight?`<div class="today-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:10px"><span class="today-time">🌙</span> Tonight: <b>${esc(stayTonight.name)}</b>${stayTonight.address?` · <span style="color:var(--muted)">${esc(stayTonight.address)}</span>`:''}</div>`:''}
+      ${stayTonight?`<div class="today-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:10px"><span class="today-time">🌙</span> Tonight: <b>${esc(stayTonight.name)}</b>${stayTonight.address?` · <a href="${mapsUrl(stayTonight.address)}" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:underline dotted">${esc(stayTonight.address)}</a>`:''}</div>`:''}
     </div>`;
   }
 
@@ -2117,7 +2148,7 @@ function eventCard(ev,write){
         <div class="event-title">${esc(ev.title)}</div>
         <div class="event-meta">
           ${ev.time?`<span>🕐 ${ev.time}${ev.duration?' · '+ev.duration+'m':''}</span>`:''}
-          ${ev.location?`<span>📍 ${esc(ev.location)}</span>`:''}
+          ${ev.location?`<span>📍 <a href="${mapsUrl(ev.address||ev.location)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:underline dotted" title="Open in Maps">${esc(ev.location)}</a></span>`:''}
           ${ev.transport&&EVENT_TRANSPORT[ev.transport]?`<span class="ev-transport">${EVENT_TRANSPORT[ev.transport].icon} ${EVENT_TRANSPORT[ev.transport].label}</span>`:''}
           ${ev.confirmed?`<span style="color:var(--green)">✓ Confirmed</span>`:''}
         </div>
@@ -2278,7 +2309,7 @@ function renderStays(t,d){
         <div class="booking-icon cat-hotel">🏨</div>
         <div class="flex1">
           <div class="booking-title">${esc(s.name)}</div>
-          <div class="booking-sub">${esc(s.address||'')}${s.type?' · '+esc(s.type):''}</div>
+          <div class="booking-sub">${s.address?`<a href="${mapsUrl(s.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:inherit;text-decoration:underline dotted" title="Open in Maps">📍 ${esc(s.address)}</a>`:''}${s.type?(s.address?' · ':'')+esc(s.type):''}</div>
         </div>
         <span class="conf-badge ${s.confirmed?'confirmed':'pending'}">${s.confirmed?'CONFIRMED':'PENDING'}</span>
       </div>
@@ -2287,6 +2318,7 @@ function renderStays(t,d){
         ${s.check_out?`<div class="booking-detail"><div class="bd-label">Check-out</div><div class="bd-val">${fmtDay(s.check_out)}${s.check_out_time?' '+s.check_out_time:''}</div></div>`:''}
         ${s.check_in&&s.check_out?`<div class="booking-detail"><div class="bd-label">Nights</div><div class="bd-val">${diffDays(s.check_in,s.check_out)}</div></div>`:''}
         ${s.cost?`<div class="booking-detail"><div class="bd-label">Total</div><div class="bd-val" style="color:var(--gold)">${formatCost(s.cost,t.currency)}</div></div>`:''}
+        ${s.phone?`<div class="booking-detail"><div class="bd-label">Phone</div><div class="bd-val"><a href="tel:${esc(s.phone.replace(/[^\d+]/g,''))}" onclick="event.stopPropagation()" style="color:var(--cyan)">${esc(s.phone)}</a></div></div>`:''}
         ${s.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirm_num)}</div></div>`:''}
       </div>
     </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No accommodation added yet.</p></div>`}
@@ -2890,6 +2922,7 @@ function renderSidebar(tripId){
     <div class="invite-link-row">
       <input class="invite-url-inp" id="invLinkInp" value="${esc(inviteUrl)}" readonly onclick="this.select()">
       <button class="btn sm" onclick="copyInvLink()">Copy</button>
+      ${navigator.share?`<button class="btn sm" onclick="shareInvLink('${esc(t.name)}')" title="Share via…">📤</button>`:''}
     </div>
     <div class="invite-role-row">
       <select onchange="setInvRole('${tripId}',this.value)">
@@ -2932,6 +2965,10 @@ function closeMobMenu(){
 function copyInvLink(){
   const inp=document.getElementById('invLinkInp');if(!inp)return;
   navigator.clipboard.writeText(inp.value).then(()=>toast('Link copied ✓'));
+}
+function shareInvLink(tripName){
+  const inp=document.getElementById('invLinkInp');if(!inp)return;
+  navigator.share({title:'WhereToNext',text:`Join "${tripName}" on WhereToNext ✈️`,url:inp.value}).catch(()=>{});
 }
 async function setInvRole(tripId,role){
   await DB.from('wtn_trips').update({invite_role:role}).eq('id',tripId);
@@ -3521,11 +3558,18 @@ function modalPickActivity(tripId,date){
     </div>`);
 }
 async function assignEventToDay(tripId,evId,date){
+  // Optimistic: move it on screen immediately, revert if the server refuses
+  const ev=(TD[tripId]?.events||[]).find(x=>x.id===evId);
+  const oldDate=ev?.date;
+  if(ev){ev.date=date;}
+  closeModal();renderTab();
   const {error}=await DB.from('wtn_events').update({date}).eq('id',evId);
-  if(error){toast('Could not move activity');return;}
-  closeModal();
+  if(error){
+    if(ev){ev.date=oldDate;renderTab();}
+    toast('Could not move activity');
+    return;
+  }
   toast(`Added to ${fmtDay(date)} ✓`);
-  await loadTripDetail(tripId);renderTab();
 }
 
 /* ── Drag & drop: move activities between itinerary days (desktop) ── */
@@ -3613,11 +3657,7 @@ async function saveEvent(tripId,evId){
   }
   closeModal();await loadTripDetail(tripId);renderTab();
 }
-async function deleteEvent(tripId,id){
-  if(!confirm('Delete this event?'))return;
-  await DB.from('wtn_events').delete().eq('id',id);
-  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
-}
+async function deleteEvent(tripId,id){deleteRowUndo(tripId,'wtn_events',id,'Event');}
 
 /* ── Flight Modal ── */
 function modalFlight(tripId,flId,presetDate){
@@ -3734,11 +3774,7 @@ async function saveFlight(tripId,flId){
   }
   closeModal();await loadTripDetail(tripId);renderTab();
 }
-async function deleteFlight(tripId,id){
-  if(!confirm('Delete this flight?'))return;
-  await DB.from('wtn_flights').delete().eq('id',id);
-  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
-}
+async function deleteFlight(tripId,id){deleteRowUndo(tripId,'wtn_flights',id,'Travel item');}
 
 /* ── Stay Modal ── */
 function modalStay(tripId,stId,presetDate){
@@ -3788,11 +3824,7 @@ async function saveStay(tripId,stId){
   else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
 }
-async function deleteStay(tripId,id){
-  if(!confirm('Delete?'))return;
-  await DB.from('wtn_stays').delete().eq('id',id);
-  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
-}
+async function deleteStay(tripId,id){deleteRowUndo(tripId,'wtn_stays',id,'Stay');}
 
 /* ── Packing Modal ── */
 function modalPackItem(tripId){
@@ -3814,15 +3846,15 @@ async function savePackItem(tripId){
   await DB.from('wtn_pack_items').insert({trip_id:tripId,name,category:$('#pk_cat').value,qty:+$('#pk_qty').value||1,notes:$('#pk_notes').value.trim()||null});
   toast('Added ✓');closeModal();await loadTripDetail(tripId);renderTab();
 }
-async function togglePack(tripId,id,packed){
-  await DB.from('wtn_pack_items').update({packed}).eq('id',id);
-  if(TD[tripId]){const i=TD[tripId].packItems.find(x=>x.id===id);if(i)i.packed=packed;}
-  renderTab();
+function togglePack(tripId,id,packed){
+  // Optimistic: flip locally right away, revert only if the server says no
+  const i=TD[tripId]?.packItems.find(x=>x.id===id);
+  if(i){i.packed=packed;renderTab();}
+  DB.from('wtn_pack_items').update({packed}).eq('id',id).then(({error})=>{
+    if(error){if(i){i.packed=!packed;renderTab();}toast('Could not save — try again');}
+  });
 }
-async function deletePackItem(tripId,id){
-  await DB.from('wtn_pack_items').delete().eq('id',id);
-  await loadTripDetail(tripId);renderTab();
-}
+async function deletePackItem(tripId,id){deleteRowUndo(tripId,'wtn_pack_items',id,'Item');}
 function showPackQuickAdd(qid){
   const el=document.getElementById(qid);if(!el)return;
   const wasHidden=el.classList.contains('hidden');
@@ -3834,8 +3866,23 @@ async function packQuickKey(e,el){
   if(e.key!=='Enter')return;
   const name=el.value.trim();if(!name)return;
   el.value='';
-  await DB.from('wtn_pack_items').insert({trip_id:el.dataset.trip,name,category:el.dataset.cat,qty:1});
-  toast('Added ✓');await loadTripDetail(el.dataset.trip);renderTab();
+  const tripId=el.dataset.trip,cat=el.dataset.cat;
+  // Optimistic add with a client-side id — no waiting, no full reload
+  const row={id:crypto.randomUUID(),trip_id:tripId,name,category:cat,qty:1,packed:false,created_at:new Date().toISOString()};
+  TD[tripId]?.packItems.push(row);
+  renderTab();
+  // Keep the quick-add open + focused so several items can be typed in a row
+  const qid=`qa_${cat.replace(/[^a-z0-9]/gi,'_').toLowerCase()}`;
+  const box=document.getElementById(qid);
+  if(box){box.classList.remove('hidden');box.querySelector('input')?.focus();}
+  DB.from('wtn_pack_items').insert(row).then(({error})=>{
+    if(error){
+      const arr=TD[tripId]?.packItems||[];
+      const idx=arr.findIndex(x=>x.id===row.id);
+      if(idx>=0){arr.splice(idx,1);renderTab();}
+      toast('Could not add — try again');
+    }
+  });
 }
 const PACK_TEMPLATES={
   essentials:{icon:'🎒',label:'Travel Essentials',lists:[
@@ -3973,11 +4020,7 @@ async function saveBudgetItem(tripId,bId){
   else{await DB.from('wtn_budget_items').insert(data);toast('Added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
 }
-async function deleteBudgetItem(tripId,id){
-  if(!confirm('Delete?'))return;
-  await DB.from('wtn_budget_items').delete().eq('id',id);
-  toast('Deleted');closeModal();await loadTripDetail(tripId);renderTab();
-}
+async function deleteBudgetItem(tripId,id){deleteRowUndo(tripId,'wtn_budget_items',id,'Budget item');}
 
 /* ── Travelers ── */
 function renderTravelers(t,d){
