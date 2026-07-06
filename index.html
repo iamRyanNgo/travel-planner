@@ -1039,6 +1039,42 @@ async function detectSchemaV9(){
   SCHEMA_V9=!error;
   return SCHEMA_V9;
 }
+// v10 = exact lat/lng on events + stays (supabase/migration_v10.sql)
+let SCHEMA_V10=null;
+async function detectSchemaV10(){
+  if(SCHEMA_V10!==null)return SCHEMA_V10;
+  const {error}=await DB.from('wtn_events').select('lat').limit(1);
+  SCHEMA_V10=!error;
+  return SCHEMA_V10;
+}
+// Pull exact coordinates + place name out of a Google Maps URL
+function parseGmapsLink(url){
+  try{
+    const u=decodeURIComponent(url);
+    const name=(u.match(/\/maps\/place\/([^/@]+)/)||[])[1]?.replace(/\+/g,' ')||null;
+    let m=u.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);          // exact place marker
+    if(m)return{lat:+m[1],lng:+m[2],name};
+    m=u.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);              // q=lat,lng
+    if(m)return{lat:+m[1],lng:+m[2],name};
+    m=u.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);                   // map center (close enough)
+    if(m)return{lat:+m[1],lng:+m[2],name};
+  }catch{}
+  return null;
+}
+function gmapLinkChanged(el,prefix){
+  const v=el.value.trim();
+  if(!v)return;
+  if(/maps\.app\.goo\.gl|goo\.gl\/maps/.test(v)){
+    toast('Short links hide the location — open it in the browser and copy the full maps.google.com URL');
+    return;
+  }
+  const p=parseGmapsLink(v);
+  if(!p){toast('Could not read coordinates from that link');return;}
+  const la=document.getElementById(prefix+'_lat'),lo=document.getElementById(prefix+'_lng');
+  if(la)la.value=p.lat;
+  if(lo)lo.value=p.lng;
+  toast('📍 Exact location captured ✓');
+}
 
 /* ── Live sync: reload the open trip when anyone else changes it ── */
 let RT_CHANNEL=null,RT_TIMER=null;
@@ -1169,6 +1205,7 @@ function buildMobMenu(){
       `<button class="mob-menu-item" onclick="closeMobMenu();modalSearch()">🔍 Search</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();exportICS('${t.id}')">📅 Export calendar</button>`,
+      write?`<button class="mob-menu-item" onclick="closeMobMenu();modalImportPlaces('${t.id}')">📥 Import places</button>`:'',
       `<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`,
       write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:'',
       t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
@@ -1258,7 +1295,7 @@ async function afterSignIn(user){
   renderAuthHeader();
   // Warm up schema feature flags so modals opened from the dashboard
   // (e.g. Edit Trip's More Destinations) see them without opening a trip first
-  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();detectSchemaV8();detectSchemaV9();
+  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();detectSchemaV8();detectSchemaV9();detectSchemaV10();
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -1833,6 +1870,7 @@ function mapPlaces(t,d){
     const suffix=region||mainSuffix; // geocode within the item's own region when known
     places.push({
       icon:'🏨',color:'var(--purple)',name:s.name,region,
+      fixed:(s.lat!=null&&s.lng!=null)?{lat:+s.lat,lon:+s.lng}:null,
       sub:[s.check_in?fmt(s.check_in):'',s.check_out?'→ '+fmt(s.check_out):''].filter(Boolean).join(' '),
       // Try the address in context, the raw address, then the place name in context
       tries:[addr&&suffix?`${addr}, ${suffix}`:null, addr||null, s.name&&suffix?`${s.name}, ${suffix}`:s.name],
@@ -1847,6 +1885,7 @@ function mapPlaces(t,d){
     const suffix=region||mainSuffix;
     places.push({
       icon:cat.icon,color:'var(--gold)',name:e.title,region,
+      fixed:(e.lat!=null&&e.lng!=null)?{lat:+e.lat,lon:+e.lng}:null,
       sub:[e.location,e.date?fmt(e.date):''].filter(Boolean).join(' · '),
       tries:[suffix?`${loc}, ${suffix}`:loc, loc, e.address&&e.location?`${e.location}, ${suffix}`:null],
       nameOnly:e.location||null,
@@ -1888,7 +1927,8 @@ async function initTripMap(t,d){
   const pts=[];let done=0;
   for(const p of places){
     if(CUR.tab!=='map'||!MAP)return;
-    const g=await geocodeTries(p.tries,p.nameOnly,p.qKey);
+    // Exact coordinates (Google Maps link / import) beat geocoding every time
+    const g=p.fixed||await geocodeTries(p.tries,p.nameOnly,p.qKey);
     done++;
     if(statusEl)statusEl.textContent=done<places.length?`Locating places… ${done}/${places.length}`:'';
     if(g){
@@ -3974,6 +4014,11 @@ function modalEvent(tripId,date,_,evId){
     <div class="field flex1"><label>Duration (min)</label><input id="ev_dur" type="number" value="${ev.duration||''}" placeholder="120"></div>
   </div>
   ${regionSelect(t,'ev_region',ev.region,!evId)}
+  ${SCHEMA_V10?`<div class="field"><label>Google Maps Link <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— optional, pins the exact spot</span></label>
+    <input id="ev_gmap" placeholder="Paste a maps.google.com place link…" onchange="gmapLinkChanged(this,'ev')">
+    <input type="hidden" id="ev_lat" value="${ev.lat??''}"><input type="hidden" id="ev_lng" value="${ev.lng??''}">
+    ${ev.lat!=null?`<p style="font-size:11px;color:var(--green);margin-top:4px">📍 Exact location saved</p>`:''}
+  </div>`:''}
   <div class="row">
     <div class="field flex1"><label>Location</label><input id="ev_loc" value="${esc(ev.location||'')}" placeholder="Venue name, city"></div>
     ${SCHEMA_V5?`<div class="field" style="width:170px"><label>Getting there</label>
@@ -4009,6 +4054,10 @@ async function saveEvent(tripId,evId){
     notes:$('#ev_notes').value.trim()||null};
   if(SCHEMA_V5)data.transport=$('#ev_transport')?.value||null;
   if(SCHEMA_V6)data.region=$('#ev_region')?.value||null;
+  if(SCHEMA_V10){
+    data.lat=$('#ev_lat')?.value?+$('#ev_lat').value:null;
+    data.lng=$('#ev_lng')?.value?+$('#ev_lng').value:null;
+  }
   if(evId){
     await DB.from('wtn_events').update(data).eq('id',evId);
     toast('Event updated');
@@ -4174,6 +4223,11 @@ function modalStay(tripId,stId,presetDate){
   <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
     <input type="checkbox" id="st_confirmed"${s.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Booking confirmed</label></div>
   <div class="field"><label>Address</label><input id="st_addr" value="${esc(s.address||'')}"></div>
+  ${SCHEMA_V10?`<div class="field"><label>Google Maps Link <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— optional, pins the exact spot</span></label>
+    <input id="st_gmap" placeholder="Paste a maps.google.com place link…" onchange="gmapLinkChanged(this,'st')">
+    <input type="hidden" id="st_lat" value="${s.lat??''}"><input type="hidden" id="st_lng" value="${s.lng??''}">
+    ${s.lat!=null?`<p style="font-size:11px;color:var(--green);margin-top:4px">📍 Exact location saved</p>`:''}
+  </div>`:''}
   ${regionSelect(t,'st_region',s.region,!stId)}
   <div class="field"><label>Notes</label><textarea id="st_notes" rows="2">${esc(s.notes||'')}</textarea></div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
@@ -4191,6 +4245,10 @@ async function saveStay(tripId,stId){
     confirmed:$('#st_confirmed').checked,address:$('#st_addr').value.trim()||null,
     notes:$('#st_notes').value.trim()||null};
   if(SCHEMA_V6)data.region=$('#st_region')?.value||null;
+  if(SCHEMA_V10){
+    data.lat=$('#st_lat')?.value?+$('#st_lat').value:null;
+    data.lng=$('#st_lng')?.value?+$('#st_lng').value:null;
+  }
   if(stId){await DB.from('wtn_stays').update(data).eq('id',stId);toast('Updated');}
   else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
@@ -4787,6 +4845,117 @@ async function deleteComment(kind,id,cid){
   modalDiscuss(kind,id);
   renderTab();
   DB.from('wtn_comments').delete().eq('id',cid).then(()=>{});
+}
+
+/* ═══════════════════════════════════════════════
+   IMPORT PLACES — Google Takeout CSV, My Maps KML, Saved Places JSON
+═══════════════════════════════════════════════ */
+function modalImportPlaces(tripId){
+  modal('📥 Import Places',`
+  <p style="font-size:13px;color:var(--muted);margin-bottom:8px">Bring your Google Maps saved places in as 💭 ideas:</p>
+  <ol style="font-size:12px;color:var(--muted);margin:0 0 14px 18px;line-height:1.8">
+    <li><b>Saved lists</b>: takeout.google.com → export “Saved” → upload a list's <b>.csv</b></li>
+    <li><b>My Maps</b>: your map → ⋮ → Export to <b>KML</b></li>
+    <li><b>Starred places</b>: Takeout “Maps (your places)” → <b>.json</b></li>
+  </ol>
+  <label class="btn primary" style="cursor:pointer">📂 Choose file<input type="file" accept=".csv,.kml,.json,.geojson,text/csv" style="display:none" onchange="importPlacesFile('${tripId}',this)"></label>
+  <div id="impPreview" style="margin-top:14px"></div>`);
+}
+function csvRows(text){
+  const rows=[];let row=[],cell='',inQ=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(inQ){
+      if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++;}else inQ=false;}
+      else cell+=ch;
+    }else if(ch==='"')inQ=true;
+    else if(ch===','){row.push(cell);cell='';}
+    else if(ch==='\n'||ch==='\r'){
+      if(cell!==''||row.length){row.push(cell);rows.push(row);row=[];cell='';}
+      if(ch==='\r'&&text[i+1]==='\n')i++;
+    }else cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row);}
+  return rows;
+}
+function parseTakeoutCSV(text){
+  const rows=csvRows(text);
+  if(!rows.length)return[];
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  const ti=head.indexOf('title'),ni=head.indexOf('note'),ui=head.indexOf('url');
+  if(ti<0)return[];
+  return rows.slice(1).filter(r=>r[ti]).map(r=>{
+    const g=ui>=0&&r[ui]?parseGmapsLink(r[ui]):null;
+    return{title:r[ti],note:ni>=0?r[ni]||'':'',lat:g?.lat??null,lng:g?.lng??null,address:null};
+  });
+}
+function parseKML(text){
+  const doc=new DOMParser().parseFromString(text,'text/xml');
+  return[...doc.querySelectorAll('Placemark')].map(pm=>{
+    const coords=pm.querySelector('Point > coordinates')?.textContent.trim().split(',')||[];
+    return{
+      title:pm.querySelector('name')?.textContent.trim()||'Imported place',
+      note:pm.querySelector('description')?.textContent.trim().slice(0,300)||'',
+      lng:coords[0]?+coords[0]:null,lat:coords[1]?+coords[1]:null,address:null,
+    };
+  }).filter(p=>p.title);
+}
+function parseGeoJSON(text){
+  const js=JSON.parse(text);
+  const feats=js.features||[];
+  return feats.map(f=>{
+    const pr=f.properties||{};
+    const loc=pr.Location||{};
+    const co=f.geometry?.type==='Point'?f.geometry.coordinates:null;
+    return{
+      title:pr.Title||pr.name||loc['Business Name']||'Imported place',
+      note:(pr.Note||pr.description||'').slice(0,300),
+      lat:co?+co[1]:(loc.Latitude?+loc.Latitude:null),
+      lng:co?+co[0]:(loc.Longitude?+loc.Longitude:null),
+      address:loc.Address||pr.address||null,
+    };
+  }).filter(p=>p.title);
+}
+async function importPlacesFile(tripId,input){
+  const file=input.files?.[0];
+  input.value='';
+  if(!file)return;
+  const text=await file.text();
+  let places=[];
+  try{
+    if(/\.kml$/i.test(file.name))places=parseKML(text);
+    else if(/\.(json|geojson)$/i.test(file.name))places=parseGeoJSON(text);
+    else places=parseTakeoutCSV(text);
+  }catch{toast('Could not parse that file');return;}
+  if(!places.length){toast('No places found in that file');return;}
+  window._impPlaces=places;
+  const pinned=places.filter(p=>p.lat!=null).length;
+  document.getElementById('impPreview').innerHTML=`
+    <p style="font-size:13px;margin-bottom:10px"><b>${places.length}</b> places found · ${pinned} with exact pins${!SCHEMA_V10&&pinned?' <span style="color:var(--orange)">(run migration_v10.sql to keep the pins)</span>':''}</p>
+    <div style="max-height:36vh;overflow-y:auto;margin-bottom:12px;border:1px solid var(--border);border-radius:12px;padding:6px 10px">
+      ${places.map((p,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 2px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)">
+        <input type="checkbox" class="imp-cb" value="${i}" checked style="width:auto">
+        <span>${p.lat!=null?'📍':'📄'}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title)}${p.note?` <span style="color:var(--dim);font-size:11px">· ${esc(p.note.slice(0,40))}</span>`:''}</span>
+      </label>`).join('')}
+    </div>
+    <button class="btn primary" style="width:100%;justify-content:center" onclick="confirmImportPlaces('${tripId}')">📥 Import selected as ideas</button>`;
+}
+async function confirmImportPlaces(tripId){
+  const sel=[...document.querySelectorAll('.imp-cb:checked')].map(x=>+x.value);
+  const places=(window._impPlaces||[]).filter((_,i)=>sel.includes(i));
+  if(!places.length){toast('Nothing selected');return;}
+  const rows=places.map(p=>{
+    const row={id:crypto.randomUUID(),trip_id:tripId,title:p.title.slice(0,200),category:'idea',confirmed:false,
+      location:p.address||null,notes:p.note||null};
+    if(SCHEMA_V10&&p.lat!=null){row.lat=p.lat;row.lng=p.lng;}
+    return row;
+  });
+  const {error}=await DB.from('wtn_events').insert(rows);
+  if(error){toast('Import failed: '+(error.message||''));return;}
+  closeModal();
+  toast(`📥 ${rows.length} places imported as 💭 ideas ✓`);
+  await loadTripDetail(tripId);renderTab();
 }
 
 /* ═══════════════════════════════════════════════
