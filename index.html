@@ -162,6 +162,14 @@ select option{background:var(--panel)}
 .event-card[draggable="true"]:active{cursor:grabbing}
 .day-block.drag-over{outline:2px dashed var(--gold);outline-offset:4px;border-radius:14px;background:rgba(245,197,66,.04)}
 
+/* ── Mobile FAB + Today pill + skeletons ── */
+.fab{display:none;position:fixed;right:16px;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1a1a;font-size:26px;font-weight:700;border:none;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:95;cursor:pointer;align-items:center;justify-content:center;font-family:inherit;-webkit-tap-highlight-color:transparent}
+.fab:active{transform:scale(.92)}
+@media(max-width:680px){.fab{display:flex}}
+.today-pill{position:fixed;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 16px;border-radius:30px;font-size:13px;font-weight:700;z-index:94;cursor:pointer;box-shadow:var(--shadow);font-family:inherit;animation:pplIn .2s ease-out}
+.skel{background:linear-gradient(90deg,var(--panel) 25%,var(--panel2) 50%,var(--panel) 75%);background-size:200% 100%;animation:skel 1.2s infinite;border-radius:14px;margin-bottom:14px}
+@keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
 /* ── Offline sync pill ── */
 #syncPill{position:fixed;bottom:16px;left:16px;background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 15px;border-radius:30px;font-size:12px;font-weight:600;z-index:9998;cursor:pointer;box-shadow:var(--shadow);animation:pplIn .2s ease-out}
 
@@ -1027,6 +1035,7 @@ async function openTrip(id,tab='overview'){
   ITIN_COLLAPSED=new Set();
   ITIN_HIDE_EMPTY=false;
   REGION_FILTER=null;
+  ITIN_SCROLLED=false;
   renderTripShell();
   await loadTripDetail(id);
   renderTab();
@@ -1370,6 +1379,7 @@ async function rejectRequest(reqId, userId){
 ═══════════════════════════════════════════════ */
 function renderDashboard(){
   CUR.view='dashboard';
+  document.getElementById('todayPill')?.remove();
   document.getElementById('breadcrumb').innerHTML='';
   document.getElementById('headerActions').innerHTML='';
   renderAuthHeader();
@@ -1487,16 +1497,83 @@ function renderTripShell(){
         ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
       </div>
     </div>
-    <div id="tabContent"><div class="loading-screen" style="min-height:200px"><div class="spinner"></div></div></div>
+    <div id="tabContent">
+      <div style="padding-top:8px">
+        <div class="skel" style="height:80px"></div>
+        <div class="skel" style="height:130px"></div>
+        <div class="skel" style="height:130px;opacity:.65"></div>
+        <div class="skel" style="height:130px;opacity:.35"></div>
+      </div>
+    </div>
+    ${write?`<button class="fab" onclick="fabAction()" title="Add">＋</button>`:''}
   </div>`;
 }
 
+/* ── FAB: adds whatever fits the tab you're on ── */
+function fabAction(){
+  const tripId=CUR.tripId;if(!tripId)return;
+  const t=TRIPS.find(x=>x.id===tripId);
+  const today=new Date().toLocaleDateString('en-CA');
+  const onTrip=t?.start_date&&t?.end_date&&today>=t.start_date&&today<=t.end_date;
+  switch(CUR.tab){
+    case 'packing':modalPackItem(tripId);break;
+    case 'budget':modalQuickExpense(tripId);break;
+    case 'flights':modalFlight(tripId);break;
+    case 'stays':modalStay(tripId);break;
+    case 'activities':modalEvent(tripId);break;
+    default:modalAddToDay(tripId,onTrip?today:'');
+  }
+}
+
+/* ── Quick expense: one screen to log a cost and split it ── */
+function modalQuickExpense(tripId){
+  const t=TRIPS.find(x=>x.id===tripId);
+  const d0=TD[tripId]||{};
+  const people=[{user_id:t?.owner_id,profile:d0.ownerProfile||{}},...(d0.members||[])]
+    .map(m=>({id:m.user_id,name:m.profile?.name?.split(' ')[0]||m.profile?.email||'Member'}));
+  modal('💸 Quick Expense',`
+  <div class="field"><label>What was it?</label><input id="qe_name" placeholder="e.g. Dinner at Ca's Patró"></div>
+  <div class="row">
+    <div class="field flex1"><label>Amount</label><input id="qe_amt" type="number" inputmode="decimal" placeholder="0.00"></div>
+    ${SCHEMA_V2?`<div class="field flex1"><label>Currency</label><select id="qe_cur">${curOptions(t?.currency||'$')}</select></div>`:''}
+  </div>
+  ${SCHEMA_V2&&people.length>1?`
+  <div class="field"><label>Paid by</label><select id="qe_paidby">${people.map(p=>`<option value="${p.id}"${p.id===ME?.id?' selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+  <div class="field"><label>Split between</label>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      ${people.map(p=>`<label style="display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer"><input type="checkbox" class="qe-split" value="${p.id}" checked style="width:auto"> ${esc(p.name)}</label>`).join('')}
+    </div>
+  </div>`:''}
+  <div class="modal-footer" style="margin:16px -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn primary" onclick="saveQuickExpense('${tripId}')">💸 Log Expense</button>
+  </div>`);
+  setTimeout(()=>$('#qe_name')?.focus(),60);
+}
+async function saveQuickExpense(tripId){
+  const name=$('#qe_name').value.trim();if(!name){toast('What was it for?');return;}
+  const amt=+$('#qe_amt').value||0;if(!amt){toast('Enter the amount');return;}
+  const data={trip_id:tripId,name,category:'Misc',planned:0,actual:amt};
+  if(SCHEMA_V2){
+    data.currency=$('#qe_cur')?.value||null;
+    const paidBy=$('#qe_paidby')?.value||null;
+    const sel=[...document.querySelectorAll('.qe-split:checked')].map(x=>x.value);
+    if(paidBy&&sel.length){data.paid_by=paidBy;data.split_with=sel;}
+  }
+  const {error}=await DB.from('wtn_budget_items').insert(data);
+  if(error){toast('Could not save expense');return;}
+  closeModal();
+  toast('💸 Expense logged ✓');
+  await loadTripDetail(tripId);renderTab();
+}
+
 function renderTab(){
+  document.getElementById('todayPill')?.remove(); // re-added by the itinerary tab when relevant
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
   if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);}
-  else if(CUR.tab==='itinerary')el.innerHTML=renderItinerary(t,d);
+  else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);itinScrollToday(t);}
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
   else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
@@ -2114,7 +2191,7 @@ function renderItinerary(t,d){
       autoItems.forEach(a=>allItems.push(a));
       allItems.sort((a,b)=>a.sortTime.localeCompare(b.sortTime));
 
-      return`<div class="day-block" ${write?`ondragover="dragOverDay(event)" ondragleave="dragLeaveDay(event)" ondrop="dropOnDay(event,'${t.id}','${date}')"`:''}>
+      return`<div class="day-block" id="day-${date}" ${write?`ondragover="dragOverDay(event)" ondragleave="dragLeaveDay(event)" ondrop="dropOnDay(event,'${t.id}','${date}')"`:''}>
         <div class="day-header" onclick="toggleItinDay('${date}')">
           <div class="day-label">
             <div class="day-num" style="background:${color}20;color:${color}">D${idx+1}</div>
@@ -2135,6 +2212,25 @@ function renderItinerary(t,d){
     }).join('')}
     ${write?`<button class="btn primary" style="margin-top:8px" onclick="modalAddToDay('${t.id}','')">＋ Add</button>`:''}
   </div>`;
+}
+
+/* ── Jump to today: auto-scroll on first open + floating pill during the trip ── */
+let ITIN_SCROLLED=false;
+function itinScrollToday(t){
+  const today=new Date().toLocaleDateString('en-CA');
+  const onTrip=t?.start_date&&t?.end_date&&today>=t.start_date&&today<=t.end_date;
+  document.getElementById('todayPill')?.remove();
+  if(!onTrip)return;
+  const target=document.getElementById('day-'+today);
+  if(!target)return;
+  if(!ITIN_SCROLLED){
+    ITIN_SCROLLED=true;
+    setTimeout(()=>target.scrollIntoView({behavior:'smooth',block:'start'}),150);
+  }
+  const pill=document.createElement('button');
+  pill.id='todayPill';pill.className='today-pill';pill.textContent='📍 Today';
+  pill.onclick=()=>document.getElementById('day-'+today)?.scrollIntoView({behavior:'smooth',block:'start'});
+  document.body.appendChild(pill);
 }
 
 function eventCard(ev,write){
