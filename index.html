@@ -162,6 +162,12 @@ select option{background:var(--panel)}
 .event-card[draggable="true"]:active{cursor:grabbing}
 .day-block.drag-over{outline:2px dashed var(--gold);outline-offset:4px;border-radius:14px;background:rgba(245,197,66,.04)}
 
+/* ── Mobile gestures: collapsing header + pull-to-refresh ── */
+body{overscroll-behavior-y:contain}
+#appHeader{transition:transform .22s ease}
+body.hdr-hide #appHeader{transform:translateY(-100%)}
+#ptrPill{position:fixed;top:calc(66px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border2);color:var(--muted);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:600;z-index:96;box-shadow:var(--shadow)}
+
 /* ── Mobile FAB + Today pill + skeletons ── */
 .fab{display:none;position:fixed;right:16px;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#1a1a1a;font-size:26px;font-weight:700;border:none;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:95;cursor:pointer;align-items:center;justify-content:center;font-family:inherit;-webkit-tap-highlight-color:transparent}
 .fab:active{transform:scale(.92)}
@@ -402,7 +408,8 @@ button,a{touch-action:manipulation}
   .btn-label{display:none}
   .ha-desktop{display:none!important}
   /* Tab slider: sticky under the header, swipeable pills with snap */
-  .trip-tabs-wrap{position:sticky;top:calc(58px + env(safe-area-inset-top,0px));z-index:40;background:var(--bg);margin:0 -14px 14px;padding:8px 14px}
+  .trip-tabs-wrap{position:sticky;top:calc(58px + env(safe-area-inset-top,0px));z-index:40;background:var(--bg);margin:0 -14px 14px;padding:8px 14px;transition:top .22s ease}
+  body.hdr-hide .trip-tabs-wrap{top:env(safe-area-inset-top,0px)}
   .trip-tabs-wrap::after{background:linear-gradient(to right,transparent,var(--bg));width:28px}
   .trip-tabs{gap:8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding:2px 14px 4px 0}
   .trip-tab{scroll-snap-align:center;padding:9px 15px;font-size:13px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;color:var(--muted)}
@@ -1478,6 +1485,7 @@ function renderTripShell(){
   </div>`;
   if(isAdmin())checkPendingBadge();
   buildMobMenu();
+  CUR_TABS=TABS.map(x=>x.id); // for swipe navigation between tabs
 
   document.getElementById('root').innerHTML=`
   <div id="tripView">
@@ -2238,7 +2246,7 @@ function eventCard(ev,write){
   const q=esc([ev.title,ev.location].filter(Boolean).join(' '));
   return`<div class="tl-event">
     <div class="tl-dot ${cat.dot}"></div>
-    <div class="event-card ${ev.confirmed?'confirmed':''}" ${write?`draggable="true" ondragstart="dragEv(event,'${ev.id}')"`:''} onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
+    <div class="event-card ${ev.confirmed?'confirmed':''}" data-ev="${ev.id}" ${write?`draggable="true" ondragstart="dragEv(event,'${ev.id}')"`:''} onclick="${write?`modalEvent('${ev.trip_id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
       <div class="event-icon ${cat.cls}">${cat.icon}</div>
       <div class="event-body">
         <div class="event-title">${esc(ev.title)}</div>
@@ -2439,7 +2447,7 @@ function renderActivities(t,d){
         ${catEvents.map(ev=>{
           const q=esc([ev.title,ev.location].filter(Boolean).join(' '));
           return`<div style="margin-bottom:8px">
-          <div class="event-card" style="border-radius:12px" onclick="${write?`modalEvent('${t.id}',null,null,'${ev.id}')`:''}" style="${write?'':'cursor:default'}">
+          <div class="event-card" data-ev="${ev.id}" style="border-radius:12px" onclick="${write?`modalEvent('${t.id}',null,null,'${ev.id}')`:''}">
             <div class="event-icon ${cat.cls}">${cat.icon}</div>
             <div class="event-body">
               <div class="event-title">${esc(ev.title)}</div>
@@ -4335,6 +4343,105 @@ document.addEventListener('click',e=>{
   const drop=document.getElementById('mobMenuDrop');
   if(drop&&!drop.contains(e.target)&&!e.target.closest('.user-chip'))closeMobMenu();
 });
+
+/* ═══════════════════════════════════════════════
+   MOBILE GESTURES — swipe tabs, pull-to-refresh,
+   long-press actions, collapsing header
+═══════════════════════════════════════════════ */
+let CUR_TABS=[];
+let SWIPE=null;
+let PTR=null;
+let LP_TIMER=null,LP_FIRED=false;
+
+document.addEventListener('touchstart',e=>{
+  const t0=e.touches[0];
+  const modalOpen=!!document.getElementById('modalRoot').innerHTML;
+  // Swipe between tabs (not on the map/scrollers/inputs, not in modals)
+  SWIPE=(CUR.view==='trip'&&!modalOpen&&!e.target.closest('#tripMap,.wx-row,.trip-tabs,.ppl-dropdown,.mob-menu-drop,input,textarea,select'))
+    ?{x:t0.clientX,y:t0.clientY,t:Date.now()}:null;
+  // Pull-to-refresh (only from the very top of the page)
+  PTR=(window.scrollY<=2&&!modalOpen)?{y0:t0.clientY,pulled:0}:null;
+  // Long-press on activity cards → quick actions
+  const card=e.target.closest('.event-card[data-ev]');
+  clearTimeout(LP_TIMER);LP_FIRED=false;
+  if(card&&!modalOpen){
+    LP_TIMER=setTimeout(()=>{LP_FIRED=true;navigator.vibrate?.(10);eventActionSheet(card.dataset.ev);},550);
+  }
+},{passive:true});
+
+document.addEventListener('touchmove',e=>{
+  clearTimeout(LP_TIMER);
+  if(!PTR)return;
+  PTR.pulled=e.touches[0].clientY-PTR.y0;
+  if(PTR.pulled>18&&window.scrollY<=0){
+    let el=document.getElementById('ptrPill');
+    if(!el){el=document.createElement('div');el.id='ptrPill';document.body.appendChild(el);}
+    el.textContent=PTR.pulled>80?'↻ Release to refresh':'↓ Pull to refresh';
+  }
+},{passive:true});
+
+document.addEventListener('touchend',async e=>{
+  clearTimeout(LP_TIMER);
+  if(LP_FIRED){e.preventDefault();LP_FIRED=false;return;} // swallow the click after a long-press
+  // Pull-to-refresh release
+  const ptrEl=document.getElementById('ptrPill');
+  const doRefresh=PTR&&PTR.pulled>80&&window.scrollY<=0;
+  if(ptrEl&&!doRefresh)ptrEl.remove();
+  if(doRefresh){
+    PTR=null;
+    ptrEl.textContent='↻ Refreshing…';
+    try{
+      if(CUR.view==='trip'&&CUR.tripId){await loadTripDetail(CUR.tripId);renderTab();}
+      else if(ME){await loadTrips();renderDashboard();}
+      toast('Refreshed ✓');
+    }finally{document.getElementById('ptrPill')?.remove();}
+    return;
+  }
+  PTR=null;
+  // Swipe between tabs
+  if(!SWIPE)return;
+  const t0=e.changedTouches[0];
+  const dx=t0.clientX-SWIPE.x,dy=t0.clientY-SWIPE.y,dt=Date.now()-SWIPE.t;
+  SWIPE=null;
+  if(dt>600||Math.abs(dx)<70||Math.abs(dx)<Math.abs(dy)*2)return;
+  const idx=CUR_TABS.indexOf(CUR.tab);
+  if(idx<0)return;
+  const next=dx<0?idx+1:idx-1;
+  if(next<0||next>=CUR_TABS.length)return;
+  setTab(CUR_TABS[next]);
+},{passive:false});
+
+// Collapsing header: hide on scroll down, reveal on scroll up (mobile only)
+let LASTY=0,HDR_HIDDEN=false;
+window.addEventListener('scroll',()=>{
+  if(!window.matchMedia('(max-width:680px)').matches)return;
+  const y=window.scrollY;
+  const down=y>LASTY&&y>90;
+  if(down!==HDR_HIDDEN){HDR_HIDDEN=down;document.body.classList.toggle('hdr-hide',down);}
+  LASTY=y;
+},{passive:true});
+
+/* ── Long-press quick actions for activities ── */
+function eventActionSheet(evId){
+  const tripId=CUR.tripId;
+  const ev=(TD[tripId]?.events||[]).find(x=>x.id===evId);if(!ev)return;
+  const t=TRIPS.find(x=>x.id===tripId);
+  if(!canWrite(t))return;
+  const days=t?tripDays(t):[];
+  const item=(icon,label,fn)=>`<button class="mob-menu-item" style="border:1px solid var(--border);margin-bottom:8px;padding:13px" onclick="${fn}"><span style="font-size:17px">${icon}</span> ${label}</button>`;
+  modal(esc(ev.title),`
+    ${item('✎','Edit',`closeModal();modalEvent('${tripId}',null,null,'${evId}')`)}
+    ${days.length?item('🗓','Move to another day',`closeModal();modalPickDay('${tripId}','${evId}')`):''}
+    ${ev.cost&&canSplitKind('event')?item('💸','Split expense',`closeModal();modalSplit('${tripId}','event','${evId}')`):''}
+    ${item('🗑','Delete',`deleteEvent('${tripId}','${evId}')`)}`);
+}
+function modalPickDay(tripId,evId){
+  const t=TRIPS.find(x=>x.id===tripId);
+  const days=t?tripDays(t):[];
+  modal('🗓 Move to…',days.map((d,i)=>
+    `<button class="mob-menu-item" style="border:1px solid var(--border);margin-bottom:6px" onclick="assignEventToDay('${tripId}','${evId}','${d}')">D${i+1} · ${fmtDay(d)}</button>`
+  ).join(''));
+}
 
 /* ═══════════════════════════════════════════════
    PWA — INSTALL + SERVICE WORKER
