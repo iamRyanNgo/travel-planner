@@ -590,8 +590,6 @@ button,a{touch-action:manipulation}
 }
 </style>
 <script>(function(){var t=localStorage.getItem('wtn-theme');if(t==='light')document.documentElement.dataset.theme='light';}());</script>
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-<script src="vendor/leaflet/leaflet.js" defer></script>
 </head>
 <body>
 
@@ -727,9 +725,24 @@ function queueOp(desc){
 
 const OUTBOX_TABLES={wtn_events:'events',wtn_flights:'flights',wtn_stays:'stays',wtn_pack_items:'packItems',wtn_budget_items:'budgetItems',wtn_trip_docs:'docs'};
 // Passport/visa data must never touch disk — strip travelers from every
-// TD cache write, no matter which code path persists it
+// TD cache write, no matter which code path persists it. Coalesced on idle
+// so a burst of edits doesn't stringify the whole trip synchronously each
+// time (the offline outbox is the source of truth for pending writes; this
+// cache is only a read fallback, so a slight delay is harmless).
+const _cacheTDPending=new Map();
+let _cacheTDScheduled=false;
 function cacheTD(tripId,td){
-  try{localStorage.setItem('wtn-cache-td-'+tripId,JSON.stringify({...td,travelers:[]}));}catch{}
+  _cacheTDPending.set(tripId,td);
+  if(_cacheTDScheduled)return;
+  _cacheTDScheduled=true;
+  const flush=()=>{
+    _cacheTDScheduled=false;
+    for(const [id,t] of _cacheTDPending){
+      try{localStorage.setItem('wtn-cache-td-'+id,JSON.stringify({...t,travelers:[]}));}catch{}
+    }
+    _cacheTDPending.clear();
+  };
+  (window.requestIdleCallback||(f=>setTimeout(f,200)))(flush);
 }
 function applyOpToLocal(desc){
   try{
@@ -1101,25 +1114,45 @@ function gmapLinkChanged(el,prefix){
 
 /* ── Live sync: reload the open trip when anyone else changes it ── */
 let RT_CHANNEL=null,RT_TIMER=null;
+// Refetch a single table into TD (instead of the whole 10-query trip load)
+// when a realtime event says only that table changed.
+const RT_TABLE_LOADERS={
+  wtn_events:  id=>DB.from('wtn_events').select('*').eq('trip_id',id).order('date').order('time').then(r=>({events:r.data||[]})),
+  wtn_flights: id=>DB.from('wtn_flights').select('*').eq('trip_id',id).order('depart_date').then(r=>({flights:r.data||[]})),
+  wtn_stays:   id=>DB.from('wtn_stays').select('*').eq('trip_id',id).order('check_in').then(r=>({stays:r.data||[]})),
+  wtn_pack_items:  id=>DB.from('wtn_pack_items').select('*').eq('trip_id',id).order('category').order('created_at').then(r=>({packItems:r.data||[]})),
+  wtn_budget_items:id=>DB.from('wtn_budget_items').select('*').eq('trip_id',id).order('category').order('created_at').then(r=>({budgetItems:r.data||[]})),
+  wtn_journal: id=>DB.from('wtn_journal').select('*').eq('trip_id',id).order('date').then(r=>({journal:r.data||[]})),
+  wtn_trip_docs:id=>DB.from('wtn_trip_docs').select('*').eq('trip_id',id).order('created_at',{ascending:false}).then(r=>({docs:r.data||[]})),
+  wtn_comments:id=>DB.from('wtn_comments').select('*').eq('trip_id',id).order('created_at').then(r=>({comments:r.data||[]})),
+  wtn_votes:   id=>DB.from('wtn_votes').select('*').eq('trip_id',id).then(r=>({votes:r.data||[]})),
+  wtn_trip_members:id=>DB.from('wtn_trip_members').select('*, wtn_profiles!user_id(id,name,email,picture)').eq('trip_id',id).then(r=>({members:(r.data||[]).map(m=>({...m,profile:m.wtn_profiles}))})),
+};
+let RT_DIRTY=new Set();
 function subscribeTripRealtime(tripId){
   try{
     if(RT_CHANNEL){DB.removeChannel(RT_CHANNEL);RT_CHANNEL=null;}
     if(!DB.channel)return;
+    RT_DIRTY=new Set();
     let ch=DB.channel('trip-'+tripId);
-    ['wtn_events','wtn_flights','wtn_stays','wtn_pack_items','wtn_budget_items','wtn_trip_members','wtn_journal','wtn_trip_docs','wtn_comments','wtn_votes'].forEach(tbl=>{
+    Object.keys(RT_TABLE_LOADERS).forEach(tbl=>{
       ch=ch.on('postgres_changes',{event:'*',schema:'public',table:tbl,filter:`trip_id=eq.${tripId}`},()=>{
+        RT_DIRTY.add(tbl);
         // Debounced, and deferred while our own writes are in flight or very
-        // recent — otherwise the echo of our own edit reloads a snapshot that
-        // predates the next tap and visibly reverts it (the unchecking bug)
+        // recent, so the echo of our own edit doesn't revert newer local state
         const attempt=async()=>{
           if(PENDING_WRITES>0||Date.now()-LAST_WRITE_AT<1200){
-            clearTimeout(RT_TIMER);
-            RT_TIMER=setTimeout(attempt,700);
-            return;
+            clearTimeout(RT_TIMER);RT_TIMER=setTimeout(attempt,700);return;
           }
-          if(CUR.view==='trip'&&CUR.tripId===tripId&&!document.getElementById('modalRoot').innerHTML){
-            await loadTripDetail(tripId);renderTab();
-          }
+          if(CUR.view!=='trip'||CUR.tripId!==tripId||document.getElementById('modalRoot').innerHTML)return;
+          const tables=[...RT_DIRTY];RT_DIRTY.clear();
+          try{
+            const patches=await Promise.all(tables.map(tb=>RT_TABLE_LOADERS[tb](tripId)));
+            if(CUR.tripId!==tripId||!TD[tripId])return;
+            Object.assign(TD[tripId],...patches);
+            cacheTD(tripId,TD[tripId]);
+            renderTab();
+          }catch{}
         };
         clearTimeout(RT_TIMER);
         RT_TIMER=setTimeout(attempt,500);
@@ -1192,11 +1225,13 @@ async function showRequestOrPending(){
 }
 function goHome(){
   if(!requireApproved())return;
+  flushNotes();
   CUR={view:'dashboard',tripId:null,tab:'overview'};
   renderDashboard();
 }
 async function openTrip(id,tab='overview'){
   if(!requireApproved())return;
+  flushNotes();
   CUR={view:'trip',tripId:id,tab};
   ITIN_COLLAPSED=new Set();
   ITIN_HIDE_EMPTY=false;
@@ -1951,9 +1986,26 @@ function renderMapShell(t,d){
   <div id="tripMap"></div>
   <div id="mapMissing" style="margin-top:10px;font-size:12px;color:var(--muted)"></div>`;
 }
+// Leaflet is loaded on demand the first time the Map tab opens, so its
+// ~190 KB of JS+CSS isn't parsed on every app launch for a rarely-used tab
+let LEAFLET_LOADING=null;
+function ensureLeaflet(){
+  if(typeof L!=='undefined')return Promise.resolve(true);
+  if(LEAFLET_LOADING)return LEAFLET_LOADING;
+  LEAFLET_LOADING=new Promise(resolve=>{
+    const css=document.createElement('link');css.rel='stylesheet';css.href='vendor/leaflet/leaflet.css';document.head.appendChild(css);
+    const js=document.createElement('script');js.src='vendor/leaflet/leaflet.js';
+    js.onload=()=>resolve(true);
+    js.onerror=()=>{LEAFLET_LOADING=null;resolve(false);};
+    document.head.appendChild(js);
+  });
+  return LEAFLET_LOADING;
+}
 async function initTripMap(t,d){
   const el=document.getElementById('tripMap');if(!el)return;
-  if(typeof L==='undefined'){el.innerHTML='<p style="padding:20px;color:var(--muted)">Map library failed to load — check your connection and refresh.</p>';return;}
+  const ok=await ensureLeaflet();
+  if(CUR.tab!=='map')return; // navigated away while loading
+  if(!ok||typeof L==='undefined'){el.innerHTML='<p style="padding:20px;color:var(--muted)">Map library failed to load — check your connection and refresh.</p>';return;}
   if(MAP){MAP.remove();MAP=null;}
   MAP=L.map(el).setView([20,0],2);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(MAP);
@@ -1975,10 +2027,11 @@ async function initTripMap(t,d){
         .bindPopup(`<b>${esc(p.name)}</b>${p.sub?`<br><span style="font-size:12px">${esc(p.sub)}</span>`:''}${g.approx?`<br><span style="font-size:11px;color:#b8860b">≈ approximate — pinned to ${esc(g.label||'the area')}</span>`:''}<br><a href="${mapsUrl(`${g.lat},${g.lon}`)}" target="_blank" rel="noopener" style="font-size:12px">🧭 Directions</a>${p.region&&!REGION_FILTER&&tripDests(t).length>1?`<br><button class="btn sm ghost" style="margin-top:6px;font-size:11px" data-r="${esc(p.region)}" onclick="setRegionFilter(this.dataset.r)">🔍 Only show ${esc(p.region.split(',')[0])}</button>`:''}`)
         // Clicking a pin glides the map to that spot (popup still opens)
         .on('click',ev=>{if(MAP)MAP.flyTo(ev.latlng,Math.max(MAP.getZoom(),15),{duration:.6});});
-      if(pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
-      else MAP.setView(pts[0],13);
     }else p.missing=true;
   }
+  // Single fit after all pins are placed — avoids N forced reflows in the loop
+  if(MAP&&pts.length>1)MAP.fitBounds(pts,{padding:[46,46]});
+  else if(MAP&&pts.length===1)MAP.setView(pts[0],13);
   if(statusEl)statusEl.textContent=pts.length?`${pts.length}/${places.length} pinned`:'';
   const missing=places.filter(p=>p.missing);
   const missEl=document.getElementById('mapMissing');
@@ -2333,11 +2386,20 @@ function renderOverview(t,d){
   </div>`;
 }
 
-let _notesTimer=null;
+let _notesTimer=null,_notesPending=null;
 function debouncedSaveNotes(id,notes){
+  _notesPending={id,notes};
   clearTimeout(_notesTimer);
-  _notesTimer=setTimeout(()=>DB.from('wtn_trips').update({notes}).eq('id',id),800);
+  _notesTimer=setTimeout(flushNotes,800);
 }
+function flushNotes(){
+  clearTimeout(_notesTimer);
+  if(!_notesPending)return;
+  const{id,notes}=_notesPending;_notesPending=null;
+  DB.from('wtn_trips').update({notes}).eq('id',id);
+}
+// Don't lose a note typed within the debounce window when leaving
+window.addEventListener('beforeunload',flushNotes);
 
 /* ── Itinerary ── */
 function itinAutoItems(d){
