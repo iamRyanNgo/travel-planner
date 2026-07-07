@@ -9,6 +9,22 @@
 --   H1 — approval was only enforced on trip creation; all item writes were
 --        ungated. Now enforced centrally in wtn_can_write + friends.
 --   M3 — ensure member management is owner-only.
+--
+-- Self-contained: (re)defines wtn_is_approved so this runs even if v11
+-- hasn't been applied yet.
+
+-- ── Approval helper (also created in v11; safe to redefine) ──
+create or replace function wtn_is_approved() returns boolean
+language sql security definer stable set search_path = public as $$
+  select exists (select 1 from wtn_profiles p where p.id = auth.uid() and p.approved)
+$$;
+
+-- ── Trip creation requires approval (also in v11; safe to reassert) ──
+drop policy if exists wtn_trips_owner on wtn_trips;
+create policy wtn_trips_owner on wtn_trips
+  for all
+  using (owner_id = auth.uid())
+  with check (owner_id = auth.uid() and wtn_is_approved());
 
 -- ── C1: members may only READ their own membership and LEAVE a trip ──
 -- Inserts/role changes now happen exclusively via the owner policy
