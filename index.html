@@ -74,6 +74,21 @@ select option{background:var(--panel)}
 .btn.ghost{background:transparent;border-color:transparent}
 .btn.ghost:hover{background:var(--panel2)}
 .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm)}
+/* ── Liquid glass: blurred cover backdrop + translucent frosted cards ── */
+#tripBg{display:none;position:fixed;inset:-60px;z-index:-2;background-size:cover;background-position:center;filter:blur(40px) saturate(1.35) brightness(.85);transform:scale(1.12)}
+#tripBg::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) 52%,transparent),color-mix(in srgb,var(--bg) 84%,transparent) 70%,var(--bg))}
+body.trip-open{background:var(--bg2)}
+body.trip-open #tripBg{display:block}
+/* On the trip view, cards become frosted glass floating over the photo */
+body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.trip-open .booking-card,body.trip-open .budget-group,body.trip-open .glass{
+  background:color-mix(in srgb,var(--panel) 52%,transparent);
+  backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);
+  border:1px solid color-mix(in srgb,#fff 13%,transparent);
+  box-shadow:0 8px 32px -12px rgba(0,0,0,.5),inset 0 1px 0 color-mix(in srgb,#fff 8%,transparent);
+}
+[data-theme="light"] body.trip-open .card,[data-theme="light"] body.trip-open .stat-card,[data-theme="light"] body.trip-open .fun-stat,[data-theme="light"] body.trip-open .booking-card,[data-theme="light"] body.trip-open .budget-group{
+  background:color-mix(in srgb,#fff 62%,transparent);border-color:color-mix(in srgb,#fff 55%,transparent);
+}
 .empty{text-align:center;padding:52px 24px;color:var(--muted);border:1px dashed var(--border2);border-radius:var(--radius)}
 .empty .icon{font-size:44px;margin-bottom:14px;opacity:.85}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-weight:500}
@@ -237,6 +252,15 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 
 /* ── Overview ── */
 .overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+/* Trip Summary panel — divided stat columns */
+.summary-panel{margin-bottom:18px;padding:18px 20px}
+.summary-title{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.summary-row{display:flex;gap:0;overflow-x:auto;scrollbar-width:none}
+.summary-row::-webkit-scrollbar{display:none}
+.summary-cell{flex:1 0 auto;padding:0 16px;border-left:1px solid var(--border);min-width:72px}
+.summary-cell:first-child{padding-left:0;border-left:none}
+.summary-val{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
+.summary-lbl{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-top:4px}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
 .stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Playfair Display',serif;color:var(--gold)}
 .stat-card .stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
@@ -1759,6 +1783,7 @@ async function rejectRequest(reqId, userId){
 function renderDashboard(){
   if(!requireApproved())return;
   CUR.view='dashboard';
+  document.body.classList.remove('trip-open');
   unsubscribeTripRealtime();
   document.getElementById('todayPill')?.remove();
   document.getElementById('breadcrumb').innerHTML='';
@@ -1871,6 +1896,11 @@ function renderTripShell(){
   CUR_TABS=TABS.map(x=>x.id); // for swipe navigation between tabs
   CUR_TAB_DEFS=TABS;          // for the mobile bottom nav
 
+  document.body.classList.add('trip-open');
+  // Blurred cover photo as a body-level backdrop for the glass cards
+  let _bgEl=document.getElementById('tripBg');
+  if(!_bgEl){_bgEl=document.createElement('div');_bgEl.id='tripBg';document.body.insertBefore(_bgEl,document.body.firstChild);}
+  _bgEl.setAttribute('style',safeBannerUrl(t.banner_url)?`background-image:url('${safeBannerUrl(t.banner_url)}')`:`background:${GRADIENTS[t.gradient_idx||0]}`);
   document.getElementById('root').innerHTML=`
   <div id="tripView">
     <div class="trip-hero" style="${safeBannerUrl(t.banner_url)?`background-image:url('${safeBannerUrl(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
@@ -2463,13 +2493,16 @@ function renderOverview(t,d){
   ${todayHtml}
   ${warnHtml}
   ${recapHtml}
-  <div class="overview-grid">
-    <div class="stat-card"><div class="stat-val">${days||'—'}</div><div class="stat-label">Days</div></div>
-    <div class="stat-card"><div class="stat-val">${d.events.length}</div><div class="stat-label">Events</div></div>
-    <div class="stat-card"><div class="stat-val">${d.flights.length}</div><div class="stat-label">Travel</div></div>
-    <div class="stat-card"><div class="stat-val">${d.stays.length}</div><div class="stat-label">Stays</div></div>
-    ${totalBudget?`<div class="stat-card"><div class="stat-val" style="font-size:20px">${formatCost(totalBudget,t.currency)}</div><div class="stat-label">Budget</div></div>`:''}
-    ${totalActual?`<div class="stat-card"><div class="stat-val" style="font-size:20px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="stat-label">Spent</div></div>`:''}
+  <div class="card summary-panel">
+    <div class="summary-title">Trip Summary</div>
+    <div class="summary-row">
+      <div class="summary-cell"><div class="summary-val">${days||'—'}</div><div class="summary-lbl">Days</div></div>
+      <div class="summary-cell"><div class="summary-val">${d.events.length}</div><div class="summary-lbl">Events</div></div>
+      <div class="summary-cell"><div class="summary-val">${d.flights.length}</div><div class="summary-lbl">Travel</div></div>
+      <div class="summary-cell"><div class="summary-val">${d.stays.length}</div><div class="summary-lbl">Stays</div></div>
+      ${totalBudget?`<div class="summary-cell"><div class="summary-val" style="font-size:22px">${formatCost(totalBudget,t.currency)}</div><div class="summary-lbl">Budget</div></div>`:''}
+      ${totalActual?`<div class="summary-cell"><div class="summary-val" style="font-size:22px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="summary-lbl">Spent</div></div>`:''}
+    </div>
   </div>
   ${funStats.length?`<div class="fun-stats">${funStats.map(funStatCard).join('')}</div>`:''}
   <div id="wxWidget"></div>
