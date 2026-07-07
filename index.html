@@ -139,6 +139,11 @@ select option{background:var(--panel)}
 .trip-tab:hover{background:var(--panel2);color:var(--text);border-color:var(--border)}
 .trip-tab.active{background:var(--panel2);color:var(--gold);border-color:var(--border2)}
 .trip-tab .tt-label{display:inline}
+/* ── Itinerary view toggle (By Day / All Activities) ── */
+.itin-seg{display:inline-flex;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:16px;gap:2px}
+.itin-seg-btn{border:none;background:none;color:var(--muted);font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:9px;cursor:pointer;transition:.15s;white-space:nowrap}
+.itin-seg-btn.active{background:var(--panel);color:var(--gold);box-shadow:var(--shadow)}
+.itin-seg-btn:disabled{opacity:.4;cursor:not-allowed}
 /* ── Mobile bottom navigation (hidden on desktop) ── */
 .bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--panel);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around;box-shadow:0 -4px 20px rgba(0,0,0,.25)}
 .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:600;cursor:pointer;padding:5px 2px;border-radius:10px;-webkit-tap-highlight-color:transparent;min-height:48px;transition:.12s}
@@ -1311,6 +1316,9 @@ function goHome(){
 async function openTrip(id,tab='overview'){
   if(!requireApproved())return;
   flushNotes();
+  // Activities merged into Itinerary's "All" view
+  if(tab==='activities'){ITIN_VIEW='all';tab='itinerary';}
+  else ITIN_VIEW='days';
   CUR={view:'trip',tripId:id,tab};
   ITIN_COLLAPSED=new Set();
   ITIN_HIDE_EMPTY=false;
@@ -1321,7 +1329,7 @@ async function openTrip(id,tab='overview'){
   renderTab();
   if(await detectSchemaV7())subscribeTripRealtime(id);
 }
-const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
+const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 // ── Mobile bottom nav: 4 primary tabs + More (the rest live in a sheet) ──
 let CUR_TAB_DEFS=[];
 const BOTTOM_PRIMARY=['overview','itinerary','map','budget'];
@@ -1348,7 +1356,11 @@ function openMoreTabs(e){
     ${rest.map(t=>`<button class="mob-menu-item" style="border:1px solid var(--border);flex-direction:column;gap:6px;padding:18px 10px;${CUR.tab===t.id?'border-color:var(--gold);color:var(--gold)':''}" onclick="closeModal();setTab('${t.id}')"><span style="font-size:24px">${t.icon}</span> ${t.label}</button>`).join('')}
   </div>`);
 }
+let ITIN_VIEW='days'; // 'days' | 'all' — the Itinerary tab's two views (merged from Activities)
+function setItinView(v){ITIN_VIEW=v;renderTab();}
 function setTab(tab){
+  // Activities merged into Itinerary — route any old reference to the All view
+  if(tab==='activities'){ITIN_VIEW='all';tab='itinerary';}
   const prev=CUR.tab;
   CUR.tab=tab;
   document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
@@ -1801,7 +1813,6 @@ function renderTripShell(){
     {id:'itinerary',icon:'🗓',label:'Itinerary'},
     {id:'flights',icon:'✈️',label:'Travel'},
     {id:'stays',icon:'🏨',label:'Stays'},
-    {id:'activities',icon:'🎭',label:'Activities'},
     {id:'map',icon:'🗺',label:'Map'},
     {id:'packing',icon:'🧳',label:'Packing'},
     {id:'budget',icon:'💰',label:'Budget'},
@@ -1874,7 +1885,9 @@ function fabAction(){
     case 'budget':modalQuickExpense(tripId);break;
     case 'flights':modalFlight(tripId);break;
     case 'stays':modalStay(tripId);break;
-    case 'activities':modalEvent(tripId);break;
+    // Itinerary "All" view is activity-focused → add an activity directly;
+    // "By Day" view → the day picker
+    case 'itinerary':if(ITIN_VIEW==='all'){modalEvent(tripId);}else{modalAddToDay(tripId,onTrip?today:'');}break;
     default:modalAddToDay(tripId,onTrip?today:'');
   }
 }
@@ -1927,10 +1940,9 @@ function renderTab(){
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
   if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);}
-  else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);itinScrollToday(t);}
+  else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);if(ITIN_VIEW==='days')itinScrollToday(t);}
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
-  else if(CUR.tab==='activities')el.innerHTML=renderActivities(t,d);
   else if(CUR.tab==='map'){el.innerHTML=renderMapShell(t,d);initTripMap(t,d);}
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
   else if(CUR.tab==='budget'){
@@ -2591,12 +2603,24 @@ function toggleItinHideEmpty(){
   renderTab();
 }
 
+// Itinerary tab = two views of the same events (Activities merged in):
+// "By Day" timeline and "All" grouped-by-type list (incl. unscheduled ideas)
 function renderItinerary(t,d){
-  const days=tripDays(t);
-  if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
   d=filterByRegion(d,t);
+  const hasDates=tripDays(t).length>0;
+  if(!hasDates&&ITIN_VIEW==='days')ITIN_VIEW='all'; // no dates → collect activities first
+  const seg=`<div class="itin-seg">
+    <button class="itin-seg-btn${ITIN_VIEW==='days'?' active':''}" onclick="setItinView('days')" ${hasDates?'':'disabled title="Set trip dates to plan by day"'}>🗓 By Day</button>
+    <button class="itin-seg-btn${ITIN_VIEW==='all'?' active':''}" onclick="setItinView('all')">🎭 All Activities</button>
+  </div>`;
+  const body=ITIN_VIEW==='all'?renderItinAll(t,d,write):renderItinDays(t,d,write);
+  return`<div>${regionBar}${seg}${body}</div>`;
+}
+function renderItinDays(t,d,write){
+  const days=tripDays(t);
+  if(!days.length)return`<div class="empty"><div class="icon">🗓</div><p>Set trip dates to see your day-by-day itinerary.</p></div>`;
   const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
   const autoMap=itinAutoItems(d);
 
@@ -2609,7 +2633,6 @@ function renderItinerary(t,d){
   });
 
   return`<div>
-    ${regionBar}
     <div class="itin-filter-bar">
       <button class="btn sm ghost" onclick="toggleItinHideEmpty()" style="${ITIN_HIDE_EMPTY?'background:var(--border2);color:var(--text)':''}">
         ${ITIN_HIDE_EMPTY?'👁 Show all days':`🙈 Hide empty days${emptyCount?' ('+emptyCount+')':''}`}
@@ -2925,20 +2948,22 @@ function renderStays(t,d){
 }
 
 /* ── Activities ── */
-function renderActivities(t,d){
-  const write=canWrite(t);
-  const regionBar=regionFilterBar(t,d);
-  d=filterByRegion(d,t);
+// "All Activities" view of the Itinerary tab (grouped by type; called with
+// already region-filtered d by the renderItinerary wrapper)
+function renderItinAll(t,d,write){
   const catIds=['idea','activity','sightseeing','food','shopping'];
+  const scheduled=d.events.filter(e=>e.date).length;
   return`<div>
-    <div class="section-head"><h2>🎭 Activities</h2>${write?`<button class="btn primary" onclick="modalEvent('${t.id}')">＋ Add</button>`:''}</div>
-    ${regionBar}
+    <div class="itin-filter-bar" style="justify-content:space-between">
+      <span style="font-size:12px;color:var(--muted)">${d.events.length} item${d.events.length!==1?'s':''}${scheduled<d.events.length?` · ${d.events.length-scheduled} unscheduled`:''}</span>
+      ${write?`<button class="btn sm primary" onclick="modalEvent('${t.id}')">＋ Add Activity</button>`:''}
+    </div>
     ${catIds.map(catId=>{
       const catEvents=d.events.filter(e=>e.category===catId);
       if(!catEvents.length)return'';
       const cat=CATS[catId];
       return`<div style="margin-bottom:24px">
-        <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.icon} ${cat.label}</h3>
+        <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.icon} ${cat.label}${catId==='idea'?' · unscheduled ideas':''}</h3>
         ${catEvents.map(ev=>{
           const q=esc([ev.title,ev.location].filter(Boolean).join(' '));
           return`<div style="margin-bottom:8px">
@@ -2963,7 +2988,7 @@ function renderActivities(t,d){
         }).join('')}
       </div>`;
     }).join('')}
-    ${!d.events.length?`<div class="empty"><div class="icon">🎭</div><p>No activities yet.</p></div>`:''}
+    ${!d.events.length?`<div class="empty"><div class="icon">🎭</div><p>No activities yet — add ideas here, then place them onto days.</p></div>`:''}
   </div>`;
 }
 
@@ -3436,10 +3461,10 @@ async function executePrint(){
 
   const renderFn={
     overview:  ()=>renderOverview(t,d),
-    itinerary: ()=>renderItinerary(t,d),
+    itinerary: ()=>renderItinDays(t,filterByRegion(d,t),canWrite(t)),
     flights:   ()=>renderFlights(t,d),
     stays:     ()=>renderStays(t,d),
-    activities:()=>renderActivities(t,d),
+    activities:()=>renderItinAll(t,filterByRegion(d,t),canWrite(t)),
     packing:   ()=>renderPacking(t,d),
     budget:    ()=>renderBudget(t,d),
   };
