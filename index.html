@@ -139,6 +139,12 @@ select option{background:var(--panel)}
 .trip-tab:hover{background:var(--panel2);color:var(--text);border-color:var(--border)}
 .trip-tab.active{background:var(--panel2);color:var(--gold);border-color:var(--border2)}
 .trip-tab .tt-label{display:inline}
+/* ── Mobile bottom navigation (hidden on desktop) ── */
+.bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:var(--panel);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around;box-shadow:0 -4px 20px rgba(0,0,0,.25)}
+.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:600;cursor:pointer;padding:5px 2px;border-radius:10px;-webkit-tap-highlight-color:transparent;min-height:48px;transition:.12s}
+.bn-item .bn-ico{font-size:20px;line-height:1}
+.bn-item.active{color:var(--gold)}
+.bn-item.active .bn-ico{transform:translateY(-1px)}
 
 /* ── Map ── */
 #tripMap{height:min(65vh,560px);border-radius:16px;border:1px solid var(--border);background:var(--panel2);z-index:1}
@@ -430,8 +436,14 @@ button,a{touch-action:manipulation}
   body.hdr-hide .trip-tabs-wrap{top:env(safe-area-inset-top,0px)}
   .trip-tabs-wrap::after{background:linear-gradient(to right,transparent,var(--bg));width:28px}
   .trip-tabs{gap:8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;padding:2px 14px 4px 0}
-  .trip-tab{scroll-snap-align:center;padding:11px 16px;font-size:13px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;color:var(--muted);min-height:42px}
-  .trip-tab.active{background:rgba(245,197,66,.12);color:var(--gold);border-color:var(--gold);font-weight:700}
+  /* Bottom nav replaces the top pill slider on mobile */
+  .trip-tabs-wrap{display:none}
+  .bottom-nav{display:flex}
+  #tripView{padding-bottom:76px}
+  /* Lift floating controls above the bottom bar */
+  .fab{bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  .today-pill{bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+  #syncPill{bottom:calc(72px + env(safe-area-inset-bottom,0px))}
   /* Bigger touch targets on mobile (≥40px) for the small controls that
      cluster on cards and headers */
   .btn.sm{padding:9px 14px;min-height:40px}
@@ -1310,10 +1322,37 @@ async function openTrip(id,tab='overview'){
   if(await detectSchemaV7())subscribeTripRealtime(id);
 }
 const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},activities:{icon:'🎭',label:'Activities'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
+// ── Mobile bottom nav: 4 primary tabs + More (the rest live in a sheet) ──
+let CUR_TAB_DEFS=[];
+const BOTTOM_PRIMARY=['overview','itinerary','map','budget'];
+function bottomNavHTML(TABS){
+  const prim=BOTTOM_PRIMARY.map(id=>TABS.find(t=>t.id===id)).filter(Boolean);
+  const overflowActive=!BOTTOM_PRIMARY.includes(CUR.tab);
+  const btn=(t)=>`<button class="bn-item${CUR.tab===t.id?' active':''}" data-tab="${t.id}" onclick="setTab('${t.id}')"><span class="bn-ico">${t.icon}</span><span class="bn-lbl">${t.label}</span></button>`;
+  return`<nav class="bottom-nav" id="bottomNav">
+    ${prim.map(btn).join('')}
+    <button class="bn-item${overflowActive?' active':''}" onclick="openMoreTabs(event)"><span class="bn-ico">⋯</span><span class="bn-lbl">More</span></button>
+  </nav>`;
+}
+function updateBottomNav(){
+  document.querySelectorAll('#bottomNav .bn-item').forEach(el=>{
+    if(el.dataset.tab)el.classList.toggle('active',el.dataset.tab===CUR.tab);
+    else el.classList.toggle('active',!BOTTOM_PRIMARY.includes(CUR.tab)); // the More button
+  });
+}
+function openMoreTabs(e){
+  e&&e.stopPropagation();
+  const rest=CUR_TAB_DEFS.filter(t=>!BOTTOM_PRIMARY.includes(t.id));
+  modal('Sections',`
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    ${rest.map(t=>`<button class="mob-menu-item" style="border:1px solid var(--border);flex-direction:column;gap:6px;padding:18px 10px;${CUR.tab===t.id?'border-color:var(--gold);color:var(--gold)':''}" onclick="closeModal();setTab('${t.id}')"><span style="font-size:24px">${t.icon}</span> ${t.label}</button>`).join('')}
+  </div>`);
+}
 function setTab(tab){
   const prev=CUR.tab;
   CUR.tab=tab;
   document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
+  updateBottomNav();
   // Keep the active pill visible in the mobile slider
   document.querySelector('.trip-tab.active')?.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
   renderTab();
@@ -1791,6 +1830,7 @@ function renderTripShell(){
   if(isAdmin())checkPendingBadge();
   buildMobMenu();
   CUR_TABS=TABS.map(x=>x.id); // for swipe navigation between tabs
+  CUR_TAB_DEFS=TABS;          // for the mobile bottom nav
 
   document.getElementById('root').innerHTML=`
   <div id="tripView">
@@ -1810,6 +1850,7 @@ function renderTripShell(){
         ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
       </div>
     </div>
+    ${bottomNavHTML(TABS)}
     <div id="tabContent">
       <div style="padding-top:8px">
         <div class="skel" style="height:80px"></div>
