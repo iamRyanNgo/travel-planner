@@ -652,6 +652,9 @@ const DB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    Conflict policy: last write wins.
 ═══════════════════════════════════════════════ */
 const OUTBOX_KEY='wtn-outbox';
+// PostgREST filter methods that can constrain a write; all are captured for
+// faithful offline replay (see the DB.from proxy)
+const FILTER_METHODS=new Set(['eq','neq','gt','gte','lt','lte','like','ilike','is','in','contains','containedBy','match','not','or','filter']);
 let PENDING_WRITES=0,LAST_WRITE_AT=0;
 function outbox(){try{return JSON.parse(localStorage.getItem(OUTBOX_KEY)||'[]')}catch{return[]}}
 function outboxSave(q){try{localStorage.setItem(OUTBOX_KEY,JSON.stringify(q))}catch{}}
@@ -666,7 +669,10 @@ function wrapBuilder(target, desc){
         // Track in-flight writes so live-sync reloads wait for them —
         // otherwise our own realtime echo can re-render stale state
         PENDING_WRITES++;
-        const settle=()=>{PENDING_WRITES=Math.max(0,PENDING_WRITES-1);LAST_WRITE_AT=Date.now();};
+        let settled=false;
+        const settle=()=>{if(settled)return;settled=true;PENDING_WRITES=Math.max(0,PENDING_WRITES-1);LAST_WRITE_AT=Date.now();};
+        // Safety net: a hung fetch must not block realtime reloads forever
+        setTimeout(settle,15000);
         const p = t.then(
           res => {settle();return res;},
           () => {
@@ -691,7 +697,12 @@ function wrapBuilder(target, desc){
         else if(prop==='update'){desc.op='update';desc.data=args[0];}
         else if(prop==='delete'){desc.op='delete';}
         else if(prop==='single'||prop==='maybeSingle'){desc.single=true;}
-        else if(desc.op&&(prop==='eq'||prop==='in'||prop==='match'))desc.filters.push([prop,args[0],args[1]]);
+        // Capture every PostgREST filter on a write so offline replay is
+        // faithful — a dropped filter (e.g. .lt) would replay as delete/update
+        // over every RLS-visible row. eq/in/match keep their local-apply
+        // fast-paths; anything else still replays correctly, just isn't
+        // reflected in the optimistic local cache.
+        else if(desc.op&&FILTER_METHODS.has(prop))desc.filters.push([prop,...args]);
         const out = v.apply(t, args);
         return out&&typeof out==='object'&&typeof out.then==='function' ? wrapBuilder(out, desc) : out;
       };
@@ -739,7 +750,11 @@ function applyOpToLocal(desc){
     if(desc.op==='insert'||desc.op==='upsert'){
       (Array.isArray(desc.data)?desc.data:[desc.data]).forEach(r=>{
         const td=TD[r.trip_id];if(!td)return;
-        (td[key]=td[key]||[]).push({created_at:new Date().toISOString(),...r});
+        td[key]=td[key]||[];
+        // Dedupe by id: optimistic paths (quick-add idea/packing) already
+        // pushed this row locally before the offline write rejected here
+        if(r.id&&td[key].some(x=>x.id===r.id))return;
+        td[key].push({created_at:new Date().toISOString(),...r});
         cacheTD(r.trip_id,td);
       });
     }else if(eqId){
@@ -768,7 +783,7 @@ async function flushOutbox(){
       try{
         let b=_dbFrom(desc.table);
         b=desc.op==='insert'?b.insert(desc.data):desc.op==='upsert'?b.upsert(desc.data):desc.op==='update'?b.update(desc.data):b.delete();
-        for(const f of desc.filters)b=b[f[0]](f[1],f[2]);
+        for(const f of desc.filters)b=b[f[0]](...f.slice(1));
         const {error}=await b;
         if(error){dropped++;console.warn('Outbox op rejected by server, dropping:',desc,error);}
         else synced++;
@@ -831,7 +846,10 @@ function tripDays(t){
   if(!t.start_date||!t.end_date)return[];
   const days=[];let d=new Date(t.start_date+'T12:00:00');
   const end=new Date(t.end_date+'T12:00:00');
-  while(d<=end){days.push(d.toISOString().slice(0,10));d=new Date(d.getTime()+864e5);}
+  // Emit local-calendar day strings (toLocaleDateString en-CA) to match how
+  // the rest of the app derives "today" — toISOString would shift a day in
+  // UTC+13/+14 (NZ/Pacific) and break event→day matching and jump-to-today
+  while(d<=end){days.push(d.toLocaleDateString('en-CA'));d=new Date(d.getTime()+864e5);}
   return days;
 }
 function toast(msg,action){
@@ -1315,9 +1333,9 @@ async function afterSignIn(user){
   }
 
   renderAuthHeader();
-  // Warm up schema feature flags so modals opened from the dashboard
-  // (e.g. Edit Trip's More Destinations) see them without opening a trip first
-  detectSchemaV2();detectSchemaV3();detectSchemaV4();detectSchemaV5();detectSchemaV6();detectSchemaV7();detectSchemaV8();detectSchemaV9();detectSchemaV10();
+  // Resolve schema feature flags BEFORE the first render/save so cold-start
+  // saves don't silently drop lat/lng/region while detection is still pending
+  await Promise.all([detectSchemaV2(),detectSchemaV3(),detectSchemaV4(),detectSchemaV5(),detectSchemaV6(),detectSchemaV7(),detectSchemaV8(),detectSchemaV9(),detectSchemaV10()]);
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -1441,7 +1459,7 @@ async function loadTrips(){
   try{
     const {data:owned} = await DB.from('wtn_trips').select('*').eq('owner_id',ME.id).order('created_at',{ascending:false});
     const {data:memberships} = await DB.from('wtn_trip_members').select('trip_id, role, wtn_trips!trip_id(*)').eq('user_id',ME.id);
-    const memberTrips = (memberships||[]).map(m=>({...m.wtn_trips, _role:m.role})).filter(Boolean);
+    const memberTrips = (memberships||[]).filter(m=>m.wtn_trips).map(m=>({...m.wtn_trips, _role:m.role}));
     const seen=new Set((owned||[]).map(t=>t.id));
     const all=[...(owned||[]),...memberTrips.filter(t=>!seen.has(t.id))];
     TRIPS=all;
@@ -2827,22 +2845,30 @@ function collectExpenses(t,d,disp){
   const miniCats={food:'🍽️',activity:'🎯',transport:'🚗',shopping:'🛍️',other:'📌'};
   // Auto items (flights/stays/events) are assumed to be in the trip currency;
   // manual items carry their own. Everything is converted to `disp`.
-  const conv=(raw,from)=>{const c=convToTrip(+raw,from,disp);return c===null?+raw:c;};
+  // When a rate is unavailable convToTrip returns null — we keep the raw
+  // number for display but flag the item so totals/settle-up can warn
+  // rather than silently sum mismatched currencies.
+  const mkAmt=(raw,from)=>{const c=convToTrip(+raw,from,disp);return {amt:c===null?+raw:c,mixed:c===null&&(from||disp)!==disp,srcCur:from||disp};};
+  const conv=(raw,from)=>mkAmt(raw,from).amt;
   const ex=[];
   (d.flights||[]).forEach(f=>{
     if(!f.cost)return;
-    ex.push({kind:'flight',id:f.id,icon:TRANSPORT_MODES[transportMode(f)].icon,name:f.from_airport&&f.to_airport?`${f.from_airport} → ${f.to_airport}`:(f.airline||TRANSPORT_MODES[transportMode(f)].label),sub:f.airline||'',amt:conv(f.cost,cur),confirmed:!!f.confirmed,manual:false,paid_by:f.paid_by,split_with:f.split_with});
+    const a=mkAmt(f.cost,cur);
+    ex.push({kind:'flight',id:f.id,icon:TRANSPORT_MODES[transportMode(f)].icon,name:f.from_airport&&f.to_airport?`${f.from_airport} → ${f.to_airport}`:(f.airline||TRANSPORT_MODES[transportMode(f)].label),sub:f.airline||'',amt:a.amt,mixed:a.mixed,confirmed:!!f.confirmed,manual:false,paid_by:f.paid_by,split_with:f.split_with});
   });
   (d.stays||[]).forEach(s=>{
     if(!s.cost)return;
-    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:conv(s.cost,cur),confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
+    const a=mkAmt(s.cost,cur);
+    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:a.amt,mixed:a.mixed,confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
   });
   (d.events||[]).forEach(ev=>{
     if(!ev.cost)return;
-    ex.push({kind:'event',id:ev.id,icon:miniCats[ev.category]||'📌',name:ev.title||'Activity',sub:ev.location||'',amt:conv(ev.cost,cur),confirmed:!!ev.confirmed,manual:false,paid_by:ev.paid_by,split_with:ev.split_with});
+    const a=mkAmt(ev.cost,cur);
+    ex.push({kind:'event',id:ev.id,icon:miniCats[ev.category]||'📌',name:ev.title||'Activity',sub:ev.location||'',amt:a.amt,mixed:a.mixed,confirmed:!!ev.confirmed,manual:false,paid_by:ev.paid_by,split_with:ev.split_with});
   });
   (d.budgetItems||[]).forEach(b=>{
-    ex.push({kind:'budget',id:b.id,icon:'📋',name:b.name,sub:b.category||'',amt:conv(+b.actual||+b.planned||0,b.currency||cur),confirmed:true,manual:true,paid_by:b.paid_by,split_with:b.split_with});
+    const a=mkAmt(+b.actual||+b.planned||0,b.currency||cur);
+    ex.push({kind:'budget',id:b.id,icon:'📋',name:b.name,sub:b.category||'',amt:a.amt,mixed:a.mixed,confirmed:true,manual:true,paid_by:b.paid_by,split_with:b.split_with});
   });
   return ex;
 }
@@ -2862,6 +2888,12 @@ function setBudgetCur(v){
 }
 
 function settleUpHtml(shared,nameOf,cur){
+  // If any shared expense couldn't be converted to the display currency,
+  // the balances would mix currencies and produce wrong "owes" amounts —
+  // refuse to compute rather than silently misinform who pays whom.
+  if(shared.some(b=>b.mixed)){
+    return {lines:[`<div class="today-row" style="color:var(--coral)">⚠️ Exchange rates unavailable — can't total mixed currencies. Reconnect, or set the display currency to match your items.</div>`],bal:{},mixed:true};
+  }
   const bal={};
   shared.forEach(b=>{
     bal[b.paid_by]=(bal[b.paid_by]||0)+b.amt;
@@ -2926,15 +2958,24 @@ function renderBudget(t,d){
   };
   const manualTotal=manualItems.reduce((a,b)=>a+itemAmt(b),0);
   const grandTotal=confTotal+potTotal+manualTotal;
+  // Any expense we couldn't convert means the totals mix currencies
+  const mixedAny=expenses.some(e=>e.mixed);
+  const mixedBanner=mixedAny?`<div class="card" style="margin-bottom:14px;border-color:var(--orange);font-size:12px;color:var(--muted)">⚠️ Some amounts are in a different currency and exchange rates are unavailable — totals below mix currencies and are approximate. Reconnect to convert.</div>`:'';
 
-  // Budget alert: compare planned vs actual on manual items
-  const plannedSum=manualItems.reduce((a,b)=>a+(+b.planned||0),0);
-  const actualSum=manualItems.reduce((a,b)=>a+(+b.actual||0),0);
+  // Budget alert: planned vs actual, converted to the display currency
+  // (skip items that can't be converted so the % isn't corrupted)
+  let plannedSum=0,actualSum=0,alertMixed=false;
+  manualItems.forEach(b=>{
+    const cp=convToTrip(+b.planned||0,b.currency||cur,disp);
+    const ca=convToTrip(+b.actual||0,b.currency||cur,disp);
+    if(cp===null||ca===null){alertMixed=true;return;}
+    plannedSum+=cp;actualSum+=ca;
+  });
   let alertHtml='';
   if(plannedSum>0&&actualSum/plannedSum>=0.85){
     const over=actualSum>plannedSum;
     alertHtml=`<div class="card" style="margin-bottom:14px;border-color:${over?'var(--coral)':'var(--orange)'};font-size:13px">
-      ${over?'🚨':'⚠️'} <b>${over?'Over budget':'Approaching budget'}</b> — spent ${formatCost(Math.round(actualSum),cur)} of ${formatCost(Math.round(plannedSum),cur)} planned (${Math.round(actualSum/plannedSum*100)}%)
+      ${over?'🚨':'⚠️'} <b>${over?'Over budget':'Approaching budget'}</b> — spent ${formatCost(Math.round(actualSum),disp)} of ${formatCost(Math.round(plannedSum),disp)} planned (${Math.round(actualSum/plannedSum*100)}%)${alertMixed?' · some items excluded (no rate)':''}
     </div>`;
   }
 
@@ -2972,6 +3013,7 @@ function renderBudget(t,d){
   return`<div>
     <div class="section-head"><h2>💰 Budget</h2>${write?`<button class="btn primary" onclick="modalBudgetItem('${t.id}')">＋ Add Manual</button>`:''}</div>
     ${subTabs}
+    ${mixedBanner}
     ${alertHtml}
     ${hasAny?`
     <div class="budget-summary">
@@ -3027,7 +3069,8 @@ function renderSplits(t,d,expenses,nameOf,write){
   const unassigned=expenses.filter(e=>e.amt&&!(e.paid_by&&e.split_with?.length));
   if(!shared.length&&!unassigned.length)return migrateHint+`<div class="empty"><div class="icon">🤝</div><p>No expenses yet — add costs to flights, stays, activities or manual items, then split them here.</p></div>`;
 
-  const {lines}=settleUpHtml(shared,nameOf,cur);
+  const {lines,mixed:sharedMixed}=settleUpHtml(shared,nameOf,cur);
+  const perPersonMixed=sharedMixed; // same cause — hide the misleading per-person math
 
   // Per-person totals
   const paid={},share={};
@@ -3045,7 +3088,7 @@ function renderSplits(t,d,expenses,nameOf,write){
     <div class="budget-group-head"><span>🤝 Settle Up</span><span>${shared.length} shared</span></div>
     ${lines.length?lines.join(''):'<p class="muted" style="font-size:13px">All square! 🎉</p>'}
   </div>
-  <div class="budget-group">
+  ${perPersonMixed?'':`<div class="budget-group">
     <div class="budget-group-head"><span>👥 Per Person</span><span>${formatCost(Math.round(sharedTotal),cur)} shared</span></div>
     ${people.map(u=>{
       const p=paid[u]||0,s=share[u]||0,net=p-s;
@@ -3058,7 +3101,7 @@ function renderSplits(t,d,expenses,nameOf,write){
         <div class="budget-line-amt" style="color:${net>0.01?'var(--green)':net<-0.01?'var(--coral)':'var(--muted)'}">${net>0.01?'+':''}${formatCost(Math.round(net*100)/100,cur)}</div>
       </div>`;
     }).join('')}
-  </div>
+  </div>`}
   <div class="budget-group">
     <div class="budget-group-head"><span>🧾 Itemized Receipt</span><span>${formatCost(Math.round(sharedTotal),cur)}</span></div>
     ${shared.map(e=>`
