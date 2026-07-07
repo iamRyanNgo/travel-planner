@@ -153,10 +153,16 @@ select option{background:var(--panel)}
 .itin-seg-btn:disabled{opacity:.4;cursor:not-allowed}
 /* ── Mobile bottom navigation (hidden on desktop) ── */
 .bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around}
-.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:600;cursor:pointer;padding:5px 2px;border-radius:10px;-webkit-tap-highlight-color:transparent;min-height:48px;transition:.12s}
-.bn-item .bn-ico{font-size:20px;line-height:1}
+.bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;color:var(--muted);font-family:inherit;font-size:10px;font-weight:600;letter-spacing:.2px;cursor:pointer;padding:5px 2px;border-radius:10px;-webkit-tap-highlight-color:transparent;min-height:48px;transition:color .15s}
+.bn-item .nav-ico{width:22px;height:22px;transition:transform .15s}
+.bn-item .bn-ico-emoji{font-size:20px;line-height:1}
 .bn-item.active{color:var(--gold)}
-.bn-item.active .bn-ico{transform:translateY(-1px)}
+.bn-item.active .nav-ico{transform:translateY(-1px) scale(1.05)}
+/* nav icons in the desktop tab bar */
+.trip-tab .nav-ico{width:16px;height:16px}
+.more-tile{flex-direction:column!important;gap:8px!important;padding:20px 10px!important;border:1px solid var(--border)!important;border-radius:14px!important}
+.more-tile .nav-ico{width:24px;height:24px}
+.more-tile.active{border-color:var(--gold)!important;color:var(--gold)!important;background:var(--accent-soft)!important}
 
 /* ── Map ── */
 #tripMap{height:min(65vh,560px);border-radius:16px;border:1px solid var(--border);background:var(--panel2);z-index:1}
@@ -1340,13 +1346,28 @@ const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',l
 // ── Mobile bottom nav: 4 primary tabs + More (the rest live in a sheet) ──
 let CUR_TAB_DEFS=[];
 const BOTTOM_PRIMARY=['overview','itinerary','map','budget'];
+// Inline stroke icons for the navigation chrome (emoji stays for content
+// categories). lucide-style, inherit currentColor.
+const _svg=p=>`<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const NAV_ICONS={
+  overview:_svg('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'),
+  itinerary:_svg('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>'),
+  flights:_svg('<path d="M10.5 13.5 3 12l-.5-2 2 .5L7 12l4-1L4 4.5 5.5 3l9 5 4-1c1.2-.3 2.2.7 1.9 1.9l-1 4 5 9-1.5 1.5-7-6.5-1 4 .5 2-2-.5-1.5-7.5z"/>'),
+  stays:_svg('<path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6M3 14h18M6 10V7a1 1 0 0 1 1-1h4M3 18v2M21 18v2"/>'),
+  map:_svg('<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/>'),
+  packing:_svg('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>'),
+  budget:_svg('<path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2z"/><circle cx="16.5" cy="12.5" r="1.2"/>'),
+  travelers:_svg('<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><circle cx="12" cy="10" r="2"/><path d="M8.5 15.5a4 4 0 0 1 7 0"/>'),
+  more:_svg('<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'),
+};
+function navIcon(id){return NAV_ICONS[id]||`<span class="bn-ico-emoji">${(TAB_META[id]||{}).icon||'•'}</span>`;}
 function bottomNavHTML(TABS){
   const prim=BOTTOM_PRIMARY.map(id=>TABS.find(t=>t.id===id)).filter(Boolean);
   const overflowActive=!BOTTOM_PRIMARY.includes(CUR.tab);
-  const btn=(t)=>`<button class="bn-item${CUR.tab===t.id?' active':''}" data-tab="${t.id}" onclick="setTab('${t.id}')"><span class="bn-ico">${t.icon}</span><span class="bn-lbl">${t.label}</span></button>`;
+  const btn=(t)=>`<button class="bn-item${CUR.tab===t.id?' active':''}" data-tab="${t.id}" onclick="setTab('${t.id}')">${navIcon(t.id)}<span class="bn-lbl">${t.label}</span></button>`;
   return`<nav class="bottom-nav" id="bottomNav">
     ${prim.map(btn).join('')}
-    <button class="bn-item${overflowActive?' active':''}" onclick="openMoreTabs(event)"><span class="bn-ico">⋯</span><span class="bn-lbl">More</span></button>
+    <button class="bn-item${overflowActive?' active':''}" onclick="openMoreTabs(event)">${navIcon('more')}<span class="bn-lbl">More</span></button>
   </nav>`;
 }
 function updateBottomNav(){
@@ -1360,7 +1381,7 @@ function openMoreTabs(e){
   const rest=CUR_TAB_DEFS.filter(t=>!BOTTOM_PRIMARY.includes(t.id));
   modal('Sections',`
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    ${rest.map(t=>`<button class="mob-menu-item" style="border:1px solid var(--border);flex-direction:column;gap:6px;padding:18px 10px;${CUR.tab===t.id?'border-color:var(--gold);color:var(--gold)':''}" onclick="closeModal();setTab('${t.id}')"><span style="font-size:24px">${t.icon}</span> ${t.label}</button>`).join('')}
+    ${rest.map(t=>`<button class="mob-menu-item more-tile${CUR.tab===t.id?' active':''}" onclick="closeModal();setTab('${t.id}')">${navIcon(t.id)} ${t.label}</button>`).join('')}
   </div>`);
 }
 let ITIN_VIEW='days'; // 'days' | 'all' — the Itinerary tab's two views (merged from Activities)
@@ -1865,7 +1886,7 @@ function renderTripShell(){
     </div>
     <div class="trip-tabs-wrap">
       <div class="trip-tabs">
-        ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${tb.icon} ${tb.label}</button>`).join('')}
+        ${TABS.map(tb=>`<button class="trip-tab${CUR.tab===tb.id?' active':''}" data-tab="${tb.id}" onclick="setTab('${tb.id}')">${navIcon(tb.id)} ${tb.label}</button>`).join('')}
       </div>
     </div>
     ${bottomNavHTML(TABS)}
