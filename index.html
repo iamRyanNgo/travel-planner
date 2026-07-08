@@ -312,7 +312,7 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .day-header:hover .day-num{opacity:.8}
 .day-label{display:flex;align-items:center;gap:12px}
 .day-num{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;transition:opacity .15s}
-.day-info h3{font-size:16px;font-weight:700;margin-bottom:2px}
+.day-info h3{font-family:'Inter',sans-serif;font-size:16px;font-weight:700;letter-spacing:-.2px;margin-bottom:2px}
 .day-info .day-date{font-size:12px;color:var(--muted)}
 .day-collapse-btn{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;transition:transform .2s}
 .day-collapse-btn.collapsed{transform:rotate(-90deg)}
@@ -3095,7 +3095,7 @@ function renderItinAll(t,d,write){
       if(!catEvents.length)return'';
       const cat=CATS[catId];
       return`<div style="margin-bottom:24px">
-        <h3 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.icon} ${cat.label}${catId==='idea'?' · unscheduled ideas':''}</h3>
+        <h3 style="font-family:'Inter',sans-serif;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">${cat.label}${catId==='idea'?' · unscheduled ideas':''}</h3>
         ${catEvents.map(ev=>{
           const q=esc([ev.title,ev.location].filter(Boolean).join(' '));
           return`<div style="margin-bottom:8px">
