@@ -197,7 +197,7 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
 .btn-label{display:inline}
 /* ── Horizontal tab bar (desktop) ── */
 .trip-tabs-wrap{position:relative;margin-bottom:20px;padding-top:14px}
-.trip-tabs-wrap::after{content:'';position:absolute;right:0;top:0;bottom:0;width:40px;background:linear-gradient(to right,transparent,var(--bg));pointer-events:none}
+.trip-tabs-wrap::after{content:none}
 .trip-tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
 .trip-tabs::-webkit-scrollbar{display:none}
 .trip-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;color:var(--muted);background:none;border:1px solid transparent;cursor:pointer;white-space:nowrap;transition:.15s;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -2149,10 +2149,14 @@ async function geoNominatim(q){
 }
 async function geoOpenMeteo(name){
   try{
-    const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(name)}`);
+    const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&name=${encodeURIComponent(name)}`);
     if(!res.ok)return undefined;
-    const r=(await res.json())?.results?.[0];
-    return r?{lat:r.latitude,lon:r.longitude,label:[r.name,r.admin1,r.country].filter(Boolean).join(', ')}:null;
+    const results=(await res.json())?.results;
+    if(!results||!results.length)return null;
+    // Prefer the most-populous match so "Chicago" -> Chicago, IL (2.7M),
+    // never an obscure hamlet of the same name
+    const r=results.slice().sort((a,b)=>(b.population||0)-(a.population||0))[0];
+    return{lat:r.latitude,lon:r.longitude,label:[r.name,r.admin1,r.country].filter(Boolean).join(', ')};
   }catch{return undefined}
 }
 // Photon (komoot): fuzzy, typo-tolerant search over OSM — much better at
@@ -2175,7 +2179,7 @@ async function geoPhoton(q,placeOnly){
 // city-focused and population-ranked, so "Chicago" → Chicago, Illinois
 // (not a business, nor an obscure Alaskan hamlet). Photon/Nominatim back it up.
 async function geocodePlace(q){
-  const c=geoCache();const key='placeC|'+q;
+  const c=geoCache();const key='placeD|'+q;
   if(key in c)return c[key];
   let transient=false;
   for(const fn of [()=>geoOpenMeteo(q),()=>geoPhoton(q,true),()=>geoNominatim(q)]){
