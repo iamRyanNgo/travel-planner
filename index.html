@@ -2157,13 +2157,18 @@ async function geoNominatim(q){
 }
 async function geoOpenMeteo(name){
   try{
-    const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&name=${encodeURIComponent(name)}`);
+    // search on the first segment only ("Chicago" from "Chicago, IL") so the
+    // API's name field can match exactly
+    const q=(name||'').split(',')[0].trim();
+    const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&name=${encodeURIComponent(q)}`);
     if(!res.ok)return undefined;
-    const results=(await res.json())?.results;
+    let results=(await res.json())?.results;
     if(!results||!results.length)return null;
-    // Prefer the most-populous match so "Chicago" -> Chicago, IL (2.7M),
-    // never an obscure hamlet of the same name
-    const r=results.slice().sort((a,b)=>(b.population||0)-(a.population||0))[0];
+    const byPop=(a,b)=>(b.population||0)-(a.population||0);
+    // Prefer results whose name matches exactly (drops "Chicago Creek" when
+    // you searched "Chicago"), then take the most-populous of those
+    const exact=results.filter(r=>r.name&&r.name.toLowerCase()===q.toLowerCase());
+    const r=(exact.length?exact:results).slice().sort(byPop)[0];
     return{lat:r.latitude,lon:r.longitude,label:dedupeLabel([r.name,r.admin1,r.country])};
   }catch{return undefined}
 }
@@ -2187,7 +2192,7 @@ async function geoPhoton(q,placeOnly){
 // city-focused and population-ranked, so "Chicago" → Chicago, Illinois
 // (not a business, nor an obscure Alaskan hamlet). Photon/Nominatim back it up.
 async function geocodePlace(q){
-  const c=geoCache();const key='placeE|'+q;
+  const c=geoCache();const key='placeF|'+q;
   if(key in c)return c[key];
   let transient=false;
   for(const fn of [()=>geoOpenMeteo(q),()=>geoPhoton(q,true),()=>geoNominatim(q)]){
