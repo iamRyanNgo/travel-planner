@@ -2130,6 +2130,14 @@ const GEO_KEY='wtn-geo-v3'; // v3: Photon fuzzy search + address simplification 
 function geoCache(){try{return JSON.parse(localStorage.getItem(GEO_KEY)||'{}')}catch{return{}}}
 function geoCacheSet(q,v){const c=geoCache();c[q]=v;try{localStorage.setItem(GEO_KEY,JSON.stringify(c))}catch{}}
 let GEO_LAST=0;
+// Join place parts, dropping case-insensitive duplicates ("Seoul, Seoul" → "Seoul")
+function dedupeLabel(parts){
+  const out=[];
+  for(const p of parts.filter(Boolean)){
+    if(!out.some(x=>x.toLowerCase()===p.toLowerCase()))out.push(p);
+  }
+  return out.join(', ');
+}
 async function geoNominatim(q){
   // Nominatim usage policy: max 1 request/sec — globally throttled here
   const wait=GEO_LAST+1100-Date.now();
@@ -2156,7 +2164,7 @@ async function geoOpenMeteo(name){
     // Prefer the most-populous match so "Chicago" -> Chicago, IL (2.7M),
     // never an obscure hamlet of the same name
     const r=results.slice().sort((a,b)=>(b.population||0)-(a.population||0))[0];
-    return{lat:r.latitude,lon:r.longitude,label:[r.name,r.admin1,r.country].filter(Boolean).join(', ')};
+    return{lat:r.latitude,lon:r.longitude,label:dedupeLabel([r.name,r.admin1,r.country])};
   }catch{return undefined}
 }
 // Photon (komoot): fuzzy, typo-tolerant search over OSM — much better at
@@ -2179,7 +2187,7 @@ async function geoPhoton(q,placeOnly){
 // city-focused and population-ranked, so "Chicago" → Chicago, Illinois
 // (not a business, nor an obscure Alaskan hamlet). Photon/Nominatim back it up.
 async function geocodePlace(q){
-  const c=geoCache();const key='placeD|'+q;
+  const c=geoCache();const key='placeE|'+q;
   if(key in c)return c[key];
   let transient=false;
   for(const fn of [()=>geoOpenMeteo(q),()=>geoPhoton(q,true),()=>geoNominatim(q)]){
