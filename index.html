@@ -1919,7 +1919,7 @@ function renderDashboard(){
     </div>`:''}
     ${!activeTrips.length&&pastTrips.length?`<p class="muted" style="font-size:14px;margin-top:4px">No upcoming trips — time to plan the next one! ✈️</p>`:''}
     ${pastTrips.length?`
-    <div class="trips-divider"><span>Previous Trips</span></div>
+    <div class="trips-divider"><span>Past Adventures</span></div>
     <div class="trip-grid past-grid">${pastTrips.map(tripCard).join('')}</div>`:''}
   </div>`;
 }
