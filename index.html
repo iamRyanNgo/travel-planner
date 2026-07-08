@@ -117,8 +117,12 @@ body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.tri
 #appHeader{position:fixed;top:0;left:0;right:0;z-index:50;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border-bottom:1px solid var(--border);padding:0 24px;height:60px;display:flex;align-items:center;gap:16px;overflow:visible}
 #root{padding-top:58px}
 #headerActions{display:flex;gap:8px;flex-shrink:0;align-items:center}
-.brand{font-family:'Fraunces',Georgia,serif;font-size:21px;font-weight:700;letter-spacing:.2px;color:var(--text);cursor:pointer;flex-shrink:1;min-width:0}
-.brand span{font-size:11px;font-family:'Inter',sans-serif;font-weight:500;color:var(--muted);display:block;letter-spacing:2px;text-transform:uppercase;margin-top:-4px}
+.brand{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:1;min-width:0}
+.brand-ico{width:26px;height:26px;color:var(--gold);flex-shrink:0}
+.brand-text{display:flex;flex-direction:column;min-width:0}
+.brand-word{font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:600;letter-spacing:-.6px;color:var(--text);line-height:1.05;font-variation-settings:'opsz' 144;white-space:nowrap}
+.brand-accent{color:var(--gold);font-style:italic;font-weight:500;padding:0 .5px}
+.brand-tag{font-size:9.5px;font-family:'Inter',sans-serif;font-weight:600;color:var(--muted);letter-spacing:2.6px;text-transform:uppercase;margin-top:1px}
 #breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex:1;min-width:0}
 #breadcrumb .sep{color:var(--dim)}
 #breadcrumb .crumb{color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -512,7 +516,9 @@ button,a{touch-action:manipulation}
   .pack-check{width:26px;height:26px;font-size:13px}
   .pack-item{padding:12px 8px}
   /* Prevent brand from crowding the people/avatar buttons */
-  .brand{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+  .brand{max-width:190px;gap:8px}
+  .brand-word{font-size:18px}
+  .brand-ico{width:22px;height:22px}
   /* Event cards: tighter on mobile */
   .event-card{padding:10px}
   .event-icon{width:34px;height:34px;font-size:16px}
@@ -673,7 +679,10 @@ button,a{touch-action:manipulation}
 <body>
 
 <header id="appHeader">
-  <div class="brand" onclick="goHome()">✈ WhereToNext<span>Travel Planner</span></div>
+  <div class="brand" onclick="goHome()">
+    <svg class="brand-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M15.6 8.4l-2.1 5.1-5.1 2.1 2.1-5.1z" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="var(--bg)" stroke="none"/></svg>
+    <span class="brand-text"><span class="brand-word">Where<span class="brand-accent">To</span>Next</span><span class="brand-tag">Travel Planner</span></span>
+  </div>
   <div id="breadcrumb"></div>
   <div id="headerActions"></div>
 </header>
