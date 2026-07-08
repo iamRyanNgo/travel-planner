@@ -131,6 +131,12 @@ body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.tri
 .user-chip img{width:26px;height:26px;border-radius:50%}
 .user-chip span{font-size:13px;font-weight:500;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .notif-dot{width:8px;height:8px;border-radius:50%;background:var(--coral);border:2px solid var(--bg)}
+.notif-btn{position:relative;background:none;border:none;color:var(--muted);cursor:pointer;padding:7px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;transition:color .15s,background .15s;flex-shrink:0}
+.notif-btn:hover{color:var(--text);background:var(--panel2)}
+.notif-btn svg{width:21px;height:21px}
+.notif-btn.has-pending{color:var(--gold)}
+.notif-count{position:absolute;top:1px;right:1px;min-width:16px;height:16px;padding:0 4px;background:var(--coral);color:#fff;font-size:10px;font-weight:700;border-radius:9px;display:none;align-items:center;justify-content:center;font-family:'Inter',sans-serif;line-height:1;box-shadow:0 0 0 2px var(--bg)}
+.notif-count.show{display:inline-flex}
 
 /* ── Dashboard ── */
 #dashboard{max-width:1300px;margin:0 auto;padding:32px 24px}
@@ -1004,6 +1010,13 @@ function mapsUrl(q){
 function $(s,r=document){return r.querySelector(s)}
 function $$(s,r=document){return[...r.querySelectorAll(s)]}
 function isAdmin(){return ME&&ME.email===ADMIN_EMAIL}
+// Notification bell for admins — badges when access requests are pending,
+// opens the admin panel. Replaces the old header "Admin" button (admin is
+// still in the avatar dropdown).
+function notifBellHTML(){
+  if(!isAdmin())return'';
+  return`<button class="notif-btn" id="notifBtn" onclick="openAdminPanel()" title="Access requests" aria-label="Access requests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.5 21a2 2 0 0 1-3 0"/></svg><span class="notif-count" id="notifCount"></span></button>`;
+}
 function canWrite(trip){
   if(!ME||!trip)return false;
   if(trip.owner_id===ME.id)return true;
@@ -1681,7 +1694,7 @@ function renderAuthHeader(){
   const isLight=document.documentElement.dataset.theme==='light';
   document.getElementById('headerActions').innerHTML=`
   <div style="display:flex;align-items:center;gap:8px">
-    ${isAdmin()?`<button class="btn sm ha-desktop" onclick="openAdminPanel()" style="position:relative" id="adminBtn">🛡 Admin</button>`:''}
+    ${notifBellHTML()}
     ${PWA_PROMPT?`<button class="btn sm ha-desktop" onclick="installPWA()" title="Install app on your device" style="background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff">⬇ Install App</button>`:''}
     <button class="btn sm ghost ha-desktop" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
     <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">
@@ -1697,8 +1710,10 @@ function renderAuthHeader(){
 
 async function checkPendingBadge(){
   const {count} = await DB.from('wtn_access_requests').select('id',{count:'exact',head:true}).eq('status','pending');
-  const btn = document.getElementById('adminBtn');
-  if(btn&&count>0)btn.innerHTML=`🛡 Admin <span class="notif-dot" style="display:inline-block"></span>`;
+  const c=document.getElementById('notifCount'),b=document.getElementById('notifBtn');
+  if(!c||!b)return;
+  if(count>0){c.textContent=count>9?'9+':count;c.classList.add('show');b.classList.add('has-pending');}
+  else{c.classList.remove('show');b.classList.remove('has-pending');}
 }
 
 async function signInWithGoogle(){
@@ -1930,7 +1945,6 @@ function renderTripShell(){
   <div style="display:flex;gap:6px;align-items:center">
     <!-- Desktop: all action buttons visible -->
     <div class="ha-desktop">
-      ${isAdmin()?`<button class="btn sm" onclick="openAdminPanel()" id="adminBtn" title="Admin">🛡 <span class="btn-label">Admin</span></button>`:''}
       <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
       <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
       ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
@@ -1938,7 +1952,8 @@ function renderTripShell(){
       <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
       <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
     </div>
-    <!-- Always visible: people + avatar (tabs live in the slider below the header) -->
+    <!-- Always visible: notifications + people + avatar -->
+    ${notifBellHTML()}
     <div class="ppl-wrap" id="peopleBtnWrap">
       <button class="btn sm ppl-btn" onclick="togglePeople(event)" title="People">👥 <span class="ppl-count" id="peopleBtnCount">—</span></button>
       <div class="ppl-dropdown hidden" id="peopleDropdown"></div>
