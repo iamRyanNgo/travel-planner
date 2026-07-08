@@ -1512,13 +1512,16 @@ function buildMobMenu(){
   if(CUR.view==='trip'){
     const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
     const write=canWrite(t);
+    // Print/Clone live in the top toolbar on desktop; on mobile that toolbar
+    // is hidden, so keep them in the menu there only
+    const isMobile=window.matchMedia('(max-width:680px)').matches;
     updateMobMenu([
       isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
       `<button class="mob-menu-item" onclick="closeMobMenu();modalSearch()">🔍 Search</button>`,
-      `<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`,
+      isMobile?`<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`:'',
       `<button class="mob-menu-item" onclick="closeMobMenu();exportICS('${t.id}')">📅 Export calendar</button>`,
       write?`<button class="mob-menu-item" onclick="closeMobMenu();modalImportPlaces('${t.id}')">📥 Import places</button>`:'',
-      `<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`,
+      isMobile?`<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`:'',
       write?`<button class="mob-menu-item" onclick="closeMobMenu();modalTrip('${t.id}')">✎ Edit trip</button>`:'',
       t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
@@ -1948,9 +1951,7 @@ function renderTripShell(){
       <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
       <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
       ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
-      ${t.owner_id===ME?.id?`<button class="btn sm danger" onclick="deleteTripConfirm('${t.id}')" title="Delete">🗑</button>`:''}
       <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
-      <button class="btn sm ghost" onclick="signOut()" title="Sign out">↩</button>
     </div>
     <!-- Always visible: notifications + people + avatar -->
     ${notifBellHTML()}
