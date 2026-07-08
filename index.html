@@ -85,7 +85,7 @@ body.trip-open #tripBg{display:block}
 body.trip-open .empty{
   background:color-mix(in srgb,var(--panel) 40%,transparent);
   backdrop-filter:blur(30px) saturate(1.5);-webkit-backdrop-filter:blur(30px) saturate(1.5);
-  border:1px dashed color-mix(in srgb,#fff 22%,transparent);color:var(--text);
+  border:1px solid color-mix(in srgb,#fff 16%,transparent);color:var(--text);
 }
 body.trip-open .empty p,body.trip-open .empty .muted{color:var(--muted)}
 /* Liquid glass: translucent milky-frosted panels — legibility comes from
@@ -116,7 +116,7 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
   backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;
   border-color:color-mix(in srgb,#fff 8%,transparent);
 }
-.empty{text-align:center;padding:52px 24px;color:var(--muted);border:1px dashed var(--border2);border-radius:var(--radius)}
+.empty{text-align:center;padding:52px 24px;color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 .empty .icon{font-size:44px;margin-bottom:14px;opacity:.85}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-weight:500}
 
@@ -2152,7 +2152,7 @@ async function geoOpenMeteo(name){
     const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(name)}`);
     if(!res.ok)return undefined;
     const r=(await res.json())?.results?.[0];
-    return r?{lat:r.latitude,lon:r.longitude,label:`${r.name}${r.country?', '+r.country:''}`}:null;
+    return r?{lat:r.latitude,lon:r.longitude,label:[r.name,r.admin1,r.country].filter(Boolean).join(', ')}:null;
   }catch{return undefined}
 }
 // Photon (komoot): fuzzy, typo-tolerant search over OSM — much better at
@@ -2171,14 +2171,19 @@ async function geoPhoton(q,placeOnly){
     return{lat,lon,label:[p.name||p.street,p.city||p.state,p.country].filter(Boolean).slice(0,3).join(', ')||q};
   }catch{return undefined}
 }
-// Place-biased lookup for weather + map centering (destinations are places,
-// not street addresses or businesses)
+// Place lookup for weather + map centering. Open-Meteo's geocoder is
+// city-focused and population-ranked, so "Chicago" → Chicago, Illinois
+// (not a business, nor an obscure Alaskan hamlet). Photon/Nominatim back it up.
 async function geocodePlace(q){
-  const c=geoCache();const key='place|'+q;
+  const c=geoCache();const key='placeC|'+q;
   if(key in c)return c[key];
-  const g=await geoPhoton(q,true)||await geoNominatim(q);
-  if(g){geoCacheSet(key,g);return g;}
-  if(g===null)geoCacheSet(key,null);
+  let transient=false;
+  for(const fn of [()=>geoOpenMeteo(q),()=>geoPhoton(q,true),()=>geoNominatim(q)]){
+    const g=await fn();
+    if(g){geoCacheSet(key,g);return g;}
+    if(g===undefined)transient=true;
+  }
+  if(!transient)geoCacheSet(key,null);
   return null;
 }
 // Addresses that fail whole often work once the hyper-local parts go:
