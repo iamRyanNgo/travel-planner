@@ -166,6 +166,11 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
 /* ── Dashboard ── */
 #dashboard{max-width:1300px;margin:0 auto;padding:32px 24px}
 .dash-hero{margin-bottom:40px}
+.trips-divider{display:flex;align-items:center;gap:16px;margin:44px 0 22px}
+.trips-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.trips-divider span{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:600;letter-spacing:-.2px;color:var(--muted);white-space:nowrap}
+.past-grid{opacity:.72;transition:opacity .2s}
+.past-grid:hover{opacity:1}
 .dash-hero h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px;color:var(--text)}
 .dash-hero p{color:var(--muted);font-size:15px}
 .trip-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
@@ -1890,10 +1895,13 @@ function renderDashboard(){
   headerActions.innerHTML += `<button class="btn sm ghost ha-desktop" onclick="modalSearch()" title="Search everything (press /)">🔍</button>`;
   headerActions.innerHTML += `<button class="btn primary" onclick="modalTrip()">＋ New Trip</button>`;
 
-  // Past trips fold away into an archive section
+  // Upcoming/current trips ordered soonest-first; completed trips split out
   const todayStr=new Date().toLocaleDateString('en-CA');
-  const pastTrips=TRIPS.filter(t=>t.end_date&&t.end_date<todayStr);
-  const activeTrips=TRIPS.filter(t=>!pastTrips.includes(t));
+  const dateKey=t=>t.start_date||t.end_date||'9999-12-31'; // undated trips last
+  const pastTrips=TRIPS.filter(t=>t.end_date&&t.end_date<todayStr)
+    .sort((a,b)=>(b.end_date||'').localeCompare(a.end_date||'')); // most-recent first
+  const activeTrips=TRIPS.filter(t=>!pastTrips.includes(t))
+    .sort((a,b)=>dateKey(a).localeCompare(dateKey(b)));           // next one up first
 
   document.getElementById('root').innerHTML=`
   <div id="dashboard">
@@ -1909,12 +1917,10 @@ function renderDashboard(){
       <p class="muted" style="margin-bottom:20px">Create your first trip and start building the perfect itinerary.</p>
       <button class="btn gold" onclick="modalTrip()">＋ Plan a Trip</button>
     </div>`:''}
-    ${!activeTrips.length&&pastTrips.length?`<p class="muted" style="font-size:14px">No upcoming trips — time to plan the next one! ✈️</p>`:''}
+    ${!activeTrips.length&&pastTrips.length?`<p class="muted" style="font-size:14px;margin-top:4px">No upcoming trips — time to plan the next one! ✈️</p>`:''}
     ${pastTrips.length?`
-    <details style="margin-top:28px">
-      <summary style="cursor:pointer;font-size:14px;font-weight:700;color:var(--muted);padding:8px 0;user-select:none">🗂 Past adventures (${pastTrips.length})</summary>
-      <div class="trip-grid" style="margin-top:14px;opacity:.88">${pastTrips.map(tripCard).join('')}</div>
-    </details>`:''}
+    <div class="trips-divider"><span>Previous Trips</span></div>
+    <div class="trip-grid past-grid">${pastTrips.map(tripCard).join('')}</div>`:''}
   </div>`;
 }
 
