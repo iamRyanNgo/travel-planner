@@ -83,13 +83,13 @@ body.trip-open #tripBg{display:block}
    heavy blur + a light inner rim, not from opacity, so the warm photo
    glows through like the reference */
 body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.trip-open .booking-card,body.trip-open .budget-group,body.trip-open .trip-hero,body.trip-open .glass{
-  background:color-mix(in srgb,var(--panel) 58%,transparent);
-  backdrop-filter:blur(34px) saturate(1.6);-webkit-backdrop-filter:blur(34px) saturate(1.6);
-  border:1px solid color-mix(in srgb,#fff 14%,transparent);
-  box-shadow:0 12px 40px -16px rgba(0,0,0,.5),inset 0 1px 0 color-mix(in srgb,#fff 12%,transparent);
+  background:color-mix(in srgb,var(--panel) 42%,transparent);
+  backdrop-filter:blur(40px) saturate(1.7);-webkit-backdrop-filter:blur(40px) saturate(1.7);
+  border:1px solid color-mix(in srgb,#fff 15%,transparent);
+  box-shadow:0 12px 40px -16px rgba(0,0,0,.5),inset 0 1px 0 color-mix(in srgb,#fff 14%,transparent);
 }
 [data-theme="light"] body.trip-open .card,[data-theme="light"] body.trip-open .stat-card,[data-theme="light"] body.trip-open .fun-stat,[data-theme="light"] body.trip-open .booking-card,[data-theme="light"] body.trip-open .budget-group,[data-theme="light"] body.trip-open .trip-hero{
-  background:color-mix(in srgb,#fff 70%,transparent);border-color:color-mix(in srgb,#fff 65%,transparent);
+  background:color-mix(in srgb,#fff 55%,transparent);border-color:color-mix(in srgb,#fff 60%,transparent);
 }
 .empty{text-align:center;padding:52px 24px;color:var(--muted);border:1px dashed var(--border2);border-radius:var(--radius)}
 .empty .icon{font-size:44px;margin-bottom:14px;opacity:.85}
@@ -168,11 +168,16 @@ body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.tri
 .trip-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;color:var(--muted);background:none;border:1px solid transparent;cursor:pointer;white-space:nowrap;transition:.15s;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .trip-tab:hover{background:var(--panel2);color:var(--text);border-color:var(--border)}
 .trip-tab.active{background:var(--accent-soft);color:var(--gold);border-color:color-mix(in srgb,var(--gold) 40%,transparent);font-weight:700}
+/* Over the glass trip backdrop, tabs need their own frosted pill + a clear
+   filled active state to read correctly */
+body.trip-open .trip-tab{color:color-mix(in srgb,var(--text) 80%,transparent);background:color-mix(in srgb,var(--panel) 40%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-color:color-mix(in srgb,#fff 8%,transparent)}
+body.trip-open .trip-tab:hover{color:var(--text);background:color-mix(in srgb,var(--panel) 60%,transparent)}
+body.trip-open .trip-tab.active{background:linear-gradient(160deg,var(--gold2),var(--gold));color:#1c1503;border-color:var(--gold);box-shadow:0 4px 14px -5px rgba(217,184,119,.6)}
 .trip-tab .tt-label{display:inline}
 /* ── Itinerary view toggle (By Day / All Activities) ── */
-.itin-seg{display:inline-flex;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:16px;gap:2px}
-.itin-seg-btn{border:none;background:none;color:var(--muted);font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:9px;cursor:pointer;transition:.15s;white-space:nowrap}
-.itin-seg-btn.active{background:var(--panel);color:var(--gold);box-shadow:var(--shadow)}
+.itin-seg{display:inline-flex;background:color-mix(in srgb,var(--panel) 45%,transparent);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid color-mix(in srgb,#fff 10%,transparent);border-radius:12px;padding:3px;margin-bottom:16px;gap:2px}
+.itin-seg-btn{border:none;background:none;color:color-mix(in srgb,var(--text) 78%,transparent);font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:9px;cursor:pointer;transition:.15s;white-space:nowrap}
+.itin-seg-btn.active{background:linear-gradient(160deg,var(--gold2),var(--gold));color:#1c1503;font-weight:700}
 .itin-seg-btn:disabled{opacity:.4;cursor:not-allowed}
 /* ── Mobile bottom navigation (hidden on desktop) ── */
 .bottom-nav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));justify-content:space-around}
