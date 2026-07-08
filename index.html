@@ -77,8 +77,17 @@ select option{background:var(--panel)}
 /* ── Liquid glass: blurred cover backdrop + translucent frosted cards ── */
 #tripBg{display:none;position:fixed;inset:-20px;z-index:-2;background-size:cover;background-position:center;filter:blur(8px) saturate(1.25) brightness(.95);transform:scale(1.04)}
 #tripBg::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) 12%,transparent),color-mix(in srgb,var(--bg) 40%,transparent) 55%,var(--bg) 98%)}
-body.trip-open{background:var(--bg2)}
+/* Over the bright photo, boost secondary-text contrast and give bare
+   empty-states a glass backing so their text is legible */
+body.trip-open{background:var(--bg2);--muted:#c2c9d4;--dim:#93a0b0}
+[data-theme="light"] body.trip-open{--muted:#4a4f5a;--dim:#7a7f8a}
 body.trip-open #tripBg{display:block}
+body.trip-open .empty{
+  background:color-mix(in srgb,var(--panel) 40%,transparent);
+  backdrop-filter:blur(30px) saturate(1.5);-webkit-backdrop-filter:blur(30px) saturate(1.5);
+  border:1px dashed color-mix(in srgb,#fff 22%,transparent);color:var(--text);
+}
+body.trip-open .empty p,body.trip-open .empty .muted{color:var(--muted)}
 /* Liquid glass: translucent milky-frosted panels — legibility comes from
    heavy blur + a light inner rim, not from opacity, so the warm photo
    glows through like the reference */
@@ -2148,9 +2157,12 @@ async function geoOpenMeteo(name){
 }
 // Photon (komoot): fuzzy, typo-tolerant search over OSM — much better at
 // POI/hotel names and partial addresses than raw Nominatim. Keyless.
-async function geoPhoton(q){
+async function geoPhoton(q,placeOnly){
   try{
-    const res=await fetch(`https://photon.komoot.io/api/?limit=1&lang=en&q=${encodeURIComponent(q)}`);
+    // placeOnly restricts to cities/towns/regions (osm_tag=place / boundary) so
+    // a bare "Chicago" resolves to the city, not a business named after it
+    const tags=placeOnly?'&osm_tag=place&osm_tag=boundary':'';
+    const res=await fetch(`https://photon.komoot.io/api/?limit=1&lang=en${tags}&q=${encodeURIComponent(q)}`);
     if(!res.ok)return undefined;
     const f=(await res.json())?.features?.[0];
     if(!f)return null;
@@ -2158,6 +2170,16 @@ async function geoPhoton(q){
     const p=f.properties||{};
     return{lat,lon,label:[p.name||p.street,p.city||p.state,p.country].filter(Boolean).slice(0,3).join(', ')||q};
   }catch{return undefined}
+}
+// Place-biased lookup for weather + map centering (destinations are places,
+// not street addresses or businesses)
+async function geocodePlace(q){
+  const c=geoCache();const key='place|'+q;
+  if(key in c)return c[key];
+  const g=await geoPhoton(q,true)||await geoNominatim(q);
+  if(g){geoCacheSet(key,g);return g;}
+  if(g===null)geoCacheSet(key,null);
+  return null;
 }
 // Addresses that fail whole often work once the hyper-local parts go:
 // "Block 6, Phuoc Hai, Hội An Đông, Đà Nẵng 51300, Vietnam"
@@ -2279,7 +2301,7 @@ async function initTripMap(t,d){
   MAP=L.map(el).setView([20,0],2);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(MAP);
   const destQ=[t.destination,t.country].filter(Boolean).join(', ');
-  if(destQ){const g=await geocode(destQ);if(g&&MAP)MAP.setView([g.lat,g.lon],11);}
+  if(destQ){const g=await geocodePlace(destQ);if(g&&MAP)MAP.setView([g.lat,g.lon],11);}
   const places=mapPlaces(t,d);
   const statusEl=document.getElementById('mapStatus');
   const pts=[];let done=0;
@@ -2416,7 +2438,7 @@ async function loadWeather(t){
   </div>`;
   let any=false;
   for(const [di,dq] of dests.entries()){
-    const g=await geocode(dq);
+    const g=await geocodePlace(dq);
     let body=document.getElementById('wxBody');if(!body)return; // navigated away
     if(di===0)body.innerHTML='';
     if(!g){
