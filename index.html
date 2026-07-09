@@ -1243,6 +1243,13 @@ async function detectSchemaV13(){
   SCHEMA_V13=!error;
   return SCHEMA_V13;
 }
+let SCHEMA_V14=null;
+async function detectSchemaV14(){
+  if(SCHEMA_V14!==null)return SCHEMA_V14;
+  const {error}=await DB.from('wtn_trips').select('emergency_contacts').limit(1);
+  SCHEMA_V14=!error;
+  return SCHEMA_V14;
+}
 // Pull exact coordinates + place name out of a Google Maps URL
 function parseGmapsLink(url){
   try{
@@ -1649,7 +1656,7 @@ async function afterSignIn(user){
   renderAuthHeader();
   // Resolve schema feature flags BEFORE the first render/save so cold-start
   // saves don't silently drop lat/lng/region while detection is still pending
-  await Promise.all([detectSchemaV2(),detectSchemaV3(),detectSchemaV4(),detectSchemaV5(),detectSchemaV6(),detectSchemaV7(),detectSchemaV8(),detectSchemaV9(),detectSchemaV10(),detectSchemaV13()]);
+  await Promise.all([detectSchemaV2(),detectSchemaV3(),detectSchemaV4(),detectSchemaV5(),detectSchemaV6(),detectSchemaV7(),detectSchemaV8(),detectSchemaV9(),detectSchemaV10(),detectSchemaV13(),detectSchemaV14()]);
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -2161,20 +2168,35 @@ async function geoNominatim(q){
     return {lat:+js[0].lat,lon:+js[0].lon,label};
   }catch{return undefined}                                      // network/CSP failure — never cache
 }
+// US state abbreviations → full name, so "Plymouth, MA" can match admin1
+const US_STATES={al:'alabama',ak:'alaska',az:'arizona',ar:'arkansas',ca:'california',co:'colorado',ct:'connecticut',de:'delaware',fl:'florida',ga:'georgia',hi:'hawaii',id:'idaho',il:'illinois',in:'indiana',ia:'iowa',ks:'kansas',ky:'kentucky',la:'louisiana',me:'maine',md:'maryland',ma:'massachusetts',mi:'michigan',mn:'minnesota',ms:'mississippi',mo:'missouri',mt:'montana',ne:'nebraska',nv:'nevada',nh:'new hampshire',nj:'new jersey',nm:'new mexico',ny:'new york',nc:'north carolina',nd:'north dakota',oh:'ohio',ok:'oklahoma',or:'oregon',pa:'pennsylvania',ri:'rhode island',sc:'south carolina',sd:'south dakota',tn:'tennessee',tx:'texas',ut:'utah',vt:'vermont',va:'virginia',wa:'washington',wv:'west virginia',wi:'wisconsin',wy:'wyoming'};
 async function geoOpenMeteo(name){
   try{
-    // search on the first segment only ("Chicago" from "Chicago, IL") so the
-    // API's name field can match exactly
-    const q=(name||'').split(',')[0].trim();
+    // search on the first segment ("Chicago" from "Chicago, IL") so the API's
+    // name field can match exactly; keep the rest as disambiguating context
+    const segs=(name||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const q=segs[0]; if(!q)return null;
+    const ctx=segs.slice(1).map(s=>s.toLowerCase());
     const res=await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&name=${encodeURIComponent(q)}`);
     if(!res.ok)return undefined;
     let results=(await res.json())?.results;
     if(!results||!results.length)return null;
     const byPop=(a,b)=>(b.population||0)-(a.population||0);
     // Prefer results whose name matches exactly (drops "Chicago Creek" when
-    // you searched "Chicago"), then take the most-populous of those
+    // you searched "Chicago")
     const exact=results.filter(r=>r.name&&r.name.toLowerCase()===q.toLowerCase());
-    const r=(exact.length?exact:results).slice().sort(byPop)[0];
+    let pool=exact.length?exact:results;
+    // If a state/country was given ("Plymouth, MA" or "Plymouth, United
+    // States"), keep only results matching it — so a bare city name doesn't
+    // jump to the most-populous namesake in another country.
+    if(ctx.length){
+      const matches=pool.filter(r=>{
+        const fields=[r.country,r.country_code,r.admin1,r.admin2,r.admin3].filter(Boolean).map(s=>String(s).toLowerCase());
+        return ctx.some(tok=>fields.some(f=>f===tok||US_STATES[tok]===f));
+      });
+      if(matches.length)pool=matches;
+    }
+    const r=pool.slice().sort(byPop)[0];
     return{lat:r.latitude,lon:r.longitude,label:dedupeLabel([r.name,r.admin1,r.country])};
   }catch{return undefined}
 }
@@ -2198,7 +2220,7 @@ async function geoPhoton(q,placeOnly){
 // city-focused and population-ranked, so "Chicago" → Chicago, Illinois
 // (not a business, nor an obscure Alaskan hamlet). Photon/Nominatim back it up.
 async function geocodePlace(q){
-  const c=geoCache();const key='placeF|'+q;
+  const c=geoCache();const key='placeG|'+q;
   if(key in c)return c[key];
   let transient=false;
   for(const fn of [()=>geoOpenMeteo(q),()=>geoPhoton(q,true),()=>geoNominatim(q)]){
@@ -2684,27 +2706,36 @@ function renderOverview(t,d){
 
   // ── Local emergency numbers for the destination country ──
   const emerg=emergencyInfo(t.country);
+  const customContacts=(Array.isArray(t.emergency_contacts)?t.emergency_contacts:[]).filter(c=>c&&(c.name||c.phone));
   let emergHtml='';
-  if(emerg){
-    const chip=(icon,label,num)=>{
-      const dial=num.replace(/[^\d]/g,'');
-      const isTel=/^\d{2,}$/.test(num);
+  if(emerg||customContacts.length){
+    const chip=(icon,label,num,tel)=>{
       const inner=`<div style="font-size:19px;line-height:1">${icon}</div>
-        <div style="min-width:0"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700">${label}</div>
-        <div style="font-size:18px;font-weight:700;color:var(--text)">${num}</div></div>`;
+        <div style="min-width:0"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(num)}</div></div>`;
       const st='display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text)';
-      return isTel?`<a href="tel:${dial}" style="${st}">${inner}</a>`:`<div style="${st}">${inner}</div>`;
+      return tel?`<a href="tel:${tel}" style="${st}">${inner}</a>`:`<div style="${st}">${inner}</div>`;
     };
+    // Country numbers only tel-link when a single clean number (never "112 / 999")
+    const telOf=n=>/^\d{2,}$/.test(n)?n.replace(/[^\d]/g,''):'';
     const items=[];
-    if(emerg.emerg)items.push(chip('🆘','Emergency',emerg.emerg));
-    if(emerg.police)items.push(chip('👮','Police',emerg.police));
-    if(emerg.amb)items.push(chip('🚑','Ambulance',emerg.amb));
-    if(emerg.fire)items.push(chip('🚒','Fire',emerg.fire));
+    if(emerg){
+      if(emerg.emerg)items.push(chip('🆘','Emergency',emerg.emerg,telOf(emerg.emerg)));
+      if(emerg.police)items.push(chip('👮','Police',emerg.police,telOf(emerg.police)));
+      if(emerg.amb)items.push(chip('🚑','Ambulance',emerg.amb,telOf(emerg.amb)));
+      if(emerg.fire)items.push(chip('🚒','Fire',emerg.fire,telOf(emerg.fire)));
+    }
+    const custItems=customContacts.map(c=>{
+      const dial=(c.phone||'').replace(/[^\d+]/g,'');
+      const tel=dial.replace(/\+/g,'').length>=3?dial:'';
+      return chip('📇',c.name||'Contact',c.phone||'',tel);
+    });
     emergHtml=`<div class="card" style="margin-bottom:16px">
       <div class="section-head"><h2 style="font-size:17px">🚨 Emergency${t.country?` · ${esc(t.country)}`:''}</h2></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">${items.join('')}</div>
-      ${emerg.note?`<p style="font-size:12px;color:var(--muted);margin-top:10px">${esc(emerg.note)}</p>`:''}
-      <p style="font-size:11px;color:var(--dim);margin-top:6px">Tip: also save your embassy or consulate contact before you travel.</p>
+      ${items.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">${items.join('')}</div>`:''}
+      ${custItems.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:${items.length?'8px':'0'}">${custItems.join('')}</div>`:''}
+      ${emerg&&emerg.note?`<p style="font-size:12px;color:var(--muted);margin-top:10px">${esc(emerg.note)}</p>`:''}
+      ${SCHEMA_V14&&!customContacts.length?`<p style="font-size:11px;color:var(--dim);margin-top:6px">Tip: add your embassy, hotel or a local contact from ✎ Edit trip.</p>`:''}
     </div>`;
   }
 
@@ -4024,7 +4055,8 @@ function modalTrip(id){
   window._editTravelers=JSON.parse(JSON.stringify(travelers));
   window._editGradient=t.gradient_idx||0;
   window._editDests=Array.isArray(t.destinations)?[...t.destinations]:[];
-  setTimeout(renderDestChips,0);
+  window._editEmerg=Array.isArray(t.emergency_contacts)?JSON.parse(JSON.stringify(t.emergency_contacts)):[];
+  setTimeout(()=>{renderDestChips();renderEmergList();},0);
   const today=new Date().toISOString().slice(0,10);
   const nextWeek=new Date(Date.now()+7*864e5).toISOString().slice(0,10);
   modal(id?'Edit Trip':'Plan a New Trip',`
@@ -4081,6 +4113,12 @@ function modalTrip(id){
     </div>
     <button class="btn sm ghost" onclick="addTraveler()">＋ Add Traveler</button>
   </div>
+  ${SCHEMA_V14?`
+  <div class="field"><label>🚨 Emergency Contacts</label>
+    <p style="font-size:11px;color:var(--muted);margin:-2px 0 8px">Embassy, hotel front desk, a local friend, insurance hotline… shown on the trip overview alongside the local emergency numbers.</p>
+    <div id="emergList" style="margin-bottom:8px"></div>
+    <button class="btn sm ghost" onclick="addEmergContact()">＋ Add Contact</button>
+  </div>`:''}
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
     ${id&&t.owner_id===ME?.id?`<button class="btn danger" onclick="deleteTripConfirm('${id}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -4159,6 +4197,23 @@ function addTraveler(){
 }
 function updateTraveler(i,k,v){if(window._editTravelers)window._editTravelers[i][k]=v;}
 function removeTraveler(i){if(window._editTravelers)window._editTravelers.splice(i,1);const rows=$$('#travelerList .row');if(rows[i])rows[i].remove();}
+function renderEmergList(){
+  const box=document.getElementById('emergList');if(!box)return;
+  const list=window._editEmerg||[];
+  box.innerHTML=list.map((c,i)=>`<div class="row" style="margin-bottom:6px">
+    <input placeholder="Label (e.g. Hotel, Embassy)" value="${esc(c.name||'')}" oninput="updateEmerg(${i},'name',this.value)" style="flex:2">
+    <input placeholder="Phone" value="${esc(c.phone||'')}" oninput="updateEmerg(${i},'phone',this.value)" style="flex:1.5" inputmode="tel">
+    <button class="btn sm danger" onclick="removeEmerg(${i})">✕</button>
+  </div>`).join('');
+}
+function addEmergContact(){
+  window._editEmerg=window._editEmerg||[];
+  window._editEmerg.push({name:'',phone:''});
+  renderEmergList();
+  const inputs=$$('#emergList .row input');inputs[inputs.length-2]?.focus();
+}
+function updateEmerg(i,k,v){if(window._editEmerg&&window._editEmerg[i])window._editEmerg[i][k]=v;}
+function removeEmerg(i){if(window._editEmerg)window._editEmerg.splice(i,1);renderEmergList();}
 
 async function saveTrip(id){
   const name=$('#t_name').value.trim();if(!name){toast('Trip name is required');return;}
@@ -4174,6 +4229,9 @@ async function saveTrip(id){
     const pending=$('#t_dest_extra')?.value.trim();
     if(pending)addDestChip(); // don't lose a destination typed but not yet added
     data.destinations=window._editDests||[];
+  }
+  if(SCHEMA_V14){
+    data.emergency_contacts=(window._editEmerg||[]).filter(c=>(c.name||'').trim()||(c.phone||'').trim());
   }
   if(id){
     await DB.from('wtn_trips').update(data).eq('id',id);
