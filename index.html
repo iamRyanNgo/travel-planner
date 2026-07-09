@@ -2591,16 +2591,17 @@ function emergPlaceRow(icon,label,p,phone){
 // destination and each confirmed hotel (async; renders progressively).
 async function loadEmergencyPlaces(t,d){
   let box=document.getElementById('emergPlaces');if(!box)return;
-  // Locations: every destination (max 3) + confirmed stays (max 3)
-  const locs=tripDests(t).slice(0,3).map(dq=>({
+  // Locations: every destination (max 5, matching the weather widget) +
+  // confirmed stays (max 5)
+  const locs=tripDests(t).slice(0,5).map(dq=>({
     label:dq,q:dq.includes(',')||!t.country?dq:`${dq}, ${t.country}`,
   }));
   const mainSuffix=[t.destination,t.country].filter(Boolean).join(', ');
-  (d?.stays||[]).filter(s=>s.confirmed&&(s.name||s.address)).slice(0,3).forEach(s=>{
+  (d?.stays||[]).filter(s=>s.confirmed&&(s.name||s.address)).slice(0,5).forEach(s=>{
     const region=itemRegion(t,s)||mainSuffix;
     // Address-aware geocoding (same approach as the map) — and deliberately no
     // bare-name city fallback, which could match a namesake town anywhere
-    locs.push({label:s.name||s.address,hotel:true,lat:s.lat,lon:s.lng,
+    locs.push({label:s.name||s.address,hotel:true,lat:s.lat,lon:s.lng,region,
       tries:[s.address&&region?`${s.address}, ${region}`:null,s.address||null,s.name&&region?`${s.name}, ${region}`:null],
       qKey:`emstay|${s.address||s.name}|${region}`});
   });
@@ -2621,7 +2622,18 @@ async function loadEmergencyPlaces(t,d){
     const phoneOf=p=>p&&p.osm_type&&phones[String(p.osm_type)[0].toUpperCase()+p.osm_id]||'';
     const rows=[emergPlaceRow('🏥','Nearest Hospital',hosp,phoneOf(hosp)),emergPlaceRow('🚓','Nearest Police',pol,phoneOf(pol))].filter(Boolean);
     if(!rows.length)continue;
+    // Destination in a different country than the trip's primary? Its
+    // emergency numbers differ from the ones at the top of the card — show them.
+    const locCountry=(loc.hotel?(loc.region||''):label).split(',').pop().trim().toLowerCase();
+    const kLoc=EMERGENCY_ALIAS[locCountry],kTrip=EMERGENCY_ALIAS[(t.country||'').trim().toLowerCase()];
+    let localNums='';
+    if(kLoc&&kLoc!==kTrip){
+      const le=EMERGENCY_INFO[kLoc];
+      const bits=[le.emerg&&`🆘 ${le.emerg}`,le.police&&`👮 Police ${le.police}`,le.amb&&`🚑 Ambulance ${le.amb}`,le.fire&&`🚒 Fire ${le.fire}`].filter(Boolean);
+      if(bits.length)localNums=`<div style="font-size:12px;color:var(--muted);margin:-2px 0 6px">Local emergency: <b style="color:var(--text)">${bits.join(' · ')}</b></div>`;
+    }
     html+=`<div style="font-size:12px;font-weight:700;color:var(--gold);margin:10px 0 6px">${loc.hotel?'🏨':'📍'} ${esc(label)}</div>
+      ${localNums}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px">${rows.join('')}</div>`;
     box=document.getElementById('emergPlaces');if(!box)return; // navigated away
     box.innerHTML=html;
