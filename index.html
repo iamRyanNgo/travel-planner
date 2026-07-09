@@ -2106,7 +2106,7 @@ function renderTab(){
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
-  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);}
+  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadEmergencyPlaces(t);}
   else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);if(ITIN_VIEW==='days')itinScrollToday(t);}
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
@@ -2519,6 +2519,53 @@ async function loadWeather(t){
   if(body&&!any&&!body.innerHTML.trim())body.innerHTML=`<p class="muted" style="font-size:13px">Forecast unavailable right now.</p>`;
 }
 
+// Nearest hospital / police station to a point, via Photon (location-biased,
+// filtered by OSM amenity tag). Returns {name, address, lat, lon} or null.
+async function nearestAmenity(lat,lon,kind){
+  try{
+    const res=await fetch(`https://photon.komoot.io/api/?q=${kind}&lat=${lat}&lon=${lon}&limit=1&lang=en&osm_tag=amenity:${kind}`);
+    if(!res.ok)return null;
+    const f=(await res.json())?.features?.[0];
+    if(!f)return null;
+    const p=f.properties||{};
+    const street=p.housenumber&&p.street?`${p.housenumber} ${p.street}`:p.street;
+    const address=[street,p.city||p.district,p.state,p.country].filter(Boolean).join(', ');
+    return{name:p.name||'',address:address||p.city||p.country||'',lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0]};
+  }catch{return null}
+}
+// Fill the Emergency card with the nearest hospital + police station for the
+// trip's primary destination (async so it never blocks the overview render).
+async function loadEmergencyPlaces(t){
+  let box=document.getElementById('emergPlaces');if(!box)return;
+  const dests=tripDests(t);
+  const first=dests[0];
+  const q=first?(first.includes(',')||!t.country?first:`${first}, ${t.country}`):(t.country||'');
+  if(!q)return;
+  const g=await geocodePlace(q);
+  box=document.getElementById('emergPlaces');if(!box)return; // navigated away
+  if(!g)return;
+  box.innerHTML=`<p style="font-size:12px;color:var(--muted);margin-top:10px">Finding nearest hospital & police…</p>`;
+  const [hosp,pol]=await Promise.all([nearestAmenity(g.lat,g.lon,'hospital'),nearestAmenity(g.lat,g.lon,'police')]);
+  box=document.getElementById('emergPlaces');if(!box)return;
+  const placeRow=(icon,label,p)=>{
+    if(!p||(!p.name&&!p.address))return'';
+    const query=encodeURIComponent([p.name,p.address].filter(Boolean).join(', '));
+    const maps=`https://www.google.com/maps/search/?api=1&query=${query}`;
+    return`<a href="${maps}" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text)">
+      <div style="font-size:19px;line-height:1">${icon}</div>
+      <div style="min-width:0">
+        <div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700">${label}</div>
+        ${p.name?`<div style="font-size:14px;font-weight:700;color:var(--text)">${esc(p.name)}</div>`:''}
+        ${p.address?`<div style="font-size:12px;color:var(--muted);margin-top:1px">${esc(p.address)}</div>`:''}
+        <div style="font-size:11px;color:var(--gold);margin-top:3px">Open in Maps ↗</div>
+      </div></a>`;
+  };
+  const rows=[placeRow('🏥','Nearest Hospital',hosp),placeRow('🚓','Nearest Police',pol)].filter(Boolean);
+  box.innerHTML=rows.length
+    ?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:8px">${rows.join('')}</div>`
+    :'';
+}
+
 /* ── Overview ── */
 // Local emergency numbers by country (police/ambulance/fire where they differ,
 // otherwise a single all-services number). Fallback is the near-universal set.
@@ -2707,8 +2754,9 @@ function renderOverview(t,d){
   // ── Local emergency numbers for the destination country ──
   const emerg=emergencyInfo(t.country);
   const customContacts=(Array.isArray(t.emergency_contacts)?t.emergency_contacts:[]).filter(c=>c&&(c.name||c.phone));
+  const hasDest=tripDests(t).length>0;
   let emergHtml='';
-  if(emerg||customContacts.length){
+  if(emerg||customContacts.length||hasDest){
     const chip=(icon,label,num,tel)=>{
       const inner=`<div style="font-size:19px;line-height:1">${icon}</div>
         <div style="min-width:0"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
@@ -2734,6 +2782,7 @@ function renderOverview(t,d){
       <div class="section-head"><h2 style="font-size:17px">🚨 Emergency${t.country?` · ${esc(t.country)}`:''}</h2></div>
       ${items.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">${items.join('')}</div>`:''}
       ${custItems.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:${items.length?'8px':'0'}">${custItems.join('')}</div>`:''}
+      ${hasDest?`<div id="emergPlaces"></div>`:''}
       ${emerg&&emerg.note?`<p style="font-size:12px;color:var(--muted);margin-top:10px">${esc(emerg.note)}</p>`:''}
       ${SCHEMA_V14&&!customContacts.length?`<p style="font-size:11px;color:var(--dim);margin-top:6px">Tip: add your embassy, hotel or a local contact from ✎ Edit trip.</p>`:''}
     </div>`;
