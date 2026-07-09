@@ -29,10 +29,10 @@
   --accent-soft:rgba(217,184,119,.12);
 }
 [data-theme="light"]{
-  /* Warm off-white canvas, deepened champagne for contrast */
-  --bg:#f6f4ef;--bg2:#efece5;--panel:#ffffff;--panel2:#f5f2ec;
-  --border:#e6e1d7;--border2:#d8d2c5;
-  --text:#20242c;--muted:#6a6f7a;--dim:#a8a498;
+  /* Soft muted daylight — easy, warm greige canvas, not stark white */
+  --bg:#e5e3dd;--bg2:#dddad2;--panel:#f0eee9;--panel2:#e8e5df;
+  --border:#d2cec3;--border2:#c3beb1;
+  --text:#22262e;--muted:#5f6470;--dim:#9b978c;
   --gold:#a97e2e;--gold2:#c99a44;
   --blue:#3a6cc0;--cyan:#0e8ba0;--green:#2e9c6f;
   --coral:#cf5b4d;--purple:#7c5fd0;--orange:#c47a2e;--pink:#c25a94;
@@ -41,8 +41,8 @@
   --shadow-sm:0 1px 3px rgba(60,50,30,.08);
   --accent-soft:rgba(169,126,46,.10);
 }
-[data-theme="light"] #appHeader{background:rgba(240,244,255,.93)}
-[data-theme="light"] .trip-hero::after{background:linear-gradient(to top,rgba(240,244,255,.97) 0%,rgba(240,244,255,.5) 60%,transparent 100%)}
+[data-theme="light"] #appHeader{background:rgba(229,227,221,.9)}
+[data-theme="light"] .trip-hero::after{background:linear-gradient(to top,rgba(229,227,221,.97) 0%,rgba(229,227,221,.5) 60%,transparent 100%)}
 [data-theme="light"] .trip-hero-content .trip-dates{color:rgba(26,37,64,.75)}
 [data-theme="light"] .timeline::before{background:var(--border2)}
 [data-theme="light"] .mob-menu-drop{box-shadow:0 8px 32px rgba(0,0,0,.2)}
@@ -710,7 +710,7 @@ button,a{touch-action:manipulation}
   textarea{border:none;resize:none;padding:0;font-size:11px;color:#333}
 }
 </style>
-<script>(function(){try{localStorage.removeItem('wtn-theme');}catch(e){}}());</script>
+<script>(function(){try{if(localStorage.getItem('wtn-theme')==='light')document.documentElement.dataset.theme='light';}catch(e){}}());</script>
 </head>
 <body>
 
@@ -1526,7 +1526,16 @@ function setTab(tab){
     el.classList.add(dir);
   }
 }
+function toggleTheme(){
+  const html=document.documentElement;
+  const isLight=html.dataset.theme==='light';
+  if(isLight)delete html.dataset.theme; else html.dataset.theme='light';
+  try{localStorage.setItem('wtn-theme',isLight?'dark':'light');}catch(e){}
+  buildMobMenu();
+}
 function buildMobMenu(){
+  const isLight=document.documentElement.dataset.theme==='light';
+  const themeItem=`<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${isLight?'🌙':'☀️'} ${isLight?'Dark mode':'Light mode'}</button>`;
   if(CUR.view==='trip'){
     const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
     const write=canWrite(t);
@@ -1544,6 +1553,7 @@ function buildMobMenu(){
       t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
+      themeItem,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }else{
@@ -1553,6 +1563,7 @@ function buildMobMenu(){
       `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();exportAllData()">⬇ Export my data</button>`,
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
+      themeItem,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }
