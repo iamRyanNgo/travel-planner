@@ -2106,7 +2106,7 @@ function renderTab(){
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
-  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadEmergencyPlaces(t);}
+  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadEmergencyPlaces(t,d);}
   else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);if(ITIN_VIEW==='days')itinScrollToday(t);}
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
@@ -2520,8 +2520,10 @@ async function loadWeather(t){
 }
 
 // Nearest hospital / police station to a point, via Photon (location-biased,
-// filtered by OSM amenity tag). Returns {name, address, lat, lon} or null.
+// filtered by OSM amenity tag). Returns {name, address, lat, lon, osm ids} or null.
 async function nearestAmenity(lat,lon,kind){
+  const c=geoCache();const key=`amen2|${kind}|${(+lat).toFixed(2)},${(+lon).toFixed(2)}`;
+  if(key in c)return c[key];
   try{
     const res=await fetch(`https://photon.komoot.io/api/?q=${kind}&lat=${lat}&lon=${lon}&limit=1&lang=en&osm_tag=amenity:${kind}`);
     if(!res.ok)return null;
@@ -2530,40 +2532,85 @@ async function nearestAmenity(lat,lon,kind){
     const p=f.properties||{};
     const street=p.housenumber&&p.street?`${p.housenumber} ${p.street}`:p.street;
     const address=[street,p.city||p.district,p.state,p.country].filter(Boolean).join(', ');
-    return{name:p.name||'',address:address||p.city||p.country||'',lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0]};
+    const out={name:p.name||'',address:address||p.city||p.country||'',lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],osm_type:p.osm_type,osm_id:p.osm_id};
+    geoCacheSet(key,out);
+    return out;
   }catch{return null}
 }
-// Fill the Emergency card with the nearest hospital + police station for the
-// trip's primary destination (async so it never blocks the overview render).
-async function loadEmergencyPlaces(t){
+// Phone numbers for amenities: one Nominatim lookup call covers several OSM
+// ids (extratags carries phone / contact:phone). Shares the 1 req/s throttle.
+async function amenityPhones(items){
+  const ids=items.filter(p=>p&&p.osm_type&&p.osm_id).map(p=>String(p.osm_type)[0].toUpperCase()+p.osm_id);
+  if(!ids.length)return{};
+  const c=geoCache();const key='amphone|'+ids.join(',');
+  if(key in c)return c[key]||{};
+  const wait=GEO_LAST+1100-Date.now();
+  if(wait>0)await new Promise(r=>setTimeout(r,wait));
+  GEO_LAST=Date.now();
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/lookup?format=jsonv2&extratags=1&accept-language=en&osm_ids=${ids.join(',')}`);
+    if(!res.ok)return{};
+    const out={};
+    ((await res.json())||[]).forEach(r=>{
+      const ph=r.extratags?.phone||r.extratags?.['contact:phone'];
+      if(ph)out[String(r.osm_type)[0].toUpperCase()+r.osm_id]=ph.split(';')[0].trim();
+    });
+    geoCacheSet(key,out);
+    return out;
+  }catch{return{}}
+}
+function emergPlaceRow(icon,label,p,phone){
+  if(!p||(!p.name&&!p.address))return'';
+  const query=encodeURIComponent([p.name,p.address].filter(Boolean).join(', '));
+  const dial=(phone||'').replace(/[^\d+]/g,'');
+  return`<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px">
+    <div style="font-size:19px;line-height:1">${icon}</div>
+    <div style="min-width:0">
+      <div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700">${label}</div>
+      ${p.name?`<div style="font-size:14px;font-weight:700;color:var(--text)">${esc(p.name)}</div>`:''}
+      ${p.address?`<div style="font-size:12px;color:var(--muted);margin-top:1px">${esc(p.address)}</div>`:''}
+      <div style="display:flex;gap:14px;margin-top:4px;flex-wrap:wrap">
+        ${phone?`<a href="tel:${dial}" style="font-size:12px;font-weight:700;color:var(--text);text-decoration:none">📞 ${esc(phone)}</a>`:''}
+        <a href="https://www.google.com/maps/search/?api=1&query=${query}" target="_blank" rel="noopener" style="font-size:11px;color:var(--gold);text-decoration:none;align-self:center">Open in Maps ↗</a>
+      </div>
+    </div></div>`;
+}
+// Fill the Emergency card with the nearest hospital + police station for each
+// destination and each confirmed hotel (async; renders progressively).
+async function loadEmergencyPlaces(t,d){
   let box=document.getElementById('emergPlaces');if(!box)return;
-  const dests=tripDests(t);
-  const first=dests[0];
-  const q=first?(first.includes(',')||!t.country?first:`${first}, ${t.country}`):(t.country||'');
-  if(!q)return;
-  const g=await geocodePlace(q);
-  box=document.getElementById('emergPlaces');if(!box)return; // navigated away
-  if(!g)return;
-  box.innerHTML=`<p style="font-size:12px;color:var(--muted);margin-top:10px">Finding nearest hospital & police…</p>`;
-  const [hosp,pol]=await Promise.all([nearestAmenity(g.lat,g.lon,'hospital'),nearestAmenity(g.lat,g.lon,'police')]);
+  // Locations: every destination (max 3) + confirmed stays (max 3)
+  const locs=tripDests(t).slice(0,3).map(dq=>({
+    label:dq,q:dq.includes(',')||!t.country?dq:`${dq}, ${t.country}`,
+  }));
+  (d?.stays||[]).filter(s=>s.confirmed&&(s.name||s.address)).slice(0,3).forEach(s=>{
+    locs.push({label:s.name||s.address,hotel:true,lat:s.lat,lon:s.lng,
+      q:s.address||[s.name,s.city||t.destination].filter(Boolean).join(', ')});
+  });
+  if(!locs.length)return;
+  box.innerHTML=`<p style="font-size:12px;color:var(--muted);margin-top:10px">Finding nearest hospitals & police…</p>`;
+  let html='';
+  for(const loc of locs){
+    let lat=loc.lat,lon=loc.lon,label=loc.label;
+    if(lat==null||lon==null){
+      const g=await geocodePlace(loc.q);
+      if(!g)continue;
+      lat=g.lat;lon=g.lon;
+      if(!loc.hotel&&g.label)label=g.label; // show what actually resolved
+    }
+    const [hosp,pol]=await Promise.all([nearestAmenity(lat,lon,'hospital'),nearestAmenity(lat,lon,'police')]);
+    if(!hosp&&!pol)continue;
+    const phones=await amenityPhones([hosp,pol]);
+    const phoneOf=p=>p&&p.osm_type&&phones[String(p.osm_type)[0].toUpperCase()+p.osm_id]||'';
+    const rows=[emergPlaceRow('🏥','Nearest Hospital',hosp,phoneOf(hosp)),emergPlaceRow('🚓','Nearest Police',pol,phoneOf(pol))].filter(Boolean);
+    if(!rows.length)continue;
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--gold);margin:10px 0 6px">${loc.hotel?'🏨':'📍'} ${esc(label)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px">${rows.join('')}</div>`;
+    box=document.getElementById('emergPlaces');if(!box)return; // navigated away
+    box.innerHTML=html;
+  }
   box=document.getElementById('emergPlaces');if(!box)return;
-  const placeRow=(icon,label,p)=>{
-    if(!p||(!p.name&&!p.address))return'';
-    const query=encodeURIComponent([p.name,p.address].filter(Boolean).join(', '));
-    const maps=`https://www.google.com/maps/search/?api=1&query=${query}`;
-    return`<a href="${maps}" target="_blank" rel="noopener" style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text)">
-      <div style="font-size:19px;line-height:1">${icon}</div>
-      <div style="min-width:0">
-        <div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700">${label}</div>
-        ${p.name?`<div style="font-size:14px;font-weight:700;color:var(--text)">${esc(p.name)}</div>`:''}
-        ${p.address?`<div style="font-size:12px;color:var(--muted);margin-top:1px">${esc(p.address)}</div>`:''}
-        <div style="font-size:11px;color:var(--gold);margin-top:3px">Open in Maps ↗</div>
-      </div></a>`;
-  };
-  const rows=[placeRow('🏥','Nearest Hospital',hosp),placeRow('🚓','Nearest Police',pol)].filter(Boolean);
-  box.innerHTML=rows.length
-    ?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:8px">${rows.join('')}</div>`
-    :'';
+  box.innerHTML=html; // clears the loading note when nothing was found
 }
 
 /* ── Overview ── */
