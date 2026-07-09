@@ -30,7 +30,9 @@ create policy wtn_trips_owner on wtn_trips
 -- Inserts/role changes now happen exclusively via the owner policy
 -- (wtn_members_owner) or the SECURITY DEFINER invite RPC (wtn_join_by_invite),
 -- never by the user editing their own row.
-drop policy if exists wtn_members_self on wtn_trip_members;
+drop policy if exists wtn_members_self       on wtn_trip_members;
+drop policy if exists wtn_members_self_read  on wtn_trip_members;
+drop policy if exists wtn_members_self_leave on wtn_trip_members;
 create policy wtn_members_self_read  on wtn_trip_members
   for select using (user_id = auth.uid());
 create policy wtn_members_self_leave on wtn_trip_members
