@@ -337,7 +337,7 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .role-badge.viewer{background:rgba(122,144,184,.12);color:var(--muted);border:1px solid var(--border2)}
 
 /* ── Timeline / Events ── */
-.day-block{margin-bottom:32px}
+.day-block{margin-bottom:32px;scroll-margin-top:80px}
 .day-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;cursor:pointer;user-select:none}
 .day-header:hover .day-num{opacity:.8}
 .day-label{display:flex;align-items:center;gap:12px}
@@ -492,6 +492,14 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .modal-header h2{font-size:18px;margin:0}
 .modal-body{padding:22px}
 .modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--panel)}
+.emoji-input-wrap{display:flex;gap:0}
+.emoji-input-wrap input{border-top-right-radius:0;border-bottom-right-radius:0;text-align:center;padding-left:6px;padding-right:6px}
+.emoji-pick-btn{flex-shrink:0;width:34px;border:1px solid var(--border);border-left:none;border-top-right-radius:11px;border-bottom-right-radius:11px;background:var(--panel2);color:var(--muted);font-size:13px;display:flex;align-items:center;justify-content:center}
+.emoji-pick-btn:hover{background:var(--panel);color:var(--text)}
+.emoji-pop{position:absolute;top:100%;right:0;margin-top:6px;width:296px;max-height:236px;overflow-y:auto;background:var(--panel);border:1px solid var(--border2);border-radius:12px;padding:8px;box-shadow:0 16px 48px rgba(0,0,0,.5);z-index:10;display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.emoji-pop button{background:none;border:none;font-size:20px;padding:5px 0;border-radius:8px;cursor:pointer;line-height:1.1;transition:background .12s}
+.emoji-pop button:hover{background:var(--panel2)}
+.emoji-pop .emoji-cat{grid-column:1/-1;font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;font-weight:700;padding:7px 2px 3px}
 
 /* ── Toast ── */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:12px 22px;border-radius:30px;font-weight:600;font-size:14px;z-index:300;box-shadow:var(--shadow);animation:toastIn .25s ease-out;display:flex;align-items:center;gap:12px;white-space:nowrap}
@@ -660,7 +668,7 @@ button,a{touch-action:manipulation}
   .tl-event{margin-bottom:0}
 
   /* Day blocks */
-  .day-block{margin-bottom:10px}
+  .day-block{margin-bottom:10px;scroll-margin-top:calc(112px + env(safe-area-inset-top,0px))}
   .day-header{margin-bottom:4px}
   .day-num{width:28px;height:28px;font-size:11px;border-radius:6px}
   .day-info h3{font-size:11px}
@@ -1539,13 +1547,13 @@ function buildMobMenu(){
   if(CUR.view==='trip'){
     const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
     const write=canWrite(t);
-    // Print/Clone live in the top toolbar on desktop; on mobile that toolbar
-    // is hidden, so keep them in the menu there only
+    // Print lives in the dropdown only. Clone is on the desktop toolbar, so it
+    // only needs a menu entry on mobile where that toolbar is hidden.
     const isMobile=window.matchMedia('(max-width:680px)').matches;
     updateMobMenu([
       isAdmin()?`<button class="mob-menu-item" onclick="closeMobMenu();openAdminPanel()">🛡 Admin</button>`:'',
       `<button class="mob-menu-item" onclick="closeMobMenu();modalSearch()">🔍 Search</button>`,
-      isMobile?`<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`:'',
+      `<button class="mob-menu-item" onclick="closeMobMenu();modalPrint()">🖨 Print</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();exportICS('${t.id}')">📅 Export calendar</button>`,
       write?`<button class="mob-menu-item" onclick="closeMobMenu();modalImportPlaces('${t.id}')">📥 Import places</button>`:'',
       isMobile?`<button class="mob-menu-item" onclick="closeMobMenu();modalCloneTrip('${t.id}')">⎘ Clone trip</button>`:'',
@@ -1973,7 +1981,6 @@ function renderTripShell(){
   <div style="display:flex;gap:6px;align-items:center">
     <!-- Desktop: all action buttons visible -->
     <div class="ha-desktop">
-      <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
       <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
       ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
     </div>
@@ -2491,6 +2498,62 @@ async function loadWeather(t){
 }
 
 /* ── Overview ── */
+// Local emergency numbers by country (police/ambulance/fire where they differ,
+// otherwise a single all-services number). Fallback is the near-universal set.
+const EMERGENCY_INFO={
+  us:{emerg:'911'}, ca:{emerg:'911'}, mx:{emerg:'911'},
+  gb:{emerg:'999',note:'112 also connects from any phone'},
+  ie:{emerg:'112 / 999'},
+  au:{emerg:'000',note:'112 works from mobiles'}, nz:{emerg:'111'},
+  jp:{police:'110',amb:'119',fire:'119'},
+  kr:{police:'112',amb:'119',fire:'119'},
+  cn:{police:'110',amb:'120',fire:'119'},
+  tw:{police:'110',amb:'119',fire:'119'},
+  hk:{emerg:'999'},
+  sg:{police:'999',amb:'995',fire:'995'},
+  th:{police:'191',amb:'1669',note:'Tourist Police: 1155'},
+  vn:{police:'113',amb:'115',fire:'114'},
+  id:{emerg:'112',police:'110',amb:'119'},
+  my:{emerg:'999',note:'112 works from mobiles'},
+  ph:{emerg:'911'},
+  in:{emerg:'112',police:'100',amb:'102',fire:'101'},
+  ae:{police:'999',amb:'998',fire:'997'},
+  il:{police:'100',amb:'101',fire:'102'},
+  tr:{emerg:'112'},
+  eg:{police:'122',amb:'123',fire:'180'},
+  za:{police:'10111',amb:'10177',note:'112 works from mobiles'},
+  ma:{police:'19',amb:'15'}, ke:{emerg:'999 / 112'},
+  br:{police:'190',amb:'192',fire:'193'},
+  ar:{emerg:'911',police:'101',amb:'107',fire:'100'},
+  ch:{emerg:'112',police:'117',amb:'144',fire:'118'},
+  ru:{emerg:'112'},
+  eu:{emerg:'112',note:'112 reaches all services across the EU'},
+};
+const EMERGENCY_ALIAS={
+  'united states':'us','usa':'us','us':'us','america':'us','united states of america':'us','u.s.a.':'us','u.s.':'us',
+  'canada':'ca','mexico':'mx','méxico':'mx',
+  'united kingdom':'gb','uk':'gb','u.k.':'gb','england':'gb','scotland':'gb','wales':'gb','northern ireland':'gb','britain':'gb','great britain':'gb',
+  'ireland':'ie','australia':'au','new zealand':'nz','japan':'jp',
+  'south korea':'kr','korea':'kr','republic of korea':'kr',
+  'china':'cn',"people's republic of china":'cn','taiwan':'tw','hong kong':'hk',
+  'singapore':'sg','thailand':'th','vietnam':'vn','viet nam':'vn',
+  'indonesia':'id','bali':'id','malaysia':'my','philippines':'ph','india':'in',
+  'united arab emirates':'ae','uae':'ae','dubai':'ae','abu dhabi':'ae',
+  'israel':'il','turkey':'tr','türkiye':'tr','turkiye':'tr',
+  'egypt':'eg','south africa':'za','morocco':'ma','kenya':'ke',
+  'brazil':'br','brasil':'br','argentina':'ar','switzerland':'ch','russia':'ru',
+  'france':'eu','germany':'eu','deutschland':'eu','italy':'eu','italia':'eu','spain':'eu','españa':'eu','portugal':'eu',
+  'netherlands':'eu','holland':'eu','belgium':'eu','austria':'eu','greece':'eu','poland':'eu','czech republic':'eu','czechia':'eu',
+  'sweden':'eu','norway':'eu','denmark':'eu','finland':'eu','iceland':'eu','croatia':'eu','hungary':'eu','romania':'eu',
+  'bulgaria':'eu','slovakia':'eu','slovenia':'eu','estonia':'eu','latvia':'eu','lithuania':'eu','luxembourg':'eu','malta':'eu','cyprus':'eu',
+};
+function emergencyInfo(country){
+  const q=(country||'').trim().toLowerCase();
+  if(!q)return null;
+  const key=EMERGENCY_ALIAS[q];
+  return key?EMERGENCY_INFO[key]
+    :{emerg:'112 / 911',note:'Most common international emergency numbers — confirm the local number on arrival'};
+}
 function renderOverview(t,d){
   const days=t.start_date&&t.end_date?diffDays(t.start_date,t.end_date)+1:0;
   const totalBudget=d.budgetItems.reduce((a,b)=>a+(+b.planned||0),0);
@@ -2619,6 +2682,32 @@ function renderOverview(t,d){
     </div>`;
   }
 
+  // ── Local emergency numbers for the destination country ──
+  const emerg=emergencyInfo(t.country);
+  let emergHtml='';
+  if(emerg){
+    const chip=(icon,label,num)=>{
+      const dial=num.replace(/[^\d]/g,'');
+      const isTel=/^\d{2,}$/.test(num);
+      const inner=`<div style="font-size:19px;line-height:1">${icon}</div>
+        <div style="min-width:0"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700">${label}</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text)">${num}</div></div>`;
+      const st='display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text)';
+      return isTel?`<a href="tel:${dial}" style="${st}">${inner}</a>`:`<div style="${st}">${inner}</div>`;
+    };
+    const items=[];
+    if(emerg.emerg)items.push(chip('🆘','Emergency',emerg.emerg));
+    if(emerg.police)items.push(chip('👮','Police',emerg.police));
+    if(emerg.amb)items.push(chip('🚑','Ambulance',emerg.amb));
+    if(emerg.fire)items.push(chip('🚒','Fire',emerg.fire));
+    emergHtml=`<div class="card" style="margin-bottom:16px">
+      <div class="section-head"><h2 style="font-size:17px">🚨 Emergency${t.country?` · ${esc(t.country)}`:''}</h2></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">${items.join('')}</div>
+      ${emerg.note?`<p style="font-size:12px;color:var(--muted);margin-top:10px">${esc(emerg.note)}</p>`:''}
+      <p style="font-size:11px;color:var(--dim);margin-top:6px">Tip: also save your embassy or consulate contact before you travel.</p>
+    </div>`;
+  }
+
   return`
   ${todayHtml}
   ${warnHtml}
@@ -2636,6 +2725,7 @@ function renderOverview(t,d){
   </div>
   ${funStats.length?`<div class="fun-stats">${funStats.map(funStatCard).join('')}</div>`:''}
   <div id="wxWidget"></div>
+  ${emergHtml}
 
   <!-- Members -->
   <div class="card" style="margin-bottom:16px">
@@ -3894,6 +3984,40 @@ async function cloneTrip(tripId){
 }
 
 /* ── Trip Modal ── */
+// Curated travel-themed emoji set for the trip picker
+const TRIP_EMOJI_GROUPS=[
+  ['Places',['🗼','🗽','🗿','🏰','🏯','🏛️','⛩️','🕌','🕍','⛪','🛕','🏟️','🎡','🎢','🎠','🌉','🌁','🏙️','🌃']],
+  ['Nature',['🏝️','🏖️','🏜️','⛰️','🏔️','🌋','🗻','🏕️','🌅','🌄','🌌','🌊','🌴','🌸','🌺','🍁','❄️','☀️','🌈','⭐','🌙']],
+  ['Travel',['✈️','🛫','🚂','🚆','🚗','🚕','🚌','🛳️','⛵','🚀','🚁','🚲','🛵','🚠','🗺️','🧭','🧳','🎒','📸','🎫']],
+  ['Fun & food',['🍜','🍣','🍕','🍔','🌮','🍷','🍺','🍸','☕','🍹','🥂','🏄','🏂','⛷️','🥾','🏊','⛳','🎿','🎉','🎊','🏆','💎','👑']],
+  ['World & wildlife',['🌍','🌎','🌏','🐬','🐢','🐙','🦩','🐨','🐼','🦁','🐘','🦒','🐧','🦈','🐳','🦜']],
+];
+function toggleEmojiPicker(e){
+  e.stopPropagation();
+  const pop=document.getElementById('emojiPickerPop');
+  if(!pop)return;
+  if(!pop.classList.contains('hidden')){pop.classList.add('hidden');return;}
+  if(!pop.dataset.built){
+    pop.innerHTML=TRIP_EMOJI_GROUPS.map(([cat,list])=>
+      `<div class="emoji-cat">${cat}</div>`+
+      list.map(em=>`<button type="button" onclick="pickTripEmoji('${em}')">${em}</button>`).join('')
+    ).join('');
+    pop.dataset.built='1';
+  }
+  pop.classList.remove('hidden');
+  // close on the next outside click
+  setTimeout(()=>document.addEventListener('click',closeEmojiPicker),0);
+}
+function closeEmojiPicker(ev){
+  const pop=document.getElementById('emojiPickerPop');
+  if(pop&&!pop.contains(ev.target)){pop.classList.add('hidden');document.removeEventListener('click',closeEmojiPicker);}
+}
+function pickTripEmoji(em){
+  const inp=document.getElementById('t_emoji');
+  if(inp)inp.value=em;
+  document.getElementById('emojiPickerPop')?.classList.add('hidden');
+  document.removeEventListener('click',closeEmojiPicker);
+}
 function modalTrip(id){
   const t=id?TRIPS.find(x=>x.id===id):{};
   const travelers=t&&t.travelers?t.travelers:[];
@@ -3906,7 +4030,13 @@ function modalTrip(id){
   modal(id?'Edit Trip':'Plan a New Trip',`
   <div class="row">
     <div class="field flex1"><label>Trip Name</label><input id="t_name" value="${esc(t.name||'')}" placeholder="e.g. Japan Spring 2025"></div>
-    <div class="field" style="width:80px"><label>Emoji</label><input id="t_emoji" value="${esc(t.emoji||'')}" placeholder="🗼"></div>
+    <div class="field" style="width:104px;position:relative"><label>Emoji</label>
+      <div class="emoji-input-wrap">
+        <input id="t_emoji" value="${esc(t.emoji||'')}" placeholder="🗼">
+        <button type="button" class="emoji-pick-btn" onclick="toggleEmojiPicker(event)" title="Pick an emoji">▾</button>
+      </div>
+      <div id="emojiPickerPop" class="emoji-pop hidden"></div>
+    </div>
   </div>
   <div class="row">
     <div class="field flex1"><label>Destination</label><input id="t_dest" value="${esc(t.destination||'')}" placeholder="Tokyo, Japan"></div>
