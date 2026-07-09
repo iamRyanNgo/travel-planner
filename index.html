@@ -2595,9 +2595,14 @@ async function loadEmergencyPlaces(t,d){
   const locs=tripDests(t).slice(0,3).map(dq=>({
     label:dq,q:dq.includes(',')||!t.country?dq:`${dq}, ${t.country}`,
   }));
+  const mainSuffix=[t.destination,t.country].filter(Boolean).join(', ');
   (d?.stays||[]).filter(s=>s.confirmed&&(s.name||s.address)).slice(0,3).forEach(s=>{
+    const region=itemRegion(t,s)||mainSuffix;
+    // Address-aware geocoding (same approach as the map) — and deliberately no
+    // bare-name city fallback, which could match a namesake town anywhere
     locs.push({label:s.name||s.address,hotel:true,lat:s.lat,lon:s.lng,
-      q:s.address||[s.name,s.city||t.destination].filter(Boolean).join(', ')});
+      tries:[s.address&&region?`${s.address}, ${region}`:null,s.address||null,s.name&&region?`${s.name}, ${region}`:null],
+      qKey:`emstay|${s.address||s.name}|${region}`});
   });
   if(!locs.length)return;
   box.innerHTML=`<p style="font-size:12px;color:var(--muted);margin-top:10px">Finding nearest hospitals & police…</p>`;
@@ -2605,7 +2610,7 @@ async function loadEmergencyPlaces(t,d){
   for(const loc of locs){
     let lat=loc.lat,lon=loc.lon,label=loc.label;
     if(lat==null||lon==null){
-      const g=await geocodePlace(loc.q);
+      const g=loc.hotel?await geocodeTries(loc.tries,null,loc.qKey):await geocodePlace(loc.q);
       if(!g)continue;
       lat=g.lat;lon=g.lon;
       if(!loc.hotel&&g.label)label=g.label; // show what actually resolved
