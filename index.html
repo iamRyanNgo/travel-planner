@@ -12,8 +12,8 @@
 <link rel="preconnect" href="https://kqlkhathprlhaogwhgjf.supabase.co">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;450;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet"></noscript>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;450;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;450;500;600;700&display=swap" rel="stylesheet"></noscript>
 <style>
 :root {
   /* Refined dark editorial — rich near-black, champagne-gold accent */
@@ -50,7 +50,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.1px}
 #root{overflow-x:clip}
-h1,h2,h3{font-family:'Fraunces',Georgia,serif;font-weight:600;letter-spacing:-.2px}
+h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;letter-spacing:0}
 a{color:var(--blue);text-decoration:none}
 button{font-family:inherit;cursor:pointer;border:none;transition:.15s}
 input,textarea,select{font-family:inherit;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:11px;padding:10px 13px;font-size:14px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -124,7 +124,7 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
 .spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--muted)}
-.loading-screen .brand-lg{font-family:'Fraunces',Georgia,serif;font-size:30px;font-weight:700;letter-spacing:.3px;color:var(--text)}
+.loading-screen .brand-lg{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:700;letter-spacing:.3px;color:var(--text)}
 
 /* ── Auth screens ── */
 .auth-screen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;position:relative;overflow:hidden}
@@ -145,7 +145,7 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
 .brand{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:1;min-width:0}
 .brand-ico{width:26px;height:26px;color:var(--gold);flex-shrink:0}
 .brand-text{display:flex;flex-direction:column;min-width:0}
-.brand-word{font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:600;letter-spacing:-.6px;color:var(--text);line-height:1.05;font-variation-settings:'opsz' 144;white-space:nowrap}
+.brand-word{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:700;letter-spacing:-.2px;color:var(--text);line-height:1;white-space:nowrap}
 .brand-accent{color:var(--gold);font-style:italic;font-weight:500;padding:0 .5px}
 .brand-tag{font-size:9.5px;font-family:'Inter',sans-serif;font-weight:600;color:var(--muted);letter-spacing:2.6px;text-transform:uppercase;margin-top:1px}
 #breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex:1;min-width:0}
@@ -168,7 +168,7 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
 .dash-hero{margin-bottom:40px}
 .trips-divider{display:flex;align-items:center;gap:16px;margin:44px 0 22px}
 .trips-divider::after{content:'';flex:1;height:1px;background:var(--border)}
-.trips-divider span{font-family:'Fraunces',Georgia,serif;font-size:19px;font-weight:600;letter-spacing:-.2px;color:var(--muted);white-space:nowrap}
+.trips-divider span{font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;font-weight:600;letter-spacing:-.2px;color:var(--muted);white-space:nowrap}
 .past-grid{opacity:.72;transition:opacity .2s}
 .past-grid:hover{opacity:1}
 .dash-hero h1{font-size:clamp(30px,5vw,46px);font-weight:700;letter-spacing:-.5px;margin-bottom:8px;color:var(--text)}
@@ -180,7 +180,7 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
 .trip-card-cover .dest-emoji{position:absolute;top:16px;right:16px;font-size:40px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
 .trip-card-cover .status-badge{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:20px;backdrop-filter:blur(8px)}
 .trip-card-body{background:var(--panel);padding:16px}
-.trip-card-body h3{font-size:17px;font-weight:700;margin-bottom:4px;font-family:'Fraunces',Georgia,serif}
+.trip-card-body h3{font-size:17px;font-weight:700;margin-bottom:4px;font-family:'Cormorant Garamond',Georgia,serif}
 .trip-card-body .subtitle{font-size:12px;color:var(--muted);margin-bottom:12px}
 .trip-meta{display:flex;gap:12px;flex-wrap:wrap}
 .trip-meta-item{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px}
@@ -312,10 +312,10 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .summary-row::-webkit-scrollbar{display:none}
 .summary-cell{flex:1 0 auto;padding:0 16px;border-left:1px solid var(--border);min-width:72px}
 .summary-cell:first-child{padding-left:0;border-left:none}
-.summary-val{font-family:'Fraunces',Georgia,serif;font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
+.summary-val{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
 .summary-lbl{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-top:4px}
 .stat-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
-.stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Fraunces',Georgia,serif;color:var(--gold)}
+.stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Cormorant Garamond',Georgia,serif;color:var(--gold)}
 .stat-card .stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
 .fun-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:24px}
 .fun-stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px}
@@ -461,7 +461,7 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .traveler-card:hover{border-color:var(--border2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .traveler-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--purple));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;flex-shrink:0}
 .traveler-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
-.traveler-name{font-size:16px;font-weight:700;font-family:'Fraunces',Georgia,serif}
+.traveler-name{font-size:16px;font-weight:700;font-family:'Cormorant Garamond',Georgia,serif}
 .traveler-role{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
 .traveler-fields{display:grid;gap:8px}
 .traveler-field{display:flex;gap:8px;align-items:flex-start;font-size:13px}
@@ -710,7 +710,7 @@ button,a{touch-action:manipulation}
   textarea{border:none;resize:none;padding:0;font-size:11px;color:#333}
 }
 </style>
-<script>(function(){var t=localStorage.getItem('wtn-theme');if(t==='light')document.documentElement.dataset.theme='light';}());</script>
+<script>(function(){try{localStorage.removeItem('wtn-theme');}catch(e){}}());</script>
 </head>
 <body>
 
@@ -1416,7 +1416,7 @@ async function renderSharedTrip(token){
           const evs=byDay(date),fls=flightsOn(date),sts=staysOn(date);
           if(!evs.length&&!fls.length&&!sts.length)return'';
           return`<div class="card" style="margin-bottom:14px">
-            <h3 style="font-family:'Fraunces',Georgia,serif;margin-bottom:10px">Day ${idx+1} · ${fmtDay(date)}</h3>
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;margin-bottom:10px">Day ${idx+1} · ${fmtDay(date)}</h3>
             ${sts.map(s=>`<div class="today-row"><span>🏨</span> ${esc(s.name)}${s.address?` · <span class="muted">${esc(s.address)}</span>`:''}</div>`).join('')}
             ${fls.map(f=>`<div class="today-row"><span>${TRANSPORT_MODES[transportMode(f)].icon}</span> <span class="today-time">${esc((f.depart_date===date?f.depart_time:f.arrive_time)||'')}</span> ${esc(f.from_airport||'')} → ${esc(f.to_airport||'')} ${esc(f.airline||'')}</div>`).join('')}
             ${evs.map(e=>`<div class="today-row"><span>${(CATS[e.category]||CATS.other).icon}</span> <span class="today-time">${esc(e.time||'')}</span> ${esc(e.title)}${e.location?` · <span class="muted">${esc(e.location)}</span>`:''}</div>`).join('')}
@@ -1526,19 +1526,7 @@ function setTab(tab){
     el.classList.add(dir);
   }
 }
-function toggleTheme(){
-  const html=document.documentElement;
-  const isLight=html.dataset.theme==='light';
-  if(isLight)delete html.dataset.theme; else html.dataset.theme='light';
-  localStorage.setItem('wtn-theme',isLight?'dark':'light');
-  const btn=document.getElementById('themeBtn');
-  if(btn)btn.textContent=html.dataset.theme==='light'?'🌙':'☀️';
-  buildMobMenu();
-}
 function buildMobMenu(){
-  const isLight=document.documentElement.dataset.theme==='light';
-  const themeIcon=isLight?'🌙':'☀️';
-  const themeLabel=isLight?'Dark mode':'Light mode';
   if(CUR.view==='trip'){
     const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
     const write=canWrite(t);
@@ -1556,7 +1544,6 @@ function buildMobMenu(){
       t.owner_id===ME?.id?`<button class="mob-menu-item danger" onclick="closeMobMenu();deleteTripConfirm('${t.id}')">🗑 Delete trip</button>`:'',
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
-      `<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${themeIcon} ${themeLabel}</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }else{
@@ -1566,7 +1553,6 @@ function buildMobMenu(){
       `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();exportAllData()">⬇ Export my data</button>`,
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
-      `<button class="mob-menu-item" onclick="closeMobMenu();toggleTheme()">${themeIcon} ${themeLabel}</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }
@@ -1724,12 +1710,10 @@ async function submitRequest(){
 
 function renderAuthHeader(){
   if(!ME)return;
-  const isLight=document.documentElement.dataset.theme==='light';
   document.getElementById('headerActions').innerHTML=`
   <div style="display:flex;align-items:center;gap:8px">
     ${notifBellHTML()}
     ${PWA_PROMPT?`<button class="btn sm ha-desktop" onclick="installPWA()" title="Install app on your device" style="background:linear-gradient(135deg,#3b6fd4,#2451a8);border-color:#3b6fd4;color:#fff">⬇ Install App</button>`:''}
-    <button class="btn sm ghost ha-desktop" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
     <div class="user-chip" onclick="toggleMobMenu(event)" style="cursor:pointer">
       ${ME.picture?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="member-avatar" style="background:var(--border2);font-size:12px">${(ME.name||'?')[0]}</div>`}
@@ -1962,7 +1946,6 @@ function renderTripShell(){
   const _avatar=ME?.picture
     ?`<img src="${esc(ME.picture)}" loading="lazy" decoding="async" alt="">`
     :`<div class="member-avatar" style="width:26px;height:26px;font-size:12px">${(ME?.name||'?')[0]}</div>`;
-  const isLight=document.documentElement.dataset.theme==='light';
   const isOwner=t.owner_id===ME?.id;
   const TABS=[
     {id:'overview',icon:'📋',label:'Overview'},
@@ -1982,7 +1965,6 @@ function renderTripShell(){
       <button class="btn sm ghost" onclick="modalPrint()" title="Print">🖨 <span class="btn-label">Print</span></button>
       <button class="btn sm ghost" onclick="modalCloneTrip('${t.id}')" title="Clone">⎘ <span class="btn-label">Clone</span></button>
       ${write?`<button class="btn sm ghost" onclick="modalTrip('${t.id}')" title="Edit">✎ <span class="btn-label">Edit</span></button>`:''}
-      <button class="btn sm ghost" id="themeBtn" onclick="toggleTheme()" title="Toggle light/dark mode">${isLight?'🌙':'☀️'}</button>
     </div>
     <!-- Always visible: notifications + people + avatar -->
     ${notifBellHTML()}
@@ -2297,7 +2279,7 @@ function renderMapShell(t,d){
   const n=mapPlaces(t,d).length;
   return `
   <div class="section-head">
-    <h2 style="font-family:'Fraunces',Georgia,serif">🗺 Trip Map</h2>
+    <h2 style="font-family:'Cormorant Garamond',Georgia,serif">🗺 Trip Map</h2>
     <span id="mapStatus" style="font-size:12px;color:var(--muted)"></span>
   </div>
   ${regionFilterBar(t,d)}
