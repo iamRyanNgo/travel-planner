@@ -2519,20 +2519,32 @@ async function loadWeather(t){
   if(body&&!any&&!body.innerHTML.trim())body.innerHTML=`<p class="muted" style="font-size:13px">Forecast unavailable right now.</p>`;
 }
 
-// Nearest hospital / police station to a point, via Photon (location-biased,
-// filtered by OSM amenity tag). Returns {name, address, lat, lon, osm ids} or null.
+// Rough distance in km between two points (haversine)
+function kmBetween(lat1,lon1,lat2,lon2){
+  const r=Math.PI/180,dLat=(lat2-lat1)*r,dLon=(lon2-lon1)*r;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLon/2)**2;
+  return 12742*Math.asin(Math.sqrt(a));
+}
+// Nearest hospital / police station to a point, via Photon. lat/lon alone is
+// only a ranking BIAS in Photon — with no nearby match it returns the best
+// text match anywhere on Earth — so restrict with a hard bbox (~±40 km) and
+// double-check the result's real distance before trusting it.
 async function nearestAmenity(lat,lon,kind){
-  const c=geoCache();const key=`amen2|${kind}|${(+lat).toFixed(2)},${(+lon).toFixed(2)}`;
+  const c=geoCache();const key=`amen3|${kind}|${(+lat).toFixed(2)},${(+lon).toFixed(2)}`;
   if(key in c)return c[key];
   try{
-    const res=await fetch(`https://photon.komoot.io/api/?q=${kind}&lat=${lat}&lon=${lon}&limit=1&lang=en&osm_tag=amenity:${kind}`);
+    const dLat=.4,dLon=Math.min(2,.4/Math.max(.1,Math.cos(lat*Math.PI/180)));
+    const bbox=`${lon-dLon},${lat-dLat},${lon+dLon},${lat+dLat}`;
+    const res=await fetch(`https://photon.komoot.io/api/?q=${kind}&lat=${lat}&lon=${lon}&bbox=${bbox}&limit=1&lang=en&osm_tag=amenity:${kind}`);
     if(!res.ok)return null;
     const f=(await res.json())?.features?.[0];
     if(!f)return null;
+    const [rLon,rLat]=f.geometry.coordinates;
+    if(kmBetween(lat,lon,rLat,rLon)>60){geoCacheSet(key,null);return null;} // too far to be "nearest"
     const p=f.properties||{};
     const street=p.housenumber&&p.street?`${p.housenumber} ${p.street}`:p.street;
     const address=[street,p.city||p.district,p.state,p.country].filter(Boolean).join(', ');
-    const out={name:p.name||'',address:address||p.city||p.country||'',lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],osm_type:p.osm_type,osm_id:p.osm_id};
+    const out={name:p.name||'',address:address||p.city||p.country||'',lat:rLat,lon:rLon,osm_type:p.osm_type,osm_id:p.osm_id};
     geoCacheSet(key,out);
     return out;
   }catch{return null}
