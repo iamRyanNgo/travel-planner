@@ -1252,6 +1252,13 @@ async function detectSchemaV14(){
   SCHEMA_V14=!error;
   return SCHEMA_V14;
 }
+let SCHEMA_V15=null;
+async function detectSchemaV15(){
+  if(SCHEMA_V15!==null)return SCHEMA_V15;
+  const {error}=await DB.from('wtn_stays').select('cancel_by').limit(1);
+  SCHEMA_V15=!error;
+  return SCHEMA_V15;
+}
 // Pull exact coordinates + place name out of a Google Maps URL
 function parseGmapsLink(url){
   try{
@@ -1660,7 +1667,7 @@ async function afterSignIn(user){
   renderAuthHeader();
   // Resolve schema feature flags BEFORE the first render/save so cold-start
   // saves don't silently drop lat/lng/region while detection is still pending
-  await Promise.all([detectSchemaV2(),detectSchemaV3(),detectSchemaV4(),detectSchemaV5(),detectSchemaV6(),detectSchemaV7(),detectSchemaV8(),detectSchemaV9(),detectSchemaV10(),detectSchemaV13(),detectSchemaV14()]);
+  await Promise.all([detectSchemaV2(),detectSchemaV3(),detectSchemaV4(),detectSchemaV5(),detectSchemaV6(),detectSchemaV7(),detectSchemaV8(),detectSchemaV9(),detectSchemaV10(),detectSchemaV13(),detectSchemaV14(),detectSchemaV15()]);
   await loadTrips();
   if(PENDING_INVITE){await processInvite(PENDING_INVITE);}
   else{renderDashboard();}
@@ -2110,9 +2117,9 @@ function renderTab(){
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
-  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadTodayWeather(t,d);loadEmergencyPlaces(t,d);}
+  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadTodayWeather(t,d);loadEmergencyPlaces(t,d);fireReminderNotifications(t,tripReminders(t,d));}
   else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);if(ITIN_VIEW==='days')itinScrollToday(t);}
-  else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
+  else if(CUR.tab==='flights'){el.innerHTML=renderFlights(t,d);fillFlightDurations(t,d);}
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
   else if(CUR.tab==='map'){el.innerHTML=renderMapShell(t,d);initTripMap(t,d);}
   else if(CUR.tab==='packing')el.innerHTML=renderPacking(t,d);
@@ -2549,6 +2556,101 @@ async function loadTodayWeather(t,d){
     el2.innerHTML=`${wmoIcon(D.weather_code[0])} <b style="color:var(--text)">${Math.round(D.temperature_2m_max[0])}°</b> / ${Math.round(D.temperature_2m_min[0])}°${rain>=30?` · 💧${rain}%`:''}`;
   }catch{}
 }
+/* ── Reminders: the deadlines a trip actually cares about ── */
+function tripReminders(t,d){
+  const out=[],now=new Date();
+  // Flight check-in opens 24h before departure — that's when seats vanish
+  (d?.flights||[]).forEach(f=>{
+    if(!f.depart_date)return;
+    const dep=new Date(`${f.depart_date}T${f.depart_time||'12:00'}`);
+    if(isNaN(dep))return;
+    const opens=dep.getTime()-24*3600e3;
+    if(now.getTime()>=opens&&now<dep)out.push({id:'ckin|'+f.id,icon:'🛂',urgent:true,
+      msg:`Check-in is open: ${f.from_airport||''} → ${f.to_airport||''}${f.airline?` (${f.airline})`:''} departs ${f.depart_time?f.depart_time+' ':''}${fmtShort(f.depart_date)}${f.confirm_num?` · Conf ${f.confirm_num}`:''}`});
+  });
+  // Free-cancellation windows closing within a week
+  const today=now.toLocaleDateString('en-CA');
+  (d?.stays||[]).forEach(s=>{
+    if(!s.cancel_by)return;
+    const days=diffDays(today,s.cancel_by);
+    if(days>=0&&days<=7)out.push({id:`cxl|${s.id}|${s.cancel_by}`,icon:'🏨',urgent:days<=2,
+      msg:`Free cancellation for ${s.name} ends ${days===0?'TODAY':days===1?'tomorrow':fmt(s.cancel_by)}`});
+  });
+  return out;
+}
+async function enableNotifs(){
+  if(!('Notification' in window)){toast('Notifications not supported on this device');return;}
+  const p=await Notification.requestPermission();
+  if(p==='granted'){toast('🔔 Alerts enabled');renderTab();}
+  else toast('Notifications blocked — enable them in your browser settings');
+}
+// Fire browser/PWA notifications for reminders, once per item per day
+async function fireReminderNotifications(t,rems){
+  if(!('Notification' in window)||Notification.permission!=='granted'||!rems.length)return;
+  const today=new Date().toLocaleDateString('en-CA');
+  let seen={};try{seen=JSON.parse(localStorage.getItem('wtn-notified')||'{}')}catch{}
+  const fresh=rems.filter(r=>!seen[r.id+'|'+today]);
+  if(!fresh.length)return;
+  let reg=null;try{reg=await navigator.serviceWorker?.getRegistration()}catch{}
+  fresh.forEach(r=>{
+    seen[r.id+'|'+today]=1;
+    const title=`WhereToNext — ${t.name||'Trip'}`;
+    try{
+      if(reg?.showNotification)reg.showNotification(title,{body:`${r.icon} ${r.msg}`,tag:r.id});
+      else new Notification(title,{body:`${r.icon} ${r.msg}`,tag:r.id});
+    }catch{}
+  });
+  const keep={};Object.keys(seen).forEach(k=>{if(k.endsWith('|'+today))keep[k]=seen[k];});
+  try{localStorage.setItem('wtn-notified',JSON.stringify(keep))}catch{}
+}
+
+/* ── Time zones: true flight durations across zones ── */
+// UTC offset (seconds) for an airport/city string. Tries an OSM aerodrome
+// match first (so "HND" / "Logan Airport" pin the airport itself), then the
+// city geocoder; the offset comes from Open-Meteo's timezone resolution.
+async function tzOffsetFor(place){
+  if(!place)return null;
+  const c=geoCache();const key='tzoff|'+place;
+  if(key in c)return c[key];
+  let g=null;
+  try{
+    const res=await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(place)}&limit=1&lang=en&osm_tag=aeroway:aerodrome`);
+    if(res.ok){const f=(await res.json())?.features?.[0];if(f)g={lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0]};}
+  }catch{}
+  if(!g)g=await geocodePlace(place);
+  if(!g)return null;
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&timezone=auto&forecast_days=1`);
+    if(!r.ok)return null;
+    const off=(await r.json())?.utc_offset_seconds;
+    if(typeof off!=='number')return null;
+    geoCacheSet(key,off);
+    return off;
+  }catch{return null}
+}
+// True gate-to-gate minutes given each end's UTC offset (local − offset = UTC)
+function flightMinutes(f,offFrom,offTo){
+  if(!f.depart_date||!f.depart_time||!f.arrive_date||!f.arrive_time)return null;
+  const dep=Date.parse(`${f.depart_date}T${f.depart_time}:00Z`)-offFrom*1000;
+  const arr=Date.parse(`${f.arrive_date}T${f.arrive_time}:00Z`)-offTo*1000;
+  if(isNaN(dep)||isNaN(arr))return null;
+  const mins=(arr-dep)/60000;
+  return mins>0&&mins<1440*3?mins:null;
+}
+// Async-fill the duration slot on each flight card once offsets are known
+async function fillFlightDurations(t,d){
+  for(const f of (d?.flights||[])){
+    if(!document.querySelector(`[data-fldur="${f.id}"]`))continue;
+    if(!(f.depart_date&&f.depart_time&&f.arrive_date&&f.arrive_time))continue;
+    const [o1,o2]=await Promise.all([tzOffsetFor(f.from_airport),tzOffsetFor(f.to_airport)]);
+    if(o1==null||o2==null)continue;
+    const mins=flightMinutes(f,o1,o2);
+    const el=document.querySelector(`[data-fldur="${f.id}"]`);
+    if(!el)return; // navigated away
+    if(mins!=null)el.textContent=`${Math.floor(mins/60)}h ${String(Math.round(mins%60)).padStart(2,'0')}m`;
+  }
+}
+
 // Rough distance in km between two points (haversine)
 function kmBetween(lat1,lon1,lat2,lon2){
   const r=Math.PI/180,dLat=(lat2-lat1)*r,dLon=(lon2-lon1)*r;
@@ -2741,13 +2843,19 @@ function renderOverview(t,d){
   const allMembers=[{user_id:t.owner_id,role:'owner',profile:ownerProfile},...(d.members||[])];
 
   // ── Fun stats ──
-  // Total air time from flights that have both depart + arrive datetime
+  // Total air time from flights that have both depart + arrive datetime.
+  // When both ends' UTC offsets are cached (from the Flights tab), correct
+  // across time zones; otherwise fall back to the naive same-zone estimate.
+  const _tzc=geoCache();
+  const _off=p=>{const v=_tzc['tzoff|'+p];return typeof v==='number'?v:null;};
   let airMins=0;
   d.flights.forEach(f=>{
     if(f.depart_date&&f.depart_time&&f.arrive_date&&f.arrive_time){
       const dep=new Date(`${f.depart_date}T${f.depart_time}`);
       const arr=new Date(`${f.arrive_date}T${f.arrive_time}`);
-      const diff=(arr-dep)/60000;
+      let diff=(arr-dep)/60000;
+      const o1=_off(f.from_airport),o2=_off(f.to_airport);
+      if(o1!=null&&o2!=null)diff-=(o2-o1)/60;
       if(diff>0&&diff<1440*3)airMins+=diff; // sanity: ignore negatives / >3 day gaps
     }
   });
@@ -2876,8 +2984,9 @@ function renderOverview(t,d){
   const emerg=emergencyInfo(t.country);
   const customContacts=(Array.isArray(t.emergency_contacts)?t.emergency_contacts:[]).filter(c=>c&&(c.name||c.phone));
   const hasDest=tripDests(t).length>0;
+  const ins=t.insurance&&(t.insurance.provider||t.insurance.policy||t.insurance.phone)?t.insurance:null;
   let emergHtml='';
-  if(emerg||customContacts.length||hasDest){
+  if(emerg||customContacts.length||hasDest||ins){
     const chip=(icon,label,num,tel)=>{
       const inner=`<div style="font-size:19px;line-height:1">${icon}</div>
         <div style="min-width:0"><div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
@@ -2899,17 +3008,53 @@ function renderOverview(t,d){
       const tel=dial.replace(/\+/g,'').length>=3?dial:'';
       return chip('📇',c.name||'Contact',c.phone||'',tel);
     });
+    // Travel insurance: policy + claims line belong next to the numbers
+    const insDial=(ins?.phone||'').replace(/[^\d+]/g,'');
+    const insHtml=ins?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding:11px 13px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;font-size:13px">
+      <span style="font-size:17px">🛡</span>
+      <b>${esc(ins.provider||'Travel insurance')}</b>
+      ${ins.policy?`<span style="color:var(--muted)">Policy <b style="color:var(--text)">${esc(ins.policy)}</b></span>`:''}
+      ${ins.phone?`<a href="tel:${insDial}" style="font-weight:700;color:var(--text);text-decoration:none">📞 ${esc(ins.phone)}</a>`:''}
+    </div>`:'';
+    // Pre-trip prep links per destination country (health, entry rules, embassy)
+    const prepCountries=[...new Set([t.country,...tripDests(t).map(x=>x.includes(',')?x.split(',').pop().trim():null)].filter(Boolean))].slice(0,3);
+    const prepHtml=prepCountries.length?`<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:12px">
+      ${prepCountries.map(c=>{
+        const slug=c.toLowerCase().replace(/[^a-z\s-]/g,'').trim().replace(/\s+/g,'-');
+        return`<span style="color:var(--muted)">${esc(c)}:
+          <a href="https://wwwnc.cdc.gov/travel/destinations/traveler/none/${slug}" target="_blank" rel="noopener" style="color:var(--gold)">Health & vaccines ↗</a> ·
+          <a href="https://www.iatatravelcentre.com/" target="_blank" rel="noopener" style="color:var(--gold)">Entry & visa rules ↗</a> ·
+          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('embassies in '+c)}" target="_blank" rel="noopener" style="color:var(--gold)">Embassies ↗</a>
+        </span>`;
+      }).join('')}
+    </div>`:'';
     emergHtml=`<div class="card" style="margin-bottom:16px">
       <div class="section-head"><h2 style="font-size:17px">🚨 Emergency${t.country?` · ${esc(t.country)}`:''}</h2></div>
       ${items.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">${items.join('')}</div>`:''}
       ${custItems.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:${items.length?'8px':'0'}">${custItems.join('')}</div>`:''}
+      ${insHtml}
       ${hasDest?`<div id="emergPlaces"></div>`:''}
+      ${prepHtml}
       ${emerg&&emerg.note?`<p style="font-size:12px;color:var(--muted);margin-top:10px">${esc(emerg.note)}</p>`:''}
-      ${SCHEMA_V14&&!customContacts.length?`<p style="font-size:11px;color:var(--dim);margin-top:6px">Tip: add your embassy, hotel or a local contact from ✎ Edit trip.</p>`:''}
+      ${SCHEMA_V14&&!customContacts.length?`<p style="font-size:11px;color:var(--dim);margin-top:6px">Tip: add your embassy, hotel or a local contact from ✎ Edit trip${SCHEMA_V15?', and your insurance policy so the claims line is always at hand':''}.</p>`:''}
+    </div>`;
+  }
+
+  // ── Reminders card: check-in windows + cancellation deadlines ──
+  const rems=tripReminders(t,d);
+  let remindersHtml='';
+  if(rems.length){
+    const canAsk=('Notification' in window)&&Notification.permission==='default';
+    remindersHtml=`<div class="card" style="margin-bottom:16px;border-color:var(--orange)">
+      <div class="section-head"><h2 style="font-size:17px">⏰ Reminders</h2>
+        ${canAsk?`<button class="btn sm ghost" onclick="enableNotifs()">🔔 Enable alerts</button>`:''}
+      </div>
+      ${rems.map(r=>`<div style="display:flex;gap:10px;padding:5px 0;font-size:13.5px;${r.urgent?'font-weight:600':''}"><span>${r.icon}</span><span style="min-width:0">${esc(r.msg)}</span></div>`).join('')}
     </div>`;
   }
 
   return`
+  ${remindersHtml}
   ${todayHtml}
   ${warnHtml}
   ${recapHtml}
@@ -3272,7 +3417,7 @@ function flightLeg(f,label,cls){
         <div class="fl-leg-code">${esc(f.from_airport||'—')}</div>
         ${f.depart_date?`<div class="fl-leg-time">${fmtShort(f.depart_date)}${f.depart_time?' · '+esc(f.depart_time):''}</div>`:''}
       </div>
-      <div class="fl-leg-arrow">→</div>
+      <div class="fl-leg-arrow">→<div style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.3px" data-fldur="${f.id||''}"></div></div>
       <div class="fl-leg-point">
         <div class="fl-leg-code">${esc(f.to_airport||'—')}</div>
         ${f.arrive_date?`<div class="fl-leg-time">${fmtShort(f.arrive_date)}${f.arrive_time?' · '+esc(f.arrive_time):''}</div>`:''}
@@ -3399,6 +3544,18 @@ function renderFlights(t,d){
 }
 
 /* ── Stays ── */
+// Free-cancellation status strip: green while comfortably refundable, amber
+// in the final 3 days, muted once the window has closed
+function cancelBadge(s){
+  if(!s.cancel_by)return'';
+  const today=new Date().toLocaleDateString('en-CA');
+  const days=diffDays(today,s.cancel_by);
+  let color,msg;
+  if(days<0){color='var(--dim)';msg=`Free cancellation ended ${fmt(s.cancel_by)}`;}
+  else if(days<=3){color='var(--orange)';msg=`⏰ Free cancellation ends ${days===0?'TODAY':days===1?'tomorrow':`in ${days} days`} — ${fmt(s.cancel_by)}`;}
+  else{color='var(--green)';msg=`✓ Free cancellation until ${fmt(s.cancel_by)}`;}
+  return`<div style="margin-top:10px;padding:7px 11px;border:1px solid ${color};border-radius:9px;font-size:12px;font-weight:600;color:${color}">${msg}</div>`;
+}
 function renderStays(t,d){
   const write=canWrite(t);
   const regionBar=regionFilterBar(t,d);
@@ -3425,6 +3582,7 @@ function renderStays(t,d){
         ${s.phone?`<div class="booking-detail"><div class="bd-label">Phone</div><div class="bd-val"><a href="tel:${esc(s.phone.replace(/[^\d+]/g,''))}" onclick="event.stopPropagation()" style="color:var(--cyan)">${esc(s.phone)}</a></div></div>`:''}
         ${s.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirm_num)}</div></div>`:''}
       </div>
+      ${cancelBadge(s)}
     </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No accommodation added yet.</p></div>`}
   </div>`;
 }
@@ -4322,6 +4480,14 @@ function modalTrip(id){
     <div id="emergList" style="margin-bottom:8px"></div>
     <button class="btn sm ghost" onclick="addEmergContact()">＋ Add Contact</button>
   </div>`:''}
+  ${SCHEMA_V15?`
+  <div class="field"><label>🛡 Travel Insurance</label>
+    <div class="row">
+      <input id="t_ins_provider" placeholder="Provider (e.g. World Nomads)" value="${esc(t.insurance?.provider||'')}" style="flex:1.5">
+      <input id="t_ins_policy" placeholder="Policy #" value="${esc(t.insurance?.policy||'')}" style="flex:1">
+      <input id="t_ins_phone" placeholder="Claims phone" value="${esc(t.insurance?.phone||'')}" style="flex:1" inputmode="tel">
+    </div>
+  </div>`:''}
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px">
     ${id&&t.owner_id===ME?.id?`<button class="btn danger" onclick="deleteTripConfirm('${id}')">Delete</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Cancel</button>
@@ -4435,6 +4601,10 @@ async function saveTrip(id){
   }
   if(SCHEMA_V14){
     data.emergency_contacts=(window._editEmerg||[]).filter(c=>(c.name||'').trim()||(c.phone||'').trim());
+  }
+  if(SCHEMA_V15){
+    const ins={provider:$('#t_ins_provider')?.value.trim()||'',policy:$('#t_ins_policy')?.value.trim()||'',phone:$('#t_ins_phone')?.value.trim()||''};
+    data.insurance=(ins.provider||ins.policy||ins.phone)?ins:null;
   }
   if(id){
     await DB.from('wtn_trips').update(data).eq('id',id);
@@ -4771,6 +4941,8 @@ function modalStay(tripId,stId,presetDate){
   </div>
   <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;cursor:pointer">
     <input type="checkbox" id="st_confirmed"${s.confirmed?' checked':''} style="width:16px;height:16px;accent-color:var(--green)"> Booking confirmed</label></div>
+  ${SCHEMA_V15?`<div class="field"><label>Free Cancellation Until <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— optional, we'll warn you before it ends</span></label>
+    <input id="st_cancel" type="date" value="${s.cancel_by||''}"></div>`:''}
   <div class="field"><label>Address</label><input id="st_addr" value="${esc(s.address||'')}"></div>
   ${SCHEMA_V10?`<div class="field"><label>Google Maps Link <span style="text-transform:none;letter-spacing:0;color:var(--dim)">— optional, pins the exact spot</span></label>
     <input id="st_gmap" placeholder="Paste a maps.google.com place link…" onchange="gmapLinkChanged(this,'st')">
@@ -4798,6 +4970,7 @@ async function saveStay(tripId,stId){
     data.lat=$('#st_lat')?.value?+$('#st_lat').value:null;
     data.lng=$('#st_lng')?.value?+$('#st_lng').value:null;
   }
+  if(SCHEMA_V15)data.cancel_by=$('#st_cancel')?.value||null;
   if(stId){await DB.from('wtn_stays').update(data).eq('id',stId);toast('Updated');}
   else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
   closeModal();await loadTripDetail(tripId);renderTab();
