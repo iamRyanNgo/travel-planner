@@ -343,9 +343,13 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .fun-stat-pop{display:none}
 @media (hover:hover){
   .fun-stat.has-pop{cursor:default}
-  .fun-stat-pop{position:absolute;top:100%;left:0;margin-top:8px;z-index:20;display:flex;flex-wrap:wrap;gap:6px;background:var(--panel);border:1px solid var(--border2);border-radius:12px;padding:10px;box-shadow:var(--shadow);opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s,visibility .15s;pointer-events:none;min-width:100%}
+  /* Raise the whole tile so its popover paints above later cards (the weather
+     card creates its own stacking context via backdrop-filter on the glass theme) */
+  .fun-stat.has-pop:hover,.fun-stat.has-pop:focus-within{z-index:30}
+  .fun-stat-pop{position:absolute;top:100%;left:0;margin-top:8px;z-index:1;display:flex;flex-wrap:wrap;gap:6px;background:var(--panel);border:1px solid var(--border2);border-radius:12px;padding:10px;box-shadow:0 16px 48px rgba(0,0,0,.55);opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s,visibility .15s;pointer-events:none;min-width:100%}
   .fun-stat.has-pop:hover .fun-stat-pop,.fun-stat.has-pop:focus-within .fun-stat-pop{opacity:1;visibility:visible;transform:translateY(0)}
 }
+body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6)}
 .fsp-chip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:7px 11px;font-size:12.5px;font-weight:500;color:var(--text);white-space:nowrap}
 .notes-area{width:100%;resize:vertical;min-height:100px;font-size:14px;line-height:1.6}
 
