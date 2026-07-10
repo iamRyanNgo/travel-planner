@@ -2108,7 +2108,7 @@ function renderTab(){
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
   const d=TD[t.id]||{events:[],flights:[],stays:[],packItems:[],budgetItems:[],members:[]};
-  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadEmergencyPlaces(t,d);}
+  if(CUR.tab==='overview'){el.innerHTML=renderOverview(t,d);loadWeather(t);loadTodayWeather(t,d);loadEmergencyPlaces(t,d);}
   else if(CUR.tab==='itinerary'){el.innerHTML=renderItinerary(t,d);if(ITIN_VIEW==='days')itinScrollToday(t);}
   else if(CUR.tab==='flights')el.innerHTML=renderFlights(t,d);
   else if(CUR.tab==='stays')el.innerHTML=renderStays(t,d);
@@ -2521,6 +2521,32 @@ async function loadWeather(t){
   if(body&&!any&&!body.innerHTML.trim())body.innerHTML=`<p class="muted" style="font-size:13px">Forecast unavailable right now.</p>`;
 }
 
+// Compact one-line forecast for the Today card: weather wherever "today" is —
+// tonight's hotel (exact pin when available), else the primary destination
+async function loadTodayWeather(t,d){
+  const el=document.getElementById('todayWx');if(!el)return;
+  const todayStr=new Date().toLocaleDateString('en-CA');
+  const stay=(d?.stays||[]).find(s=>s.check_in&&s.check_out&&todayStr>=s.check_in&&todayStr<s.check_out);
+  let g=null;
+  if(stay&&stay.lat!=null&&stay.lng!=null)g={lat:+stay.lat,lon:+stay.lng};
+  else{
+    let q=(stay&&(stay.city||itemRegion(t,stay)))||tripDests(t)[0]||'';
+    if(!q)return;
+    if(!q.includes(',')&&t.country)q=`${q}, ${t.country}`;
+    g=await geocodePlace(q);
+  }
+  if(!g)return;
+  const unitPref=localStorage.getItem('wtn-wx-unit');
+  const useF=unitPref?unitPref==='F':(navigator.language||'').startsWith('en-US');
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1${useF?'&temperature_unit=fahrenheit':''}`);
+    if(!r.ok)return;
+    const D=(await r.json()).daily;if(!D?.time)return;
+    const el2=document.getElementById('todayWx');if(!el2)return; // navigated away
+    const rain=D.precipitation_probability_max?.[0]||0;
+    el2.innerHTML=`${wmoIcon(D.weather_code[0])} <b style="color:var(--text)">${Math.round(D.temperature_2m_max[0])}°</b> / ${Math.round(D.temperature_2m_min[0])}°${rain>=30?` · 💧${rain}%`:''}`;
+  }catch{}
+}
 // Rough distance in km between two points (haversine)
 function kmBetween(lat1,lon1,lat2,lon2){
   const r=Math.PI/180,dLat=(lat2-lat1)*r,dLon=(lon2-lon1)*r;
@@ -2793,12 +2819,22 @@ function renderOverview(t,d){
       ...flToday.map(f=>trow(f.depart_time,TRANSPORT_MODES[transportMode(f)].icon,`${esc(`${f.from_airport||''} → ${f.to_airport||''}`)} ${esc(f.airline||'')}${f.confirm_num?` · <b>${esc(f.confirm_num)}</b>`:''}`)),
       ...evToday.map(e=>trow(e.time,(CATS[e.category]||CATS.other).icon,`${esc(e.title)}${e.location?` · <span style="color:var(--muted)">${esc(e.location)}</span>`:''}`)),
     ];
+    // Local weather + emergency numbers for wherever "today" is: tonight's
+    // hotel region when known (multi-country trips), else the trip country
+    const todayRegion=stayTonight?itemRegion(t,stayTonight):null;
+    const todayCountry=(todayRegion||'').split(',').pop().trim()||t.country;
+    const tem=emergencyInfo(todayCountry);
+    const emBits=tem?[tem.emerg&&`🆘 <b>${esc(tem.emerg)}</b>`,tem.police&&`👮 <b>${esc(tem.police)}</b>`,tem.amb&&`🚑 <b>${esc(tem.amb)}</b>`,tem.fire&&`🚒 <b>${esc(tem.fire)}</b>`].filter(Boolean):[];
     todayHtml=`<div class="card today-card">
       <div class="section-head"><h2 style="font-size:17px">📍 Today — Day ${dayNum} of ${days}</h2>
         <span style="display:flex;align-items:center;gap:12px">
           <span style="font-size:12px;color:var(--muted)">${fmt(todayStr)}</span>
           <button class="btn sm ghost" style="font-size:11px;padding:3px 9px" onclick="ITIN_SCROLLED=false;setTab('itinerary')">Full day →</button>
         </span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:0 0 9px;margin-bottom:5px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--muted)">
+        <span id="todayWx"></span>
+        ${emBits.length?`<span>${emBits.join(' · ')}</span>`:''}
+      </div>
       ${rows.length?rows.join(''):'<p style="font-size:13px;color:var(--muted)">Nothing scheduled today — enjoy the freedom! 🏖</p>'}
       ${stayTonight?`<div class="today-row" style="border-top:1px solid var(--border);margin-top:8px;padding-top:10px"><span class="today-time">🌙</span><span class="today-body">Tonight: <b>${esc(stayTonight.name)}</b>${stayTonight.address?` · <a href="${mapsUrl(stayTonight.address)}" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:underline dotted">${esc(stayTonight.address)}</a>`:''}</span></div>`:''}
     </div>`;
