@@ -333,11 +333,20 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .stat-card .stat-val{font-size:28px;font-weight:700;font-family:'Cormorant Garamond',Georgia,serif;color:var(--gold)}
 .stat-card .stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
 .fun-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:24px}
-.fun-stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.fun-stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;position:relative}
 .fun-stat-icon{font-size:22px;flex-shrink:0;width:36px;text-align:center}
-.fun-stat-body{}
+.fun-stat-body{min-width:0}
 .fun-stat-val{font-size:18px;font-weight:700;color:var(--text);line-height:1.2}
 .fun-stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
+.fun-stat-sub{font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+/* Hover popover: destination names as panels side by side (desktop only) */
+.fun-stat-pop{display:none}
+@media (hover:hover){
+  .fun-stat.has-pop{cursor:default}
+  .fun-stat-pop{position:absolute;top:100%;left:0;margin-top:8px;z-index:20;display:flex;flex-wrap:wrap;gap:6px;background:var(--panel);border:1px solid var(--border2);border-radius:12px;padding:10px;box-shadow:var(--shadow);opacity:0;visibility:hidden;transform:translateY(-4px);transition:opacity .15s,transform .15s,visibility .15s;pointer-events:none;min-width:100%}
+  .fun-stat.has-pop:hover .fun-stat-pop,.fun-stat.has-pop:focus-within .fun-stat-pop{opacity:1;visibility:visible;transform:translateY(0)}
+}
+.fsp-chip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:7px 11px;font-size:12.5px;font-weight:500;color:var(--text);white-space:nowrap}
 .notes-area{width:100%;resize:vertical;min-height:100px;font-size:14px;line-height:1.6}
 
 /* ── Members ── */
@@ -2982,7 +2991,7 @@ function renderOverview(t,d){
   const funStats=[
     airTimeStr&&{icon:'✈️',val:airTimeStr,label:'Air Time'},
     totalNights&&{icon:'🌙',val:totalNights,label:`Night${totalNights!==1?'s':''} Away`},
-    destinations.length&&{icon:'📍',val:destinations.length,label:`Destination${destinations.length!==1?'s':''}`,sub:destinations.slice(0,2).join(', ')+(destinations.length>2?'…':'')},
+    destinations.length&&{icon:'📍',val:destinations.length,label:`Destination${destinations.length!==1?'s':''}`,chips:destinations},
     confirmedPct!==null&&{icon:'✅',val:`${confirmedPct}%`,label:'Confirmed'},
     costPerDay&&{icon:'💵',val:formatCost(costPerDay,t.currency),label:'Per Day (est.)'},
     busiestDay&&{icon:'🔥',val:busiestDay,label:'Busiest Day',sub:busiestDaySub},
@@ -2990,13 +2999,15 @@ function renderOverview(t,d){
   ].filter(Boolean);
 
   function funStatCard(s){
-    return`<div class="fun-stat">
+    const hasPop=s.chips&&s.chips.length;
+    return`<div class="fun-stat${hasPop?' has-pop':''}"${hasPop?` tabindex="0" aria-label="${esc(s.val+' '+s.label+': '+s.chips.join(', '))}"`:''}>
       <div class="fun-stat-icon">${s.icon}</div>
       <div class="fun-stat-body">
         <div class="fun-stat-val">${s.val}</div>
         <div class="fun-stat-label">${s.label}</div>
-        ${s.sub?`<div style="font-size:11px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">${esc(s.sub)}</div>`:''}
+        ${s.sub?`<div class="fun-stat-sub">${esc(s.sub)}</div>`:''}
       </div>
+      ${hasPop?`<div class="fun-stat-pop">${s.chips.map(c=>`<span class="fsp-chip">📍 ${esc(c)}</span>`).join('')}</div>`:''}
     </div>`;
   }
 
