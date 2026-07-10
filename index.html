@@ -19,7 +19,7 @@
   /* Refined dark editorial — rich near-black, champagne-gold accent */
   --bg:#0b0d11; --bg2:#0f1217; --panel:#14171d; --panel2:#1b1f27;
   --border:#23262e; --border2:#2f333d;
-  --text:#edeff3; --muted:#8b93a1; --dim:#4d5460;
+  --text:#edeff3; --muted:#8b93a1; --dim:#6b7280;
   --gold:#d9b877; --gold2:#f0d9a4;
   --blue:#7aa0dc; --cyan:#5ec4d2; --green:#5cc295;
   --coral:#e28479; --purple:#ab97e0; --orange:#e0a066; --pink:#dd8bb4;
@@ -32,7 +32,7 @@
   /* Soft muted daylight — easy, warm greige canvas, not stark white */
   --bg:#e5e3dd;--bg2:#dddad2;--panel:#f0eee9;--panel2:#e8e5df;
   --border:#d2cec3;--border2:#c3beb1;
-  --text:#22262e;--muted:#5f6470;--dim:#9b978c;
+  --text:#22262e;--muted:#5f6470;--dim:#6d6b62;
   --gold:#a97e2e;--gold2:#c99a44;
   --blue:#3a6cc0;--cyan:#0e8ba0;--green:#2e9c6f;
   --coral:#cf5b4d;--purple:#7c5fd0;--orange:#c47a2e;--pink:#c25a94;
@@ -255,7 +255,7 @@ body.trip-open .trip-tab.active{background:linear-gradient(160deg,var(--gold2),v
 .split-btn{padding:4px 9px;font-size:12px;flex-shrink:0;margin-left:8px}
 .discuss-chip{display:inline-flex;align-items:center;gap:3px;background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:3px 9px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:.12s}
 .discuss-chip:hover{border-color:var(--gold);color:var(--gold)}
-.discuss-chip.has-activity{color:var(--gold);border-color:rgba(245,197,66,.35);background:rgba(245,197,66,.06)}
+.discuss-chip.has-activity{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 35%,transparent);background:color-mix(in srgb,var(--gold) 6%,transparent)}
 
 /* ── Itinerary day context strips (staying tonight / travel in progress) ── */
 .day-ctx-wrap{margin:2px 0 10px;padding-left:2px}
@@ -274,7 +274,7 @@ body.trip-open .trip-tab.active{background:linear-gradient(160deg,var(--gold2),v
 /* Drag & drop activities between days */
 .event-card[draggable="true"]{cursor:grab}
 .event-card[draggable="true"]:active{cursor:grabbing}
-.day-block.drag-over{outline:2px dashed var(--gold);outline-offset:4px;border-radius:14px;background:rgba(245,197,66,.04)}
+.day-block.drag-over{outline:2px dashed var(--gold);outline-offset:4px;border-radius:14px;background:color-mix(in srgb,var(--gold) 4%,transparent)}
 
 /* ── Mobile gestures: collapsing header + pull-to-refresh ── */
 body{overscroll-behavior-y:contain}
@@ -306,13 +306,13 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .wx-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .wx-row::-webkit-scrollbar{display:none}
 .wx-day{flex:1;min-width:64px;text-align:center;padding:10px 4px;border-radius:12px;border:1px solid transparent}
-.wx-day.on-trip{background:rgba(245,197,66,.07);border-color:var(--border2)}
+.wx-day.on-trip{background:color-mix(in srgb,var(--gold) 7%,transparent);border-color:var(--border2)}
 .wx-date{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .wx-icon{font-size:24px;margin:6px 0 4px}
 .wx-temp{font-size:14px;font-weight:700}
 .wx-temp.lo{font-size:12px;font-weight:500;color:var(--muted)}
 .wx-rain{font-size:10px;color:var(--cyan);min-height:14px;margin-top:2px}
-.today-card{margin-bottom:16px;border-color:var(--gold);box-shadow:0 0 0 1px rgba(245,197,66,.15)}
+.today-card{margin-bottom:16px;border-color:var(--gold);box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 15%,transparent)}
 .today-row{display:flex;align-items:baseline;gap:8px;padding:6px 0;font-size:14px}
 .today-time{font-size:12px;font-weight:700;color:var(--gold);min-width:44px;flex-shrink:0}
 .today-ico{flex-shrink:0}
@@ -347,7 +347,7 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .member-name{font-weight:600;font-size:14px}
 .member-email{font-size:12px;color:var(--muted)}
 .role-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.5px;text-transform:uppercase}
-.role-badge.owner{background:rgba(245,197,66,.15);color:var(--gold);border:1px solid rgba(245,197,66,.3)}
+.role-badge.owner{background:color-mix(in srgb,var(--gold) 15%,transparent);color:var(--gold);border:1px solid color-mix(in srgb,var(--gold) 30%,transparent)}
 .role-badge.editor{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3)}
 .role-badge.viewer{background:rgba(122,144,184,.12);color:var(--muted);border:1px solid var(--border2)}
 
@@ -447,7 +447,7 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .pack-cat-add:hover{background:var(--border);color:var(--text)}
 .pack-quick-add{margin-bottom:8px}
 .pack-quick-input{width:100%;box-sizing:border-box;background:var(--panel);border:1px dashed var(--border2);border-radius:8px;color:var(--text);padding:8px 10px;font-size:13px;outline:none;font-family:inherit}
-.pack-quick-input:focus{border-color:var(--accent);border-style:solid}
+.pack-quick-input:focus{border-color:var(--gold);border-style:solid}
 .pack-quick-input::placeholder{color:var(--dim)}
 
 /* ── Budget ── */
@@ -519,14 +519,26 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 
 /* ── Toast ── */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:12px 22px;border-radius:30px;font-weight:600;font-size:14px;z-index:300;box-shadow:var(--shadow);animation:toastIn .25s ease-out;display:flex;align-items:center;gap:12px;white-space:nowrap}
+.toast.error{border-color:var(--coral);color:var(--text)}
+.toast.error::before{content:'⚠️';margin-right:-4px}
 .toast-action{background:var(--gold);color:#1a1a1a;border:none;border-radius:16px;padding:5px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+/* Respect users who ask for less motion — kill non-essential animation */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+/* Keyboard focus ring — gold, matching inputs; never the UA default outline */
+button:focus-visible,.btn:focus-visible,.trip-tab:focus-visible,.bn-item:focus-visible,.mob-menu-item:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft);border-color:var(--gold)}
+/* Comfortable touch targets on finger-driven devices */
+@media (pointer:coarse){
+  .btn.sm,.trip-tab,.emoji-pick-btn,.print-sel-btn{min-height:44px}
+}
 
 /* ── Category colors ── */
 .cat-flight{background:rgba(74,144,226,.15);color:#7ab4f0}.cat-hotel{background:rgba(167,139,250,.15);color:#c4b0fc}
 .cat-food{background:rgba(251,146,60,.15);color:#fca36a}.cat-activity{background:rgba(34,211,238,.15);color:#67e8f9}
 .cat-transport{background:rgba(52,211,153,.15);color:#6ee7b7}.cat-shopping{background:rgba(244,114,182,.15);color:#f9a8d4}
-.cat-sightseeing{background:rgba(245,197,66,.15);color:#fde68a}.cat-other{background:rgba(122,144,184,.15);color:#a0b4d0}
+.cat-sightseeing{background:color-mix(in srgb,var(--gold) 15%,transparent);color:#fde68a}.cat-other{background:rgba(122,144,184,.15);color:#a0b4d0}
 .dot-flight{background:#4a90e2}.dot-hotel{background:#a78bfa}.dot-food{background:#fb923c}
 .dot-activity{background:#22d3ee}.dot-transport{background:#34d399}.dot-shopping{background:#f472b6}
 .dot-sightseeing{background:#f5c542}.dot-other{background:#7a90b8}
@@ -635,7 +647,7 @@ button,a{touch-action:manipulation}
 /* ── Print selector modal ── */
 .print-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px}
 .print-check-card{position:relative;border:2px solid var(--border);border-radius:12px;padding:14px 10px 12px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:5px;user-select:none;-webkit-tap-highlight-color:transparent}
-.print-check-card:has(input:checked){border-color:var(--gold);background:rgba(245,197,66,.07)}
+.print-check-card:has(input:checked){border-color:var(--gold);background:color-mix(in srgb,var(--gold) 7%,transparent)}
 .print-check-card input{position:absolute;top:8px;right:8px;accent-color:var(--gold);width:15px;height:15px;cursor:pointer;flex-shrink:0}
 .pcc-icon{font-size:22px;pointer-events:none}
 .pcc-label{font-size:11px;font-weight:700;color:var(--text);text-align:center;pointer-events:none;text-transform:uppercase;letter-spacing:.4px}
@@ -753,7 +765,7 @@ button,a{touch-action:manipulation}
 <div id="root"><div class="loading-screen"><div class="brand-lg">✈ WhereToNext</div><div class="spinner"></div><p>Loading…</p></div></div>
 <div id="printView"></div>
 <div id="modalRoot"></div>
-<div id="toastRoot"></div>
+<div id="toastRoot" aria-live="polite" aria-atomic="false"></div>
 
 <script>
 // Global safety net: if anything prevents the app from initializing,
@@ -1037,7 +1049,13 @@ function tripDays(t){
   return days;
 }
 function toast(msg,action){
-  const el=document.createElement('div');el.className='toast';el.textContent=msg;
+  const el=document.createElement('div');
+  // Failure messages read as failure: coral styling + assertive announcement,
+  // so an error no longer looks (or sounds) like a success
+  const isErr=/\b(fail(ed|s)?|error|couldn'?t|could not|can'?t|denied|unable|invalid|required|no account|not (found|saved|supported)|blocked)\b/i.test(msg);
+  el.className=isErr?'toast error':'toast';
+  if(isErr)el.setAttribute('role','alert');
+  el.textContent=msg;
   if(action){
     const b=document.createElement('button');
     b.className='toast-action';b.textContent=action.label||'Undo';
@@ -3264,7 +3282,7 @@ function itinAutoItems(d){
         <div class="itin-auto itin-stay" onclick="setTab('stays')" style="cursor:pointer">
           <div class="itin-auto-icon">🏨</div>
           <div class="itin-auto-body">
-            <div class="itin-auto-title">Check-in · ${esc(s.name||'Accommodation')}</div>
+            <div class="itin-auto-title">Check-in · ${esc(s.name||'Stay')}</div>
             <div class="itin-auto-meta">${s.check_in_time?esc(s.check_in_time)+' · ':''}${esc(s.city||s.address||'')}</div>
           </div>
           <span class="itin-auto-tag tag-stay">STAY ›</span>
@@ -3276,7 +3294,7 @@ function itinAutoItems(d){
         <div class="itin-auto itin-stay" onclick="setTab('stays')" style="cursor:pointer">
           <div class="itin-auto-icon">🧳</div>
           <div class="itin-auto-body">
-            <div class="itin-auto-title">Check-out · ${esc(s.name||'Accommodation')}</div>
+            <div class="itin-auto-title">Check-out · ${esc(s.name||'Stay')}</div>
             <div class="itin-auto-meta">${s.check_out_time?esc(s.check_out_time)+' · ':''}${esc(s.city||s.address||'')}</div>
           </div>
           <span class="itin-auto-tag tag-stay">STAY ›</span>
@@ -3359,7 +3377,7 @@ function renderItinDays(t,d,write){
 
       // Journal preview (tap to edit)
       const jEntry=SCHEMA_V7?(d.journal||[]).find(j=>j.date===date&&j.content):null;
-      const jHtml=jEntry?`<div class="day-ctx" style="background:rgba(245,197,66,.06);color:var(--text);border-color:rgba(245,197,66,.2)" onclick="modalJournal('${t.id}','${date}')">📔 <span style="font-weight:500;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(jEntry.content.slice(0,90))}${jEntry.content.length>90?'…':''}</span></div>`:'';
+      const jHtml=jEntry?`<div class="day-ctx" style="background:color-mix(in srgb,var(--gold) 6%,transparent);color:var(--text);border-color:color-mix(in srgb,var(--gold) 20%,transparent)" onclick="modalJournal('${t.id}','${date}')">📔 <span style="font-weight:500;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(jEntry.content.slice(0,90))}${jEntry.content.length>90?'…':''}</span></div>`:'';
 
       // Context strips: where you're sleeping tonight + travel in progress
       const nightStays=(d.stays||[]).filter(s=>s.check_in&&s.check_out&&date>=s.check_in&&date<s.check_out);
@@ -3627,7 +3645,7 @@ function renderStays(t,d){
   const regionBar=regionFilterBar(t,d);
   d=filterByRegion(d,t);
   return`<div>
-    <div class="section-head"><h2>🏨 Accommodation</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
+    <div class="section-head"><h2>🏨 Stays</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
     ${regionBar}
     ${d.stays.length?d.stays.map(s=>`
     <div class="booking-card" onclick="${write?`modalStay('${t.id}','${s.id}')`:''}" style="${write?'':'cursor:default'}">
@@ -3649,7 +3667,7 @@ function renderStays(t,d){
         ${s.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirm_num)}</div></div>`:''}
       </div>
       ${cancelBadge(s)}
-    </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No accommodation added yet.</p></div>`}
+    </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No stays added yet.</p></div>`}
   </div>`;
 }
 
@@ -3764,7 +3782,7 @@ function collectExpenses(t,d,disp){
   (d.stays||[]).forEach(s=>{
     if(!s.cost)return;
     const a=mkAmt(s.cost,cur);
-    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:a.amt,mixed:a.mixed,confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
+    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Stay',sub:s.city||'',amt:a.amt,mixed:a.mixed,confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
   });
   (d.events||[]).forEach(ev=>{
     if(!ev.cost)return;
@@ -4325,7 +4343,7 @@ function renderSidebar(tripId){
     const p=m.profile||{};
     const initials=(p.name||p.email||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const rc=m.role==='owner'?'var(--gold)':m.role==='editor'?'var(--green)':'var(--muted)';
-    const bg=m.role==='owner'?'rgba(245,197,66,.15)':m.role==='editor'?'rgba(52,211,153,.12)':'rgba(122,144,184,.12)';
+    const bg=m.role==='owner'?'color-mix(in srgb,var(--gold) 15%,transparent)':m.role==='editor'?'rgba(52,211,153,.12)':'rgba(122,144,184,.12)';
     return`<div class="sbar-member">
       ${p.picture?`<img class="sbar-avatar" src="${esc(p.picture)}" loading="lazy" decoding="async" alt="">`:
         `<div class="sbar-avatar" style="background:${bg};color:${rc}">${initials}</div>`}
@@ -4730,8 +4748,17 @@ async function saveTrip(id){
   else renderDashboard();
 }
 
-async function deleteTripConfirm(id){
-  if(!confirm('Delete this trip and all its data?'))return;
+function deleteTripConfirm(id){
+  const t=TRIPS.find(x=>x.id===id);
+  const name=t?.name||'this trip';
+  modal('Delete trip?',`
+  <p style="font-size:14px;line-height:1.6;color:var(--text)">This permanently deletes <b>${esc(name)}</b> and everything in it — itinerary, travel, stays, budget, packing and journal. This can't be undone.</p>
+  <div class="modal-footer" style="margin:18px -22px -22px;border-radius:0 0 20px 20px">
+    <button class="btn ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn danger" style="background:var(--coral);color:#fff;border-color:var(--coral)" onclick="doDeleteTrip('${id}')">Delete forever</button>
+  </div>`);
+}
+async function doDeleteTrip(id){
   const {error}=await DB.from('wtn_trips').delete().eq('id',id);
   if(error){toast('Delete failed: '+(error.message||'server error'));return;}
   TRIPS=TRIPS.filter(t=>t.id!==id);
@@ -5033,7 +5060,7 @@ function modalStay(tripId,stId,presetDate){
     if(t?.end_date&&co>t.end_date)co=t.end_date;
   }
   const s=stId?(TD[tripId]?.stays||[]).find(x=>x.id===stId):{check_in:ci,check_out:co};
-  modal(stId?'Edit Stay':'Add Accommodation',`
+  modal(stId?'Edit Stay':'Add Stay',`
   <div class="field"><label>Property Name</label><input id="st_name" value="${esc(s.name||'')}" placeholder="Park Hyatt Tokyo"></div>
   <div class="row">
     <div class="field flex1"><label>Type</label>
