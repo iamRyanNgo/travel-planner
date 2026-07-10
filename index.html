@@ -3161,7 +3161,7 @@ function renderOverview(t,d){
             <option${m.role==='editor'?' selected':''}>editor</option>
             <option${m.role==='viewer'?' selected':''}>viewer</option>
           </select>
-          <button class="btn sm danger" onclick="removeMember('${t.id}','${m.user_id}')">✕</button>`:''}
+          <button class="btn sm danger" aria-label="Remove member" onclick="removeMember('${t.id}','${m.user_id}')">✕</button>`:''}
       </div>`;
     }).join('')}
     ${allMembers.length===1&&isOwner?`<p class="muted" style="font-size:13px;margin-top:8px">Invite others to collaborate on this trip.</p>`:''}
@@ -4089,18 +4089,39 @@ async function saveSplit(tripId,kind,id,clear){
 /* ═══════════════════════════════════════════════
    MODAL SYSTEM
 ═══════════════════════════════════════════════ */
+let _modalPrevFocus=null,_modalDirty=false;
 function modal(title,body){
   // Close on backdrop click — but only when the press also STARTED on the
   // backdrop, so dragging a text selection out of an input can't dismiss it
+  _modalPrevFocus=document.activeElement;   // restore focus here on close
+  _modalDirty=false;
   document.getElementById('modalRoot').innerHTML=`
-  <div class="modal-bg" onmousedown="this.dataset.downOnBg=String(event.target===this)" onclick="if(event.target===this&&this.dataset.downOnBg==='true')closeModal()">
-    <div class="modal">
-      <div class="modal-header"><h2>${title}</h2><button class="btn sm ghost" onclick="closeModal()">✕</button></div>
+  <div class="modal-bg" onmousedown="this.dataset.downOnBg=String(event.target===this)" onclick="if(event.target===this&&this.dataset.downOnBg==='true')attemptCloseModal()">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+      <div class="modal-header"><h2 id="modalTitle">${title}</h2><button class="btn sm ghost" aria-label="Close" onclick="attemptCloseModal()">✕</button></div>
       <div class="modal-body">${body}</div>
     </div>
   </div>`;
+  const root=document.getElementById('modalRoot');
+  // Any keystroke into a field marks the form dirty (guards accidental close)
+  root.querySelector('.modal-body')?.addEventListener('input',()=>{_modalDirty=true;});
+  // Move focus into the dialog so keyboard/SR users land inside it
+  setTimeout(()=>{
+    const first=root.querySelector('.modal-body input:not([type=hidden]),.modal-body select,.modal-body textarea,.modal-body button');
+    (first||root.querySelector('.modal'))?.focus();
+  },30);
 }
-function closeModal(){document.getElementById('modalRoot').innerHTML='';}
+function closeModal(){
+  document.getElementById('modalRoot').innerHTML='';
+  _modalDirty=false;
+  try{_modalPrevFocus?.focus?.();}catch{}
+  _modalPrevFocus=null;
+}
+// Guarded close: a half-filled form asks before discarding
+function attemptCloseModal(){
+  if(_modalDirty&&!confirm('Discard your changes?'))return;
+  closeModal();
+}
 
 // When a start-type date changes, pull the paired end date along if it's
 // empty or now before the start (plusDays offsets, e.g. +1 night for stays)
@@ -4141,7 +4162,7 @@ function renderHelpSlide(){
     <h3 style="font-size:24px;margin-bottom:10px">${s.t}</h3>
     <p style="font-size:14px;line-height:1.65;color:var(--muted);max-width:400px;margin:0 auto">${s.d}</p>
     <div style="display:flex;justify-content:center;gap:7px;margin:22px 0 6px">
-      ${HELP_SLIDES.map((_,i)=>`<button onclick="HELP_IDX=${i};renderHelpSlide()" title="Slide ${i+1}" style="width:8px;height:8px;border-radius:50%;padding:0;border:none;cursor:pointer;background:${i===HELP_IDX?'var(--gold)':'var(--border2)'}"></button>`).join('')}
+      ${HELP_SLIDES.map((_,i)=>`<button onclick="HELP_IDX=${i};renderHelpSlide()" aria-label="Go to slide ${i+1} of ${HELP_SLIDES.length}"${i===HELP_IDX?' aria-current="true"':''} style="width:24px;height:24px;padding:8px;border:none;background:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center"><span style="width:8px;height:8px;border-radius:50%;background:${i===HELP_IDX?'var(--gold)':'var(--border2)'}"></span></button>`).join('')}
     </div>
   </div>
   <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px;justify-content:space-between">
@@ -4251,7 +4272,13 @@ async function inviteToTrip(tripId){
   const role=$('#inv_role').value;
   if(!email){toast('Enter an email');return;}
 
-  const {data:profile} = await DB.from('wtn_profiles').select('id,name,approved').eq('email',email).single();
+  // Scoped RPC (migration_v17) — returns only the one matched account, so we
+  // don't read the whole profiles table. Falls back to the direct lookup if
+  // the RPC isn't there yet.
+  let profile=null;
+  const {data:rpcRes,error:rpcErr}=await DB.rpc('wtn_find_user_by_email',{p_email:email});
+  if(!rpcErr)profile=Array.isArray(rpcRes)?rpcRes[0]:rpcRes;
+  else{const {data}=await DB.from('wtn_profiles').select('id,name,approved').eq('email',email).single();profile=data;}
   if(!profile){toast('No account found with that email. They need to sign up first.');return;}
   if(!profile.approved){toast('That person hasn\'t been approved yet.');return;}
 
@@ -4492,7 +4519,7 @@ function modalTrip(id){
     <div class="field" style="width:104px;position:relative"><label>Emoji</label>
       <div class="emoji-input-wrap">
         <input id="t_emoji" value="${esc(t.emoji||'')}" placeholder="🗼" maxlength="8">
-        <button type="button" class="emoji-pick-btn" onclick="toggleEmojiPicker(event)" title="Pick an emoji">▾</button>
+        <button type="button" class="emoji-pick-btn" aria-label="Pick an emoji" onclick="toggleEmojiPicker(event)" title="Pick an emoji">▾</button>
       </div>
       <div id="emojiPickerPop" class="emoji-pop hidden"></div>
     </div>
@@ -4527,7 +4554,7 @@ function modalTrip(id){
     <div class="row" style="gap:8px">
       <input id="t_banner_url" placeholder="Paste image URL…" value="${esc(t.banner_url||'')}" oninput="previewBanner(this.value)" style="flex:1">
       <label class="btn sm ghost" style="cursor:pointer;margin:0">📷 Upload<input type="file" accept="image/*" style="display:none" onchange="handleBannerUpload(this)"></label>
-      ${t.banner_url?`<button class="btn sm danger" onclick="clearBanner()">✕</button>`:''}
+      ${t.banner_url?`<button class="btn sm danger" aria-label="Remove banner image" onclick="clearBanner()">✕</button>`:''}
     </div>
   </div>
   <div class="field"><label>Travelers</label>
@@ -4535,7 +4562,7 @@ function modalTrip(id){
       ${travelers.map((tv,i)=>`<div class="row" style="margin-bottom:6px">
         <input placeholder="Name" value="${esc(tv.name)}" oninput="updateTraveler(${i},'name',this.value)" style="flex:2">
         <input placeholder="Role (e.g. Partner)" value="${esc(tv.role||'')}" oninput="updateTraveler(${i},'role',this.value)" style="flex:1">
-        <button class="btn sm danger" onclick="removeTraveler(${i})">✕</button>
+        <button class="btn sm danger" aria-label="Remove traveler" onclick="removeTraveler(${i})">✕</button>
       </div>`).join('')}
     </div>
     <button class="btn sm ghost" onclick="addTraveler()">＋ Add Traveler</button>
@@ -4616,7 +4643,7 @@ function renderDestChips(){
   box.innerHTML=list.map((x,i)=>`
     <span style="display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border2);border-radius:20px;padding:5px 6px 5px 12px;font-size:13px">
       📍 ${esc(x)}
-      <button class="btn sm danger" style="padding:2px 7px;border-radius:14px" onclick="removeDestChip(${i})">✕</button>
+      <button class="btn sm danger" style="padding:2px 7px;border-radius:14px" aria-label="Remove destination" onclick="removeDestChip(${i})">✕</button>
     </span>`).join('');
 }
 function addDestChip(){
@@ -4641,7 +4668,7 @@ function addTraveler(){
   const row=document.createElement('div');row.className='row';row.style.marginBottom='6px';
   row.innerHTML=`<input placeholder="Name" oninput="updateTraveler(${i},'name',this.value)" style="flex:2">
     <input placeholder="Role" oninput="updateTraveler(${i},'role',this.value)" style="flex:1">
-    <button class="btn sm danger" onclick="this.closest('.row').remove()">✕</button>`;
+    <button class="btn sm danger" aria-label="Remove traveler" onclick="this.closest('.row').remove()">✕</button>`;
   document.getElementById('travelerList').appendChild(row);
 }
 function updateTraveler(i,k,v){if(window._editTravelers)window._editTravelers[i][k]=v;}
@@ -4652,7 +4679,7 @@ function renderEmergList(){
   box.innerHTML=list.map((c,i)=>`<div class="row" style="margin-bottom:6px">
     <input placeholder="Label (e.g. Hotel, Embassy)" value="${esc(c.name||'')}" oninput="updateEmerg(${i},'name',this.value)" style="flex:2">
     <input placeholder="Phone" value="${esc(c.phone||'')}" oninput="updateEmerg(${i},'phone',this.value)" style="flex:1.5" inputmode="tel">
-    <button class="btn sm danger" onclick="removeEmerg(${i})">✕</button>
+    <button class="btn sm danger" aria-label="Remove contact" onclick="removeEmerg(${i})">✕</button>
   </div>`).join('');
 }
 function addEmergContact(){
@@ -5618,7 +5645,7 @@ function modalDiscuss(kind,id){
         <span style="font-size:12px;font-weight:700;color:var(--gold)">${esc(nameOf[c.author_id]||'Someone')}</span>
         <span style="display:flex;gap:8px;align-items:baseline">
           <span style="font-size:11px;color:var(--dim)">${new Date(c.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})} ${new Date(c.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span>
-          ${c.author_id===ME?.id||isOwner?`<button class="btn sm ghost" style="padding:1px 7px;font-size:11px" onclick="deleteComment('${kind}','${id}','${c.id}')">✕</button>`:''}
+          ${c.author_id===ME?.id||isOwner?`<button class="btn sm ghost" style="padding:1px 7px;font-size:11px" aria-label="Delete comment" onclick="deleteComment('${kind}','${id}','${c.id}')">✕</button>`:''}
         </span>
       </div>
       <div style="font-size:14px;line-height:1.55;white-space:pre-wrap">${esc(c.content)}</div>
@@ -5932,8 +5959,23 @@ async function openPhotoPanel(btn){
    KEYBOARD SHORTCUTS
 ═══════════════════════════════════════════════ */
 document.addEventListener('keydown',e=>{
+  const root=document.getElementById('modalRoot');
+  if(root&&root.innerHTML){
+    // While a modal is open: Escape closes (with dirty guard), Tab is trapped
+    if(e.key==='Escape'){e.preventDefault();attemptCloseModal();return;}
+    if(e.key==='Tab'){
+      const f=[...root.querySelectorAll('input:not([type=hidden]),select,textarea,button,a[href],[tabindex]:not([tabindex="-1"])')]
+        .filter(el=>!el.disabled&&el.offsetParent!==null);
+      if(f.length){
+        const first=f[0],last=f[f.length-1];
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+    }
+    return; // don't run global shortcuts while a modal is open
+  }
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  if(e.key==='Escape'){closeModal();document.getElementById('peopleDropdown')?.classList.add('hidden');closeMobMenu();}
+  if(e.key==='Escape'){document.getElementById('peopleDropdown')?.classList.add('hidden');closeMobMenu();}
   if(e.key==='n'&&CUR.view==='dashboard')modalTrip();
   if(e.key==='/'&&ME){e.preventDefault();modalSearch();}
 });
