@@ -1571,6 +1571,7 @@ function buildMobMenu(){
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
       themeItem,
+      `<button class="mob-menu-item" onclick="closeMobMenu();openHelpGuide()">❓ Help guide</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }else{
@@ -1581,6 +1582,7 @@ function buildMobMenu(){
       `<button class="mob-menu-item" onclick="closeMobMenu();exportAllData()">⬇ Export my data</button>`,
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       themeItem,
+      `<button class="mob-menu-item" onclick="closeMobMenu();openHelpGuide()">❓ Help guide</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
   }
@@ -3890,6 +3892,39 @@ function syncDate(srcEl,dstId,plusDays=0){
 function syncTime(srcEl,dstId){
   const dst=document.getElementById(dstId);
   if(dst&&srcEl.value&&!dst.value)dst.value=srcEl.value;
+}
+
+/* ── Help guide: a simple feature slideshow ── */
+const HELP_SLIDES=[
+  {e:'👋',t:'Welcome to WhereToNext',d:'Your trips, all in one place — itinerary, travel, hotels, budget, packing and more. This quick tour shows you around; tap Next to flip through.'},
+  {e:'🧳',t:'Create a trip',d:'Tap “＋ New Trip” on the home screen. Give it a name, destination and dates, then pick an emoji and cover photo to make it yours. Add extra destinations for multi-city trips.'},
+  {e:'📆',t:'Build your itinerary',d:'The Itinerary tab lays out every day of your trip. Add activities with times, or type a quick idea onto any day and upgrade it to a real plan later. Drag cards between days to reshuffle.'},
+  {e:'✈️',t:'Travel & stays',d:'Log flights, trains and ferries with confirmation numbers, and hotels with their address. Everything automatically shows up on the right day of the itinerary.'},
+  {e:'🗺',t:'See it on the map',d:'Every place with an address gets pinned on the Map tab. Import spots straight from a Google Maps link and they land exactly where they should.'},
+  {e:'💰',t:'Budget & splitting',d:'Track planned vs actual spending by category. Log who paid for what, and the app figures out who owes who at the end of the trip.'},
+  {e:'👥',t:'Plan together',d:'Invite friends to a trip — they can edit, comment and vote on ideas, and changes appear live for everyone. Assign packing items so nothing gets forgotten.'},
+  {e:'📍',t:'While you travel',d:'The Overview shows a Today card with the day’s plan, local weather and emergency numbers — plus the nearest hospital and police station. You can journal each day and relive it all when you’re home. Safe travels! 🎉'},
+];
+let HELP_IDX=0;
+function openHelpGuide(){HELP_IDX=0;modal('✨ Quick Tour','<div id="helpBody"></div>');renderHelpSlide();}
+function helpNav(d){HELP_IDX=Math.max(0,Math.min(HELP_SLIDES.length-1,HELP_IDX+d));renderHelpSlide();}
+function renderHelpSlide(){
+  const el=document.getElementById('helpBody');if(!el)return;
+  const s=HELP_SLIDES[HELP_IDX],n=HELP_SLIDES.length,last=HELP_IDX===n-1;
+  el.innerHTML=`
+  <div style="text-align:center;padding:14px 8px 4px">
+    <div style="font-size:54px;line-height:1;margin-bottom:14px">${s.e}</div>
+    <h3 style="font-size:24px;margin-bottom:10px">${s.t}</h3>
+    <p style="font-size:14px;line-height:1.65;color:var(--muted);max-width:400px;margin:0 auto">${s.d}</p>
+    <div style="display:flex;justify-content:center;gap:7px;margin:22px 0 6px">
+      ${HELP_SLIDES.map((_,i)=>`<button onclick="HELP_IDX=${i};renderHelpSlide()" title="Slide ${i+1}" style="width:8px;height:8px;border-radius:50%;padding:0;border:none;cursor:pointer;background:${i===HELP_IDX?'var(--gold)':'var(--border2)'}"></button>`).join('')}
+    </div>
+  </div>
+  <div class="modal-footer" style="margin:0 -22px -22px;border-radius:0 0 20px 20px;justify-content:space-between">
+    <button class="btn ghost" onclick="helpNav(-1)" style="visibility:${HELP_IDX?'visible':'hidden'}">← Back</button>
+    <span style="font-size:12px;color:var(--dim);align-self:center">${HELP_IDX+1} / ${n}</span>
+    ${last?`<button class="btn primary" onclick="closeModal()">Done ✓</button>`:`<button class="btn primary" onclick="helpNav(1)">Next →</button>`}
+  </div>`;
 }
 
 /* ── Print Modal ── */
