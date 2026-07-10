@@ -991,7 +991,17 @@ let ITIN_HIDE_EMPTY = false;    // hide days with no items
 ═══════════════════════════════════════════════ */
 function uid(){return Math.random().toString(36).slice(2,9)}
 function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#x27;'}[c]))}
-function safeBannerUrl(u){if(!u)return'';if(u.startsWith('data:image/'))return u;try{const p=new URL(u).protocol;if(p!=='https:'&&p!=='http:')return'';}catch{return'';}return u;}
+// Banner URLs land inside style="background-image:url('…')" attributes, so
+// beyond the protocol check, percent-encode every character that could break
+// out of the CSS url() or the HTML attribute (stored-XSS vector otherwise)
+function safeBannerUrl(u){
+  if(!u)return'';
+  // NB: encodeURIComponent leaves ' ( ) alone, so encode by char code
+  const clean=s=>s.replace(/["'<>()\\\s]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase().padStart(2,'0'));
+  if(u.startsWith('data:image/'))return clean(u);
+  try{const p=new URL(u).protocol;if(p!=='https:'&&p!=='http:')return'';}catch{return'';}
+  return clean(u);
+}
 function fmt(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
 function fmtShort(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}
 function fmtDay(iso){if(!iso)return'';const d=new Date(iso+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
@@ -1448,7 +1458,7 @@ async function renderSharedTrip(token){
   root.innerHTML=`
   <div id="tripView">
     <div class="trip-hero" style="${safeBannerUrl(t.banner_url)?`background-image:url('${safeBannerUrl(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
-      <div class="trip-hero-emoji">${t.emoji||'🌍'}</div>
+      <div class="trip-hero-emoji">${esc(t.emoji||'🌍')}</div>
       <div class="trip-hero-content">
         <h1>${esc(t.name)}</h1>
         <div class="trip-dates">
@@ -2008,7 +2018,7 @@ function tripCard(t){
   const isShared=t.owner_id!==ME?.id;
   return`<div class="trip-card" onclick="openTrip('${t.id}')">
     <div class="trip-card-cover${t.banner_url?' has-banner':''}" style="${safeBannerUrl(t.banner_url)?`background-image:url('${safeBannerUrl(t.banner_url)}');background-size:cover;background-position:center`:`background:${GRADIENTS[t.gradient_idx||0]}`}">
-      <div class="dest-emoji">${t.emoji||'🌍'}</div>
+      <div class="dest-emoji">${esc(t.emoji||'🌍')}</div>
       <span class="status-badge" style="background:${statusColor};color:#fff">${cd.label}</span>
     </div>
     <div class="trip-card-body">
@@ -2079,7 +2089,7 @@ function renderTripShell(){
   document.getElementById('root').innerHTML=`
   <div id="tripView">
     <div class="trip-hero">
-      <div class="trip-hero-emoji">${t.emoji||'🌍'}</div>
+      <div class="trip-hero-emoji">${esc(t.emoji||'🌍')}</div>
       <div class="trip-hero-content" style="width:100%">
         <div class="hero-countdown">${esc(cd.label)}${days?` · ${days} day${days!==1?'s':''}`:''}</div>
         <h1>${esc(t.name)}</h1>
@@ -4481,7 +4491,7 @@ function modalTrip(id){
     <div class="field flex1"><label>Trip Name</label><input id="t_name" value="${esc(t.name||'')}" placeholder="e.g. Japan Spring 2025"></div>
     <div class="field" style="width:104px;position:relative"><label>Emoji</label>
       <div class="emoji-input-wrap">
-        <input id="t_emoji" value="${esc(t.emoji||'')}" placeholder="🗼">
+        <input id="t_emoji" value="${esc(t.emoji||'')}" placeholder="🗼" maxlength="8">
         <button type="button" class="emoji-pick-btn" onclick="toggleEmojiPicker(event)" title="Pick an emoji">▾</button>
       </div>
       <div id="emojiPickerPop" class="emoji-pop hidden"></div>
@@ -4677,7 +4687,8 @@ async function saveTrip(id){
     data.insurance=(ins.provider||ins.policy||ins.phone)?ins:null;
   }
   if(id){
-    await DB.from('wtn_trips').update(data).eq('id',id);
+    const {error}=await DB.from('wtn_trips').update(data).eq('id',id);
+    if(error){toast('Could not save trip: '+(error.message||'server error'));return;}
     const idx=TRIPS.findIndex(t=>t.id===id);
     if(idx>=0)Object.assign(TRIPS[idx],data);
     toast('Trip updated ✓');
@@ -4694,7 +4705,8 @@ async function saveTrip(id){
 
 async function deleteTripConfirm(id){
   if(!confirm('Delete this trip and all its data?'))return;
-  await DB.from('wtn_trips').delete().eq('id',id);
+  const {error}=await DB.from('wtn_trips').delete().eq('id',id);
+  if(error){toast('Delete failed: '+(error.message||'server error'));return;}
   TRIPS=TRIPS.filter(t=>t.id!==id);
   delete TD[id];
   closeModal();goHome();toast('Trip deleted');
@@ -4847,12 +4859,12 @@ async function saveEvent(tripId,evId){
     data.lat=$('#ev_lat')?.value?+$('#ev_lat').value:null;
     data.lng=$('#ev_lng')?.value?+$('#ev_lng').value:null;
   }
-  if(evId){
-    await DB.from('wtn_events').update(data).eq('id',evId);
-    toast('Event updated');
-  } else {
-    await DB.from('wtn_events').insert(data);
-    toast('Event added ✓');
+  {
+    const {error}=evId
+      ?await DB.from('wtn_events').update(data).eq('id',evId)
+      :await DB.from('wtn_events').insert(data);
+    if(error){toast('Could not save: '+(error.message||'server error'));return;}
+    toast(evId?'Event updated':'Event added ✓');
   }
   closeModal();await refreshTables(tripId,'wtn_events');
 }
@@ -4949,9 +4961,14 @@ async function saveFlight(tripId,flId){
     confirmed:$('#fl_confirmed').checked,notes:$('#fl_notes').value.trim()||null};
   if(SCHEMA_V4)data.mode=$('#fl_mode')?.value||'flight';
   if(SCHEMA_V6)data.region=$('#fl_region')?.value||null;
-  if(flId){await DB.from('wtn_flights').update(data).eq('id',flId);toast('Updated ✓');}
+  if(flId){
+    const {error}=await DB.from('wtn_flights').update(data).eq('id',flId);
+    if(error){toast('Could not save: '+(error.message||'server error'));return;}
+    toast('Updated ✓');
+  }
   else{
-    await DB.from('wtn_flights').insert(data);
+    const {error}=await DB.from('wtn_flights').insert(data);
+    if(error){toast('Could not save: '+(error.message||'server error'));return;}
     if($('#fl_has_return')?.checked){
       const rFrom=$('#fl_r_from')?.value.trim();
       if(rFrom){
@@ -4966,8 +4983,8 @@ async function saveFlight(tripId,flId){
         };
         if(SCHEMA_V4)ret.mode=data.mode;
         if(SCHEMA_V6)ret.region=data.region;
-        await DB.from('wtn_flights').insert(ret);
-        toast('Round trip added ✓');
+        const {error:e2}=await DB.from('wtn_flights').insert(ret);
+        toast(e2?'Outbound saved, but the return leg failed — add it again':'Round trip added ✓');
       }
     } else { toast('Added ✓'); }
   }
@@ -5041,8 +5058,13 @@ async function saveStay(tripId,stId){
     data.lng=$('#st_lng')?.value?+$('#st_lng').value:null;
   }
   if(SCHEMA_V15)data.cancel_by=$('#st_cancel')?.value||null;
-  if(stId){await DB.from('wtn_stays').update(data).eq('id',stId);toast('Updated');}
-  else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
+  {
+    const {error}=stId
+      ?await DB.from('wtn_stays').update(data).eq('id',stId)
+      :await DB.from('wtn_stays').insert(data);
+    if(error){toast('Could not save: '+(error.message||'server error'));return;}
+    toast(stId?'Updated':'Stay added ✓');
+  }
   closeModal();await refreshTables(tripId,'wtn_stays');
 }
 async function deleteStay(tripId,id){deleteRowUndo(tripId,'wtn_stays',id,'Stay');}
@@ -5270,8 +5292,13 @@ async function saveBudgetItem(tripId,bId){
     const sel=[...document.querySelectorAll('.b-split:checked')].map(x=>x.value);
     data.split_with=sel.length?sel:null;
   }
-  if(bId){await DB.from('wtn_budget_items').update(data).eq('id',bId);toast('Updated');}
-  else{await DB.from('wtn_budget_items').insert(data);toast('Added ✓');}
+  {
+    const {error}=bId
+      ?await DB.from('wtn_budget_items').update(data).eq('id',bId)
+      :await DB.from('wtn_budget_items').insert(data);
+    if(error){toast('Could not save: '+(error.message||'server error'));return;}
+    toast(bId?'Updated':'Added ✓');
+  }
   closeModal();await refreshTables(tripId,'wtn_budget_items');
 }
 async function deleteBudgetItem(tripId,id){deleteRowUndo(tripId,'wtn_budget_items',id,'Budget item');}
@@ -5451,8 +5478,13 @@ async function saveTraveler(tripId,tvId){
   const form=readTravelerForm();
   if(!form.name){toast('Name is required');return;}
   const data={trip_id:tripId,...form};
-  if(tvId){await DB.from('wtn_travelers').update(data).eq('id',tvId);toast('Traveler updated ✓');}
-  else{await DB.from('wtn_travelers').insert(data);toast('Traveler added ✓');}
+  {
+    const {error}=tvId
+      ?await DB.from('wtn_travelers').update(data).eq('id',tvId)
+      :await DB.from('wtn_travelers').insert(data);
+    if(error){toast('Could not save: '+(error.message||'server error'));return;}
+    toast(tvId?'Traveler updated ✓':'Traveler added ✓');
+  }
   closeModal();await loadTripDetail(tripId);renderTab();
 }
 
@@ -5811,7 +5843,7 @@ async function runSearch(){
   const ql=q.toLowerCase();
   const trips=TRIPS.filter(t=>(t.name||'').toLowerCase().includes(ql)||(t.destination||'').toLowerCase().includes(ql)).slice(0,5);
   const out=[
-    ...trips.map(t=>row(t.emoji||'🌍',esc(t.name),esc(t.destination||'Trip'),t.id,'overview')),
+    ...trips.map(t=>row(esc(t.emoji||'🌍'),esc(t.name),esc(t.destination||'Trip'),t.id,'overview')),
     ...(ev?.data||[]).map(x=>row('🎭',esc(x.title),[tname(x.trip_id),x.date?fmt(x.date):null].filter(Boolean).join(' · '),x.trip_id,'activities')),
     ...(st?.data||[]).map(x=>row('🏨',esc(x.name),tname(x.trip_id),x.trip_id,'stays')),
     ...(fl?.data||[]).map(x=>row('✈️',esc(`${x.from_airport||''} → ${x.to_airport||''}`),[esc(x.airline||''),tname(x.trip_id)].filter(Boolean).join(' · '),x.trip_id,'flights')),
