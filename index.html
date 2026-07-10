@@ -1456,6 +1456,9 @@ function goHome(){
   if(!requireApproved())return;
   flushNotes();
   CUR={view:'dashboard',tripId:null,tab:'overview'};
+  // Only add a history entry when leaving a trip — a fresh load / repeated
+  // goHome shouldn't stack duplicate dashboard entries
+  if(history.state?.v==='trip')try{history.pushState({v:'dashboard'},'')}catch{}
   renderDashboard();
 }
 async function openTrip(id,tab='overview'){
@@ -1465,6 +1468,7 @@ async function openTrip(id,tab='overview'){
   if(tab==='activities'){ITIN_VIEW='all';tab='itinerary';}
   else ITIN_VIEW='days';
   CUR={view:'trip',tripId:id,tab};
+  try{history.pushState({v:'trip',trip:id,tab},'')}catch{}
   ITIN_COLLAPSED=new Set();
   ITIN_HIDE_EMPTY=false;
   REGION_FILTER=null;
@@ -1474,6 +1478,32 @@ async function openTrip(id,tab='overview'){
   renderTab();
   if(await detectSchemaV7())subscribeTripRealtime(id);
 }
+// ── Browser history integration: Back/Forward (incl. mouse side buttons)
+// steps through dashboard ↔ trip ↔ tab moves instead of leaving the app ──
+async function navRestore(s){
+  if(!ME)return;
+  flushNotes();
+  const trip=s?.v==='trip'?TRIPS.find(x=>x.id===s.trip):null;
+  if(!trip){ // dashboard (or a trip we no longer have access to)
+    CUR={view:'dashboard',tripId:null,tab:'overview'};
+    renderDashboard();
+    return;
+  }
+  if(CUR.view==='trip'&&CUR.tripId===trip.id){ // same trip — just switch tab
+    CUR.tab=s.tab||'overview';
+    document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===CUR.tab));
+    updateBottomNav();
+    renderTab();
+    return;
+  }
+  CUR={view:'trip',tripId:trip.id,tab:s.tab||'overview'};
+  ITIN_COLLAPSED=new Set();ITIN_HIDE_EMPTY=false;REGION_FILTER=null;ITIN_SCROLLED=false;
+  renderTripShell();
+  await loadTripDetail(trip.id);
+  renderTab();
+  if(await detectSchemaV7())subscribeTripRealtime(trip.id);
+}
+window.addEventListener('popstate',e=>{navRestore(e.state);});
 const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 // ── Mobile bottom nav: 4 primary tabs + More (the rest live in a sheet) ──
 let CUR_TAB_DEFS=[];
@@ -1537,6 +1567,7 @@ function setTab(tab){
   if(tab==='activities'){ITIN_VIEW='all';tab='itinerary';}
   const prev=CUR.tab;
   CUR.tab=tab;
+  if(prev!==tab)try{history.pushState({v:'trip',trip:CUR.tripId,tab},'')}catch{}
   document.querySelectorAll('.trip-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
   updateBottomNav();
   // Keep the active pill visible in the mobile slider
