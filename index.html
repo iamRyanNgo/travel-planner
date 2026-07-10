@@ -116,6 +116,19 @@ body.trip-open .day-block .event-card,body.trip-open .day-block .itin-auto{
   backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;
   border-color:color-mix(in srgb,#fff 8%,transparent);
 }
+/* Mobile: per-card backdrop-filter over a fixed blurred image is a GPU hog
+   (each card re-blurs every scrolled frame). The backdrop is already blurred,
+   so semi-opaque fills look near-identical at a fraction of the paint cost. */
+@media (max-width:680px){
+  body.trip-open #tripBg{filter:blur(14px) saturate(1.2) brightness(.92)}
+  body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.trip-open .booking-card,body.trip-open .budget-group,body.trip-open .trip-hero,body.trip-open .glass,body.trip-open .day-block,body.trip-open .empty{
+    backdrop-filter:none;-webkit-backdrop-filter:none;
+    background:color-mix(in srgb,var(--panel) 86%,transparent);
+  }
+  [data-theme="light"] body.trip-open .card,[data-theme="light"] body.trip-open .stat-card,[data-theme="light"] body.trip-open .fun-stat,[data-theme="light"] body.trip-open .booking-card,[data-theme="light"] body.trip-open .budget-group,[data-theme="light"] body.trip-open .trip-hero,[data-theme="light"] body.trip-open .day-block,[data-theme="light"] body.trip-open .empty{
+    background:color-mix(in srgb,#fff 88%,transparent);
+  }
+}
 .empty{text-align:center;padding:52px 24px;color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 .empty .icon{font-size:44px;margin-bottom:14px;opacity:.85}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);font-weight:500}
@@ -1036,12 +1049,12 @@ async function deleteRowUndo(tripId,table,id,label){
   if(idx>=0){arr.splice(idx,1);}
   closeModal();renderTab();
   const {error}=await DB.from(table).delete().eq('id',id);
-  if(error){toast('Delete failed');await loadTripDetail(tripId);renderTab();return;}
+  if(error){toast('Delete failed');await refreshTables(tripId,table);return;}
   toast(`${label} deleted`,{label:'Undo',fn:async()=>{
     if(!row)return;
     const {error:e2}=await DB.from(table).insert(row);
     if(e2){toast('Could not restore');return;}
-    await loadTripDetail(tripId);renderTab();
+    await refreshTables(tripId,table);
     toast('Restored ✓');
   }});
 }
@@ -1306,6 +1319,17 @@ const RT_TABLE_LOADERS={
   wtn_trip_members:id=>DB.from('wtn_trip_members').select('*, wtn_profiles!user_id(id,name,email,picture)').eq('trip_id',id).then(r=>({members:(r.data||[]).map(m=>({...m,profile:m.wtn_profiles}))})),
 };
 let RT_DIRTY=new Set();
+// Refresh only the table(s) a write touched, then re-render — the targeted
+// alternative to re-running the full ~11-query loadTripDetail after a save
+async function refreshTables(tripId,...tables){
+  if(!TD[tripId]){await loadTripDetail(tripId);renderTab();return;}
+  try{
+    const patches=await Promise.all(tables.filter(tb=>RT_TABLE_LOADERS[tb]).map(tb=>RT_TABLE_LOADERS[tb](tripId)));
+    Object.assign(TD[tripId],...patches);
+    cacheTD(tripId,TD[tripId]);
+  }catch{try{await loadTripDetail(tripId)}catch{}}
+  if(CUR.view==='trip'&&CUR.tripId===tripId)renderTab();
+}
 function subscribeTripRealtime(tripId){
   try{
     if(RT_CHANNEL){DB.removeChannel(RT_CHANNEL);RT_CHANNEL=null;}
@@ -2141,7 +2165,7 @@ async function saveQuickExpense(tripId){
   if(error){toast('Could not save expense');return;}
   closeModal();
   toast('💸 Expense logged ✓');
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_budget_items');
 }
 
 function renderTab(){
@@ -4049,7 +4073,7 @@ async function saveSplit(tripId,kind,id,clear){
   if(error){toast('Could not save split');return;}
   closeModal();
   toast(clear?'Split removed':'🤝 Split saved ✓');
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_budget_items');
 }
 
 /* ═══════════════════════════════════════════════
@@ -4545,7 +4569,7 @@ function handleBannerUpload(input){
   const reader=new FileReader();
   reader.onload=e=>{
     const img=new Image();
-    img.onload=()=>{
+    img.onload=async()=>{
       const maxW=1400,maxH=520;
       let w=img.width,h=img.height;
       if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
@@ -4553,7 +4577,21 @@ function handleBannerUpload(input){
       const canvas=document.createElement('canvas');
       canvas.width=w;canvas.height=h;
       canvas.getContext('2d').drawImage(img,0,0,w,h);
-      const url=canvas.toDataURL('image/jpeg',0.82);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.82);
+      previewBanner(dataUrl); // instant preview while the upload runs
+      // Store the JPEG in Storage so the trip row only carries a short URL —
+      // base64 banners in the row made every dashboard load pull megabytes.
+      // Falls back to the inline data-URL if the bucket doesn't exist yet
+      // (migration_v16) so uploads never break.
+      let url=dataUrl;
+      try{
+        const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.82));
+        if(blob&&ME?.id){
+          const path=`${ME.id}/${crypto.randomUUID()}.jpg`;
+          const {error}=await DB.storage.from('wtn-banners').upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000'});
+          if(!error)url=DB.storage.from('wtn-banners').getPublicUrl(path).data.publicUrl;
+        }
+      }catch{}
       const inp=document.getElementById('t_banner_url');if(inp)inp.value=url;
       previewBanner(url);
     };
@@ -4816,7 +4854,7 @@ async function saveEvent(tripId,evId){
     await DB.from('wtn_events').insert(data);
     toast('Event added ✓');
   }
-  closeModal();await loadTripDetail(tripId);renderTab();
+  closeModal();await refreshTables(tripId,'wtn_events');
 }
 async function deleteEvent(tripId,id){deleteRowUndo(tripId,'wtn_events',id,'Event');}
 
@@ -4933,7 +4971,7 @@ async function saveFlight(tripId,flId){
       }
     } else { toast('Added ✓'); }
   }
-  closeModal();await loadTripDetail(tripId);renderTab();
+  closeModal();await refreshTables(tripId,'wtn_flights');
 }
 async function deleteFlight(tripId,id){deleteRowUndo(tripId,'wtn_flights',id,'Travel item');}
 
@@ -5005,7 +5043,7 @@ async function saveStay(tripId,stId){
   if(SCHEMA_V15)data.cancel_by=$('#st_cancel')?.value||null;
   if(stId){await DB.from('wtn_stays').update(data).eq('id',stId);toast('Updated');}
   else{await DB.from('wtn_stays').insert(data);toast('Stay added ✓');}
-  closeModal();await loadTripDetail(tripId);renderTab();
+  closeModal();await refreshTables(tripId,'wtn_stays');
 }
 async function deleteStay(tripId,id){deleteRowUndo(tripId,'wtn_stays',id,'Stay');}
 
@@ -5027,7 +5065,7 @@ function modalPackItem(tripId){
 async function savePackItem(tripId){
   const name=$('#pk_name').value.trim();if(!name){toast('Item name required');return;}
   await DB.from('wtn_pack_items').insert({trip_id:tripId,name,category:$('#pk_cat').value,qty:+$('#pk_qty').value||1,notes:$('#pk_notes').value.trim()||null});
-  toast('Added ✓');closeModal();await loadTripDetail(tripId);renderTab();
+  toast('Added ✓');closeModal();await refreshTables(tripId,'wtn_pack_items');
 }
 function togglePack(tripId,id){
   // Toggle from the data (not a stale onclick arg), flip the row in place —
@@ -5160,7 +5198,7 @@ async function applyPackTemplate(tripId,key){
   if(error){toast('Could not add items');return;}
   closeModal();
   toast(`${tpl.icon} ${rows.length} items added ✓`);
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_pack_items');
 }
 async function seedPackItems(tripId){modalPackTemplates(tripId);}
 
@@ -5178,7 +5216,7 @@ async function uploadTripDoc(tripId,input){
   const {error:dbErr}=await DB.from('wtn_trip_docs').insert({trip_id:tripId,name:file.name,path,mime:file.type||null,size:file.size,uploaded_by:ME?.id});
   if(dbErr){await DB.storage.from('wtn-docs').remove([path]);toast('Upload failed');return;}
   toast('📎 Uploaded ✓');
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_trip_docs');
 }
 async function openTripDoc(path){
   const {data}=await DB.storage.from('wtn-docs').createSignedUrl(path,3600);
@@ -5189,7 +5227,7 @@ async function deleteTripDoc(tripId,id,path){
   await DB.from('wtn_trip_docs').delete().eq('id',id);
   await DB.storage.from('wtn-docs').remove([path]);
   toast('Document deleted');
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_trip_docs');
 }
 
 /* ── Budget Modal ── */
@@ -5234,7 +5272,7 @@ async function saveBudgetItem(tripId,bId){
   }
   if(bId){await DB.from('wtn_budget_items').update(data).eq('id',bId);toast('Updated');}
   else{await DB.from('wtn_budget_items').insert(data);toast('Added ✓');}
-  closeModal();await loadTripDetail(tripId);renderTab();
+  closeModal();await refreshTables(tripId,'wtn_budget_items');
 }
 async function deleteBudgetItem(tripId,id){deleteRowUndo(tripId,'wtn_budget_items',id,'Budget item');}
 
@@ -5711,7 +5749,7 @@ async function confirmImportPlaces(tripId){
   if(error){toast('Import failed: '+(error.message||''));return;}
   closeModal();
   toast(`📥 ${rows.length} places imported as 💭 ideas ✓`);
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_events');
 }
 
 /* ═══════════════════════════════════════════════
@@ -5735,7 +5773,7 @@ async function saveJournal(tripId,date){
   if(error){toast('Could not save journal');return;}
   closeModal();
   toast('📔 Saved ✓');
-  await loadTripDetail(tripId);renderTab();
+  await refreshTables(tripId,'wtn_journal');
 }
 
 /* ═══════════════════════════════════════════════
