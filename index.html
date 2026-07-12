@@ -295,7 +295,7 @@ body.hdr-hide #appHeader{transform:translateY(-100%)}
 .drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.92;box-shadow:0 18px 44px rgba(0,0,0,.55);transform:rotate(1.5deg);border-radius:12px;background:var(--panel)}
 
 /* ── Mobile FAB + Today pill + skeletons ── */
-.fab{display:none;position:fixed;right:16px;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));width:56px;height:56px;border-radius:18px;background:linear-gradient(160deg,var(--gold2),var(--gold));color:#1c1503;font-size:26px;font-weight:700;border:none;box-shadow:0 10px 28px -8px rgba(217,184,119,.6);z-index:95;cursor:pointer;align-items:center;justify-content:center;font-family:inherit;-webkit-tap-highlight-color:transparent}
+.fab{display:none;position:fixed;right:16px;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));width:56px;height:56px;border-radius:18px;background:linear-gradient(160deg,var(--gold2),var(--gold));color:#1c1503;font-size:26px;font-weight:700;border:none;box-shadow:0 10px 28px -8px rgba(217,184,119,.6);z-index:95;cursor:pointer;align-items:center;justify-content:center;font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none}
 .fab:active{transform:scale(.92)}
 @media(max-width:680px){.fab{display:flex}}
 .today-pill{position:fixed;bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 16px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--gold);color:var(--gold);padding:9px 16px;border-radius:30px;font-size:13px;font-weight:700;z-index:94;cursor:pointer;box-shadow:var(--shadow);font-family:inherit;animation:pplIn .2s ease-out}
@@ -2203,8 +2203,54 @@ function renderTripShell(){
         <div class="skel" style="height:130px;opacity:.35"></div>
       </div>
     </div>
-    ${write?`<button class="fab" onclick="fabAction()" title="Add">＋</button>`:''}
+    ${write?`<button class="fab" id="fabBtn" onclick="fabAction()" title="Add" aria-label="Add item">＋</button>`:''}
   </div>`;
+  initFabDrag();
+}
+
+/* ── Draggable FAB: hold + drag to reposition; taps still add. Snaps to the
+   nearest side edge and remembers its spot across sessions. ── */
+function applyFabPos(el){
+  try{
+    const p=JSON.parse(localStorage.getItem('wtn-fab-pos')||'null');
+    if(!p)return;
+    const top=Math.min(Math.max(76,p.topRatio*window.innerHeight),window.innerHeight-130);
+    el.style.top=top+'px';el.style.bottom='auto';
+    if(p.side==='left'){el.style.left='16px';el.style.right='auto';}
+    else{el.style.right='16px';el.style.left='auto';}
+  }catch{}
+}
+function initFabDrag(){
+  const el=document.getElementById('fabBtn');if(!el)return;
+  applyFabPos(el);
+  let sx=0,sy=0,ox=0,oy=0,drag=false;
+  el.addEventListener('pointerdown',e=>{
+    sx=e.clientX;sy=e.clientY;drag=false;
+    const r=el.getBoundingClientRect();ox=r.left;oy=r.top;
+    try{el.setPointerCapture(e.pointerId)}catch{}
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!el.hasPointerCapture||!el.hasPointerCapture(e.pointerId))return;
+    const dx=e.clientX-sx,dy=e.clientY-sy;
+    if(!drag&&Math.hypot(dx,dy)<8)return; // a wobbly tap isn't a drag
+    drag=true;
+    el.style.transition='none';
+    const x=Math.min(Math.max(8,ox+dx),window.innerWidth-el.offsetWidth-8);
+    const y=Math.min(Math.max(76,oy+dy),window.innerHeight-el.offsetHeight-64);
+    el.style.left=x+'px';el.style.top=y+'px';el.style.right='auto';el.style.bottom='auto';
+  });
+  el.addEventListener('pointerup',()=>{
+    sx=0;sy=0;
+    if(!drag)return;
+    // swallow the click that follows a drag so it doesn't open the add picker
+    el.addEventListener('click',c=>{c.stopImmediatePropagation();c.preventDefault();},{once:true,capture:true});
+    const r=el.getBoundingClientRect();
+    const side=r.left+r.width/2<window.innerWidth/2?'left':'right';
+    el.style.transition='left .18s ease,right .18s ease';
+    if(side==='left'){el.style.left='16px';el.style.right='auto';}
+    else{el.style.left='auto';el.style.right='16px';}
+    try{localStorage.setItem('wtn-fab-pos',JSON.stringify({side,topRatio:r.top/window.innerHeight}))}catch{}
+  });
 }
 
 /* ── FAB: adds whatever fits the tab you're on ── */
