@@ -533,6 +533,31 @@ body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,trans
 /* ── Modal ── */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:grid;place-items:center;padding:16px;backdrop-filter:blur(4px)}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:22px;width:100%;max-width:560px;max-height:90vh;overflow:auto;box-shadow:0 32px 90px -20px rgba(0,0,0,.7)}
+/* ── Refined hairlines: borders lit from above, fading toward the base —
+   painted as a border-box gradient behind a padding-box panel fill.
+   (Glass mode overrides background+border with its own frosted treatment.) ── */
+.card,.stat-card,.fun-stat,.booking-card,.budget-stat,.trip-card,.modal{
+  border-color:transparent;
+  background:
+    linear-gradient(var(--panel),var(--panel)) padding-box,
+    linear-gradient(180deg,var(--border2),var(--border) 45%,color-mix(in srgb,var(--border) 40%,transparent)) border-box;
+}
+.card,.stat-card,.fun-stat,.booking-card,.budget-stat{
+  box-shadow:var(--shadow-sm),inset 0 1px 0 color-mix(in srgb,#fff 4%,transparent);
+}
+[data-theme="light"] .card,[data-theme="light"] .stat-card,[data-theme="light"] .fun-stat,[data-theme="light"] .booking-card,[data-theme="light"] .budget-stat{
+  box-shadow:var(--shadow-sm); /* the white inner highlight is invisible noise on light */
+}
+/* Hover feedback: the whole hairline brightens (border-color alone can't,
+   since the gradient paints the border area now) */
+.booking-card:hover,.trip-card:hover{
+  background:
+    linear-gradient(var(--panel),var(--panel)) padding-box,
+    linear-gradient(180deg,color-mix(in srgb,var(--gold) 26%,var(--border2)),var(--border2) 50%,color-mix(in srgb,var(--border) 60%,transparent)) border-box;
+}
+/* Cards that carry a meaningful colored ring keep it (the shared hairline
+   block above would otherwise null their border-color) */
+.today-card{border-color:var(--gold);background:var(--panel)}
 .modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--panel);z-index:1}
 .modal-header h2{font-size:18px;margin:0}
 .modal-body{padding:22px}
