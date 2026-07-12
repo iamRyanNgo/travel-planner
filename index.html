@@ -1254,8 +1254,21 @@ function filterByRegion(d,t){
 }
 function regionFilterBar(t,d){
   if(!SCHEMA_V6)return'';
-  const dests=tripDests(t);
+  let dests=tripDests(t);
   if(dests.length<2)return'';
+  // Order the pins by when you're actually there: the earliest dated item
+  // (event date, hotel check-in, or travel arrival/departure) per destination.
+  // Destinations with nothing dated yet keep their entered order, at the end.
+  const firstDate={};
+  const consider=(x,dt)=>{
+    if(!dt)return;
+    const r=itemRegion(t,x);
+    if(r&&(!firstDate[r]||dt<firstDate[r]))firstDate[r]=dt;
+  };
+  (d?.events||[]).forEach(e=>consider(e,e.date));
+  (d?.stays||[]).forEach(s=>consider(s,s.check_in));
+  (d?.flights||[]).forEach(f=>consider(f,f.arrive_date||f.depart_date));
+  dests=dests.slice().sort((a,b)=>(firstDate[a]||'9999').localeCompare(firstDate[b]||'9999'));
   const unmatched=REGION_FILTER?[...(d.events||[]),...(d.stays||[]),...(d.flights||[])].filter(x=>!itemRegion(t,x)).length:0;
   return`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
     <button class="btn sm ${!REGION_FILTER?'primary':'ghost'}" onclick="setRegionFilter('')">🌍 All</button>
