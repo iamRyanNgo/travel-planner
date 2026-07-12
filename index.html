@@ -467,18 +467,20 @@ body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,trans
 .budget-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
 .budget-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
 /* ── Spend-by-day column chart ── */
-.sbd-wrap{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;padding:26px 44px 0 2px;position:relative}
-.sbd-wrap::after{content:'';position:absolute;left:0;right:0;bottom:17px;height:1px;background:var(--border)}
-.sbd-grid{position:absolute;left:0;right:0;height:1px;background:var(--border);opacity:.55}
-.sbd-grid span{position:absolute;right:2px;top:-13px;font-size:9px;color:var(--dim);font-variant-numeric:tabular-nums}
-.sbd-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;flex:1 0 16px;max-width:36px;min-width:14px;position:relative;z-index:1;cursor:default}
-.sbd-bar{width:100%;max-width:24px;background:color-mix(in srgb,var(--gold) 45%,transparent);border-radius:4px 4px 0 0}
+.sbd-wrap{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;padding:24px 2px 0;position:relative}
+.sbd-wrap::after{content:'';position:absolute;left:0;right:0;bottom:19px;height:1px;background:var(--border)}
+.sbd-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;flex:1 0 14px;max-width:30px;position:relative;z-index:1;cursor:default}
+.sbd-bar{width:100%;max-width:20px;background:color-mix(in srgb,var(--gold) 42%,transparent);border-radius:4px 4px 0 0;transition:background .12s}
 .sbd-col.max .sbd-bar{background:var(--gold)}
-.sbd-col:hover .sbd-bar{background:color-mix(in srgb,var(--gold) 70%,transparent)}
+.sbd-col:hover .sbd-bar{background:color-mix(in srgb,var(--gold) 68%,transparent)}
 .sbd-col.max:hover .sbd-bar{background:var(--gold2)}
-.sbd-x{font-size:9.5px;color:var(--muted);line-height:1;white-space:nowrap}
-.sbd-col.pre{margin-right:9px}
-.sbd-col.pre::after{content:'';position:absolute;right:-6px;top:0;bottom:17px;width:1px;background:var(--border2)}
+.sbd-col.pre .sbd-bar{background:color-mix(in srgb,var(--muted) 30%,transparent)}
+.sbd-col.pre:hover .sbd-bar{background:color-mix(in srgb,var(--muted) 45%,transparent)}
+.sbd-col.pre.max .sbd-bar{background:var(--gold)}
+.sbd-x{font-size:9.5px;color:var(--dim);line-height:1.1;white-space:nowrap;height:10px}
+.sbd-col.pre .sbd-x,.sbd-col.first .sbd-x{color:var(--muted);font-weight:600}
+.sbd-col.pre{margin-right:10px}
+.sbd-col.pre::after{content:'';position:absolute;right:-8px;top:6px;bottom:19px;width:1px;background:var(--border)}
 .sbd-toplabel{font-size:10.5px;font-weight:700;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
 #sbdTip{position:fixed;z-index:400;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:12px;color:var(--text);box-shadow:var(--shadow);pointer-events:none;display:none;white-space:nowrap}
 .budget-stat .bv{font-size:22px;font-weight:700;margin-bottom:2px}
@@ -3948,7 +3950,12 @@ function spendByDayChart(t,d,disp,cur){
   (d.budgetItems||[]).forEach(b=>{const raw=+b.actual||+b.planned||0;if(raw)put(null,conv(raw,b.currency||cur));});
   const cols=[
     {label:'Pre',full:'Pre-trip & undated',pre:true,...pre},
-    ...days.map((dt,i)=>({label:String(+dt.slice(8,10)),full:`Day ${i+1} · ${fmtShort(dt)}`,...buckets.get(dt)})),
+    // first trip day (and any month change) gets "Jul 4"; the rest just the day number
+    ...days.map((dt,i)=>({
+      label:(i===0||dt.slice(8,10)==='01')?fmtShort(dt):String(+dt.slice(8,10)),
+      first:i===0||dt.slice(8,10)==='01',
+      full:`Day ${i+1} · ${fmtShort(dt)}`,...buckets.get(dt),
+    })),
     ...(post.amt?[{label:'Post',full:'After the trip',...post}]:[]),
   ];
   if(!cols.some(c=>c.amt>0))return'';
@@ -3957,22 +3964,20 @@ function spendByDayChart(t,d,disp,cur){
   const H=104;
   const fmtK=v=>v>=1000?`${disp}${Math.round(v/100)/10}k`:formatCost(Math.round(v),disp);
   const maxCol=cols[maxIdx];
-  const maxNote=maxCol.pre?'Pre-trip':maxCol.full.split(' · ').join(' — ');
+  const maxNote=maxCol.pre?'Pre-trip':(days[maxIdx-1]?fmtShort(days[maxIdx-1]):'After the trip');
   return`<div class="budget-group" style="margin-bottom:24px">
-    <div class="budget-group-head"><span>📊 Spend by Day</span><span style="color:var(--muted);font-weight:600;font-size:12px">🔥 Most expensive: ${esc(maxNote)} · <b style="color:var(--text)">${fmtK(max)}</b></span></div>
+    <div class="budget-group-head"><span>📊 Spend by Day</span><span style="color:var(--muted);font-weight:600;font-size:12px">🔥 ${esc(maxNote)} · <b style="color:var(--text)">${fmtK(max)}</b></span></div>
     <div class="sbd-wrap" role="img" aria-label="Bar chart of spending per day. Most expensive: ${esc(maxNote)}, ${fmtK(max)}.">
-      <div class="sbd-grid" style="bottom:${17+H}px"><span>${fmtK(max)}</span></div>
-      <div class="sbd-grid" style="bottom:${17+Math.round(H/2)}px"><span>${fmtK(max/2)}</span></div>
       ${cols.map((c,i)=>`
-      <div class="sbd-col${i===maxIdx?' max':''}${c.pre?' pre':''}" data-sbd="${esc(`${c.full} — ${formatCost(Math.round(c.amt),disp)}${c.n?` · ${c.n} item${c.n!==1?'s':''}`:''}`)}"
+      <div class="sbd-col${i===maxIdx?' max':''}${c.pre?' pre':''}${c.first?' first':''}" data-sbd="${esc(`${c.full} — ${formatCost(Math.round(c.amt),disp)}${c.n?` · ${c.n} item${c.n!==1?'s':''}`:''}`)}"
         aria-label="${esc(`${c.full}: ${formatCost(Math.round(c.amt),disp)}`)}"
         onpointerenter="sbdTipShow(event,this)" onpointerleave="sbdTipHide()">
         ${i===maxIdx?`<div class="sbd-toplabel">${fmtK(c.amt)}</div>`:''}
-        <div class="sbd-bar" style="height:${c.amt?Math.max(3,Math.round(c.amt/max*H)):2}px;${c.amt?'':'opacity:.35'}"></div>
+        <div class="sbd-bar" style="height:${c.amt?Math.max(3,Math.round(c.amt/max*H)):2}px;${c.amt?'':'opacity:.3'}"></div>
         <div class="sbd-x">${esc(c.label)}</div>
       </div>`).join('')}
     </div>
-    <p style="font-size:11px;color:var(--dim);margin-top:8px">Hotels are spread across their nights · flights count on departure day · undated & manual items sit in “Pre”${skipped?' · some items excluded (no exchange rate)':''}</p>
+    <p style="font-size:11px;color:var(--dim);margin-top:8px">Stays are spread across their nights · “Pre” = booked before the trip${skipped?' · some items excluded (no exchange rate)':''}</p>
   </div>`;
 }
 function sbdTipShow(ev,el){
