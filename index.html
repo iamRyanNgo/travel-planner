@@ -466,6 +466,21 @@ body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,trans
 /* ── Budget ── */
 .budget-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
 .budget-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+/* ── Spend-by-day column chart ── */
+.sbd-wrap{display:flex;align-items:flex-end;gap:2px;overflow-x:auto;padding:26px 44px 0 2px;position:relative}
+.sbd-wrap::after{content:'';position:absolute;left:0;right:0;bottom:17px;height:1px;background:var(--border)}
+.sbd-grid{position:absolute;left:0;right:0;height:1px;background:var(--border);opacity:.55}
+.sbd-grid span{position:absolute;right:2px;top:-13px;font-size:9px;color:var(--dim);font-variant-numeric:tabular-nums}
+.sbd-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;flex:1 0 16px;max-width:36px;min-width:14px;position:relative;z-index:1;cursor:default}
+.sbd-bar{width:100%;max-width:24px;background:color-mix(in srgb,var(--gold) 45%,transparent);border-radius:4px 4px 0 0}
+.sbd-col.max .sbd-bar{background:var(--gold)}
+.sbd-col:hover .sbd-bar{background:color-mix(in srgb,var(--gold) 70%,transparent)}
+.sbd-col.max:hover .sbd-bar{background:var(--gold2)}
+.sbd-x{font-size:9.5px;color:var(--muted);line-height:1;white-space:nowrap}
+.sbd-col.pre{margin-right:9px}
+.sbd-col.pre::after{content:'';position:absolute;right:-6px;top:0;bottom:17px;width:1px;background:var(--border2)}
+.sbd-toplabel{font-size:10.5px;font-weight:700;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+#sbdTip{position:fixed;z-index:400;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:12px;color:var(--text);box-shadow:var(--shadow);pointer-events:none;display:none;white-space:nowrap}
 .budget-stat .bv{font-size:22px;font-weight:700;margin-bottom:2px}
 .budget-stat .bl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .budget-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px;cursor:pointer;transition:.15s}
@@ -2210,6 +2225,7 @@ async function saveQuickExpense(tripId){
 }
 
 function renderTab(){
+  sbdTipHide(); // a re-render pulls chart bars out from under a visible tooltip
   document.getElementById('todayPill')?.remove(); // re-added by the itinerary tab when relevant
   const t=TRIPS.find(x=>x.id===CUR.tripId);if(!t)return;
   const el=document.getElementById('tabContent');if(!el)return;
@@ -3859,6 +3875,80 @@ function memberNames(t,d){
   return nameOf;
 }
 
+/* ── Spend by Day chart: when the money actually leaves your pocket.
+   Events land on their date, flights on departure day, hotels spread evenly
+   across their nights; dateless manual budget items (and anything dated
+   before the trip) form the Pre-trip bucket, so the chart reconciles with
+   the Grand Total. One series, one hue; the priciest day is emphasized. ── */
+function spendByDayChart(t,d,disp,cur){
+  if(!t.start_date||!t.end_date)return'';
+  const days=tripDays(t);
+  if(!days.length||days.length>62)return''; // beyond ~2 months bars turn to slivers
+  const conv=(raw,from)=>{const c=convToTrip(+raw||0,from||cur,disp);return c;};
+  const buckets=new Map(days.map(dt=>[dt,{amt:0,n:0}]));
+  const pre={amt:0,n:0},post={amt:0,n:0};
+  let skipped=0;
+  const put=(dt,amt)=>{
+    if(amt===null){skipped++;return;}
+    if(!amt)return;
+    const b=dt&&buckets.has(dt)?buckets.get(dt):(dt&&dt>t.end_date?post:pre);
+    b.amt+=amt;b.n++;
+  };
+  (d.events||[]).forEach(e=>{if(+e.cost)put(e.date,conv(e.cost,e.currency||cur));});
+  (d.flights||[]).forEach(f=>{if(+f.cost)put(f.depart_date,conv(f.cost,cur));});
+  (d.stays||[]).forEach(s=>{
+    if(!+s.cost)return;
+    const total=conv(s.cost,cur);
+    if(total===null){skipped++;return;}
+    const nights=s.check_in&&s.check_out?Math.max(1,diffDays(s.check_in,s.check_out)):0;
+    if(!nights){put(s.check_in||null,total);return;}
+    const per=total/nights;
+    for(let i=0;i<nights;i++){
+      const dt=new Date(s.check_in+'T12:00:00');dt.setDate(dt.getDate()+i);
+      put(dt.toLocaleDateString('en-CA'),per);
+    }
+  });
+  (d.budgetItems||[]).forEach(b=>{const raw=+b.actual||+b.planned||0;if(raw)put(null,conv(raw,b.currency||cur));});
+  const cols=[
+    {label:'Pre',full:'Pre-trip & undated',pre:true,...pre},
+    ...days.map((dt,i)=>({label:String(+dt.slice(8,10)),full:`Day ${i+1} · ${fmtShort(dt)}`,...buckets.get(dt)})),
+    ...(post.amt?[{label:'Post',full:'After the trip',...post}]:[]),
+  ];
+  if(!cols.some(c=>c.amt>0))return'';
+  const max=Math.max(...cols.map(c=>c.amt));
+  const maxIdx=cols.findIndex(c=>c.amt===max);
+  const H=104;
+  const fmtK=v=>v>=1000?`${disp}${Math.round(v/100)/10}k`:formatCost(Math.round(v),disp);
+  const maxCol=cols[maxIdx];
+  const maxNote=maxCol.pre?'Pre-trip':maxCol.full.split(' · ').join(' — ');
+  return`<div class="budget-group" style="margin-bottom:24px">
+    <div class="budget-group-head"><span>📊 Spend by Day</span><span style="color:var(--muted);font-weight:600;font-size:12px">🔥 Most expensive: ${esc(maxNote)} · <b style="color:var(--text)">${fmtK(max)}</b></span></div>
+    <div class="sbd-wrap" role="img" aria-label="Bar chart of spending per day. Most expensive: ${esc(maxNote)}, ${fmtK(max)}.">
+      <div class="sbd-grid" style="bottom:${17+H}px"><span>${fmtK(max)}</span></div>
+      <div class="sbd-grid" style="bottom:${17+Math.round(H/2)}px"><span>${fmtK(max/2)}</span></div>
+      ${cols.map((c,i)=>`
+      <div class="sbd-col${i===maxIdx?' max':''}${c.pre?' pre':''}" data-sbd="${esc(`${c.full} — ${formatCost(Math.round(c.amt),disp)}${c.n?` · ${c.n} item${c.n!==1?'s':''}`:''}`)}"
+        aria-label="${esc(`${c.full}: ${formatCost(Math.round(c.amt),disp)}`)}"
+        onpointerenter="sbdTipShow(event,this)" onpointerleave="sbdTipHide()">
+        ${i===maxIdx?`<div class="sbd-toplabel">${fmtK(c.amt)}</div>`:''}
+        <div class="sbd-bar" style="height:${c.amt?Math.max(3,Math.round(c.amt/max*H)):2}px;${c.amt?'':'opacity:.35'}"></div>
+        <div class="sbd-x">${esc(c.label)}</div>
+      </div>`).join('')}
+    </div>
+    <p style="font-size:11px;color:var(--dim);margin-top:8px">Hotels are spread across their nights · flights count on departure day · undated & manual items sit in “Pre”${skipped?' · some items excluded (no exchange rate)':''}</p>
+  </div>`;
+}
+function sbdTipShow(ev,el){
+  let tip=document.getElementById('sbdTip');
+  if(!tip){tip=document.createElement('div');tip.id='sbdTip';document.body.appendChild(tip);}
+  tip.textContent=el.dataset.sbd;
+  tip.style.display='block';
+  const r=el.getBoundingClientRect();
+  tip.style.left=Math.min(window.innerWidth-170,Math.max(8,r.left+r.width/2-70))+'px';
+  tip.style.top=Math.max(8,r.top-40)+'px';
+}
+function sbdTipHide(){const t=document.getElementById('sbdTip');if(t)t.style.display='none';}
+
 function renderBudget(t,d){
   const write=canWrite(t);
   const cur=t.currency||'$';
@@ -3963,6 +4053,7 @@ function renderBudget(t,d){
       <div style="height:100%;width:${confPct}%;background:var(--green);border-radius:4px 0 0 4px;transition:width .4s"></div>
       <div style="height:100%;width:${potPct}%;background:var(--orange);transition:width .4s"></div>
     </div>
+    ${spendByDayChart(t,d,disp,cur)}
     ${autoConf.length?`
     <div class="budget-group">
       <div class="budget-group-head bg-conf"><span>✓ Confirmed</span><span>${formatCost(Math.round(confTotal),disp)}</span></div>
