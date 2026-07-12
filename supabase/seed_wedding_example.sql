@@ -15,7 +15,22 @@
 -- Day offsets scale to your real trip length (everything is clamped inside
 -- start_date..end_date), so nothing lands outside the trip.
 
-alter table wtn_trips add column if not exists banner_url text;  -- exists in prod; guard for safety
+-- ── Optional columns this script references — created if missing, exactly
+--    as the migrations (v2/v3/v4/v6/v10/v15) would. All idempotent, so this
+--    runs cleanly no matter which migrations have been applied. ──
+alter table wtn_trips   add column if not exists destinations jsonb default '[]';
+alter table wtn_trips   add column if not exists banner_url text;
+alter table wtn_stays   add column if not exists lat double precision;
+alter table wtn_stays   add column if not exists lng double precision;
+alter table wtn_stays   add column if not exists region text;
+alter table wtn_stays   add column if not exists cancel_by date;
+alter table wtn_stays   add column if not exists paid_by uuid references wtn_profiles(id);
+alter table wtn_stays   add column if not exists split_with uuid[];
+alter table wtn_flights add column if not exists mode text default 'flight';
+alter table wtn_flights add column if not exists region text;
+alter table wtn_flights add column if not exists paid_by uuid references wtn_profiles(id);
+alter table wtn_flights add column if not exists split_with uuid[];
+alter table wtn_events  add column if not exists region text;
 
 do $$
 declare
