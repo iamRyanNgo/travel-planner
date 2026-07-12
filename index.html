@@ -1627,7 +1627,7 @@ async function navRestore(s){
   if(await detectSchemaV7())subscribeTripRealtime(trip.id);
 }
 window.addEventListener('popstate',e=>{navRestore(e.state);});
-const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Stays'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
+const TAB_META={overview:{icon:'📋',label:'Overview'},itinerary:{icon:'🗓',label:'Itinerary'},flights:{icon:'✈️',label:'Travel'},stays:{icon:'🏨',label:'Accommodations'},map:{icon:'🗺',label:'Map'},packing:{icon:'🧳',label:'Packing'},budget:{icon:'💰',label:'Budget'},travelers:{icon:'🔒',label:'Travelers'}};
 // ── Mobile bottom nav: 4 primary tabs + More (the rest live in a sheet) ──
 let CUR_TAB_DEFS=[];
 const BOTTOM_PRIMARY=['overview','itinerary','map','budget'];
@@ -2143,7 +2143,7 @@ function renderTripShell(){
     {id:'overview',icon:'📋',label:'Overview'},
     {id:'itinerary',icon:'🗓',label:'Itinerary'},
     {id:'flights',icon:'✈️',label:'Travel'},
-    {id:'stays',icon:'🏨',label:'Stays'},
+    {id:'stays',icon:'🏨',label:'Accommodations'},
     {id:'map',icon:'🗺',label:'Map'},
     {id:'packing',icon:'🧳',label:'Packing'},
     {id:'budget',icon:'💰',label:'Budget'},
@@ -3129,7 +3129,7 @@ function renderOverview(t,d){
     const j=(d.journal||[]).filter(x=>x.content);
     recapHtml=`<div class="card" style="margin-bottom:16px;border-color:var(--gold)">
       <div class="section-head"><h2 style="font-size:17px">🎉 Trip Complete</h2><span style="font-size:12px;color:var(--muted)">${fmt(t.start_date)} → ${fmt(t.end_date)}</span></div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:${j.length?'12px':'0'}">${days} days · ${d.events.length} activities · ${d.flights.length} travel legs · ${d.stays.length} stays</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:${j.length?'12px':'0'}">${days} days · ${d.events.length} activities · ${d.flights.length} travel legs · ${d.stays.length} accommodation${d.stays.length!==1?'s':''}</p>
       ${j.map(en=>`<div style="padding:10px 0;border-top:1px solid var(--border)">
         <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:4px">📔 ${fmt(en.date)}</div>
         <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(en.content)}</div>
@@ -3222,7 +3222,7 @@ function renderOverview(t,d){
       <div class="summary-cell"><div class="summary-val">${days||'—'}</div><div class="summary-lbl">Days</div></div>
       <div class="summary-cell"><div class="summary-val">${d.events.length}</div><div class="summary-lbl">Events</div></div>
       <div class="summary-cell"><div class="summary-val">${d.flights.length}</div><div class="summary-lbl">Travel</div></div>
-      <div class="summary-cell"><div class="summary-val">${d.stays.length}</div><div class="summary-lbl">Stays</div></div>
+      <div class="summary-cell"><div class="summary-val">${d.stays.length}</div><div class="summary-lbl">Accommodations</div></div>
       ${totalBudget?`<div class="summary-cell"><div class="summary-val" style="font-size:22px">${formatCost(totalBudget,t.currency)}</div><div class="summary-lbl">Budget</div></div>`:''}
       ${totalActual?`<div class="summary-cell"><div class="summary-val" style="font-size:22px;color:${totalActual>totalBudget?'var(--coral)':'var(--green)'}">${formatCost(totalActual,t.currency)}</div><div class="summary-lbl">Spent</div></div>`:''}
     </div>
@@ -3356,7 +3356,7 @@ function itinAutoItems(d){
         <div class="itin-auto itin-stay" onclick="setTab('stays')" style="cursor:pointer">
           <div class="itin-auto-icon">🏨</div>
           <div class="itin-auto-body">
-            <div class="itin-auto-title">Check-in · ${esc(s.name||'Stay')}</div>
+            <div class="itin-auto-title">Check-in · ${esc(s.name||'Accommodation')}</div>
             <div class="itin-auto-meta">${s.check_in_time?esc(s.check_in_time)+' · ':''}${esc(s.city||s.address||'')}</div>
           </div>
           <span class="itin-auto-tag tag-stay">STAY ›</span>
@@ -3368,7 +3368,7 @@ function itinAutoItems(d){
         <div class="itin-auto itin-stay" onclick="setTab('stays')" style="cursor:pointer">
           <div class="itin-auto-icon">🧳</div>
           <div class="itin-auto-body">
-            <div class="itin-auto-title">Check-out · ${esc(s.name||'Stay')}</div>
+            <div class="itin-auto-title">Check-out · ${esc(s.name||'Accommodation')}</div>
             <div class="itin-auto-meta">${s.check_out_time?esc(s.check_out_time)+' · ':''}${esc(s.city||s.address||'')}</div>
           </div>
           <span class="itin-auto-tag tag-stay">STAY ›</span>
@@ -3743,7 +3743,7 @@ function renderStays(t,d){
   const regionBar=regionFilterBar(t,d);
   d=filterByRegion(d,t);
   return`<div>
-    <div class="section-head"><h2>🏨 Stays</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
+    <div class="section-head"><h2>🏨 Accommodations</h2>${write?`<button class="btn primary" onclick="modalStay('${t.id}')">＋ Add</button>`:''}</div>
     ${regionBar}
     ${d.stays.length?d.stays.map(s=>`
     <div class="booking-card" onclick="${write?`modalStay('${t.id}','${s.id}')`:''}" style="${write?'':'cursor:default'}">
@@ -3765,7 +3765,7 @@ function renderStays(t,d){
         ${s.confirm_num?`<div class="booking-detail"><div class="bd-label">Confirmation</div><div class="bd-val">${esc(s.confirm_num)}</div></div>`:''}
       </div>
       ${cancelBadge(s)}
-    </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No stays added yet.</p></div>`}
+    </div>`).join(''):`<div class="empty"><div class="icon">🏨</div><p>No accommodations added yet.</p></div>`}
   </div>`;
 }
 
@@ -3880,7 +3880,7 @@ function collectExpenses(t,d,disp){
   (d.stays||[]).forEach(s=>{
     if(!s.cost)return;
     const a=mkAmt(s.cost,cur);
-    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Stay',sub:s.city||'',amt:a.amt,mixed:a.mixed,confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
+    ex.push({kind:'stay',id:s.id,icon:'🏨',name:s.name||'Accommodation',sub:s.city||'',amt:a.amt,mixed:a.mixed,confirmed:!!s.confirmed,manual:false,paid_by:s.paid_by,split_with:s.split_with});
   });
   (d.events||[]).forEach(ev=>{
     if(!ev.cost)return;
@@ -4371,7 +4371,7 @@ const PRINT_TABS=[
   {id:'overview',  icon:'📋',label:'Overview'},
   {id:'itinerary', icon:'🗓',label:'Itinerary'},
   {id:'flights',   icon:'✈️', label:'Travel'},
-  {id:'stays',     icon:'🏨',label:'Stays'},
+  {id:'stays',     icon:'🏨',label:'Accommodations'},
   {id:'activities',icon:'🎭',label:'Activities'},
   {id:'packing',   icon:'🧳',label:'Packing'},
   {id:'budget',    icon:'💰',label:'Budget'},
@@ -4961,7 +4961,7 @@ function modalAddToDay(tripId,date){
   ${item('🎭','New Activity / Event','Food, sightseeing, shopping, plans…',`closeModal();modalEvent('${tripId}','${date||''}')`)}
   ${date&&pickable?item('🗂','Pick from Activities',`Schedule or move an existing activity (${pickable})`,`modalPickActivity('${tripId}','${date}')`):''}
   ${item('✈️','Travel','Flight, train, bus, ferry, car rental…',`closeModal();modalFlight('${tripId}','','${date||''}')`)}
-  ${item('🏨','Stay',date?'Hotel, Airbnb — check-in this day':'Hotel, Airbnb, resort…',`closeModal();modalStay('${tripId}','','${date||''}')`)}`);
+  ${item('🏨','Accommodation',date?'Hotel, Airbnb — check-in this day':'Hotel, Airbnb, resort…',`closeModal();modalStay('${tripId}','','${date||''}')`)}`);
 }
 
 /* ── Pick an existing activity onto a day (mobile-friendly counterpart to drag & drop) ── */
@@ -5236,7 +5236,7 @@ function modalStay(tripId,stId,presetDate){
     if(t?.end_date&&co>t.end_date)co=t.end_date;
   }
   const s=stId?(TD[tripId]?.stays||[]).find(x=>x.id===stId):{check_in:ci,check_out:co};
-  modal(stId?'Edit Stay':'Add Stay',`
+  modal(stId?'Edit Accommodation':'Add Accommodation',`
   <div class="field"><label>Property Name</label><input id="st_name" value="${esc(s.name||'')}" placeholder="Park Hyatt Tokyo"></div>
   <div class="row">
     <div class="field flex1"><label>Type</label>
@@ -5293,11 +5293,11 @@ async function saveStay(tripId,stId){
       ?await DB.from('wtn_stays').update(data).eq('id',stId)
       :await DB.from('wtn_stays').insert(data);
     if(error){toast('Could not save: '+(error.message||'server error'));return;}
-    toast(stId?'Updated':'Stay added ✓');
+    toast(stId?'Updated':'Accommodation added ✓');
   }
   closeModal();await refreshTables(tripId,'wtn_stays');
 }
-async function deleteStay(tripId,id){deleteRowUndo(tripId,'wtn_stays',id,'Stay');}
+async function deleteStay(tripId,id){deleteRowUndo(tripId,'wtn_stays',id,'Accommodation');}
 
 /* ── Packing Modal ── */
 function modalPackItem(tripId){
