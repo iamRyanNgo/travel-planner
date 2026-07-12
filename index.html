@@ -3366,9 +3366,31 @@ function renderItinDays(t,d,write){
   const dayColors=['#f5c542','#4a90e2','#34d399','#f472b6','#fb923c','#a78bfa','#22d3ee','#f87171','#67e8f9','#fde68a'];
   const autoMap=itinAutoItems(d);
 
+  // With a destination selected, show only the days that destination occupies:
+  // its events, its hotel nights (check-in through check-out), its travel days.
+  // (d is already region-filtered here, so we just collect the dates it touches.)
+  let visDays=days,regionNote='';
+  if(REGION_FILTER){
+    const hit=new Set();
+    (d.events||[]).forEach(e=>{if(e.date)hit.add(e.date);});
+    (d.flights||[]).forEach(f=>{if(f.depart_date)hit.add(f.depart_date);if(f.arrive_date)hit.add(f.arrive_date);});
+    (d.stays||[]).forEach(s=>{
+      if(!s.check_in)return;
+      const co=s.check_out||s.check_in;
+      days.forEach(dt=>{if(dt>=s.check_in&&dt<=co)hit.add(dt);});
+    });
+    const matched=days.filter(dt=>hit.has(dt));
+    if(matched.length){
+      visDays=matched;
+      regionNote=`<span style="font-size:12px;color:var(--muted);align-self:center">📍 ${esc(REGION_FILTER.split(',')[0])} · ${matched.length} day${matched.length!==1?'s':''}</span>`;
+    } else {
+      regionNote=`<span style="font-size:12px;color:var(--muted);align-self:center">Nothing scheduled in ${esc(REGION_FILTER.split(',')[0])} yet — showing all days</span>`;
+    }
+  }
+
   // Count totals for filter bar label
   let emptyCount=0;
-  days.forEach(date=>{
+  visDays.forEach(date=>{
     const evs=d.events.filter(e=>e.date===date);
     const auto=autoMap[date]||[];
     if(!evs.length&&!auto.length)emptyCount++;
@@ -3380,8 +3402,10 @@ function renderItinDays(t,d,write){
         ${ITIN_HIDE_EMPTY?'👁 Show all days':`🙈 Hide empty days${emptyCount?' ('+emptyCount+')':''}`}
       </button>
       <button class="btn sm ghost" onclick="exportICS('${t.id}')" title="Download .ics for Google/Apple Calendar">📅 Export to calendar</button>
+      ${regionNote}
     </div>
-    ${days.map((date,idx)=>{
+    ${visDays.map(date=>{
+      const idx=days.indexOf(date); // absolute day number stays trip-relative
       const dayEvents=d.events.filter(e=>e.date===date).sort((a,b)=>(a.time||'23:59').localeCompare(b.time||'23:59'));
       const autoItems=(autoMap[date]||[]).sort((a,b)=>a.sortTime.localeCompare(b.sortTime));
       const totalItems=dayEvents.length+autoItems.length;
