@@ -46,7 +46,7 @@ begin
   insert into wtn_stays (trip_id,name,type,check_in,check_out,address,cost,confirmed,notes,region) values
     (ta,'Shibuya area hotel (suggested)','Hotel','2027-05-15','2027-05-18','Shibuya, Tokyo',540,false,'Anything near the JR Yamanote loop works','Tokyo, Japan'),
     (ta,'Kyoto machiya or hotel (suggested)','Hotel','2027-05-18','2027-05-19','Gion / Kawaramachi, Kyoto',180,false,'One night — pack light','Kyoto, Japan'),
-    (ta,'Jeju wedding hotel','Hotel','2027-05-19','2027-05-25','Jeju City',900,false,'Wedding block — book with the group code','Jeju'),
+    (ta,'Yakmeul Resort (wedding block)','Resort','2027-05-19','2027-05-25','제주시 일주서로 6935, Jeju Island, South Korea',900,false,'The wedding resort — book with the group code','Jeju'),
     (ta,'Myeongdong hotel (suggested)','Hotel','2027-05-25','2027-05-29','Myeongdong, Seoul',560,false,null,'Seoul, South Korea');
 
   insert into wtn_flights (trip_id,from_airport,to_airport,airline,depart_date,depart_time,arrive_date,arrive_time,cost,confirmed,mode,notes) values
@@ -68,7 +68,7 @@ begin
     (ta,'Seongsan Ilchulbong sunrise peak','sightseeing','2027-05-20','07:00','Jeju',5,false,null),
     (ta,'Welcome dinner with the families 🥂','food','2027-05-20','18:30','Jeju',null,true,null),
     (ta,'Beach + rest day (Hyeopjae)','activity','2027-05-21','11:00','Hyeopjae, Jeju',null,false,'Easy day before the wedding'),
-    (ta,'Wedding ceremony 💍','other','2027-05-22','16:00','Ceremony venue, Jeju',null,true,'THE day — May 22, 2027'),
+    (ta,'Wedding ceremony 💍','other','2027-05-22','16:00','Yakmeul Resort, Jeju',null,true,'THE day — May 22, 2027'),
     (ta,'Reception dinner 🥂','food','2027-05-22','18:30','Jeju',null,true,null),
     (ta,'Recovery brunch ☕','food','2027-05-23','11:00','Jeju',20,false,null),
     (ta,'South coast loop: Cheonjeyeon Falls + Oedolgae','sightseeing','2027-05-23','14:00','Seogwipo, Jeju',null,false,null),
@@ -91,7 +91,7 @@ begin
 
   insert into wtn_stays (trip_id,name,type,check_in,check_out,address,cost,confirmed,notes,region) values
     (tb,'Myeongdong hotel (suggested)','Hotel','2027-05-15','2027-05-18','Myeongdong, Seoul',420,false,null,'Seoul, South Korea'),
-    (tb,'Jeju wedding hotel','Hotel','2027-05-18','2027-05-23','Jeju City',750,false,'Wedding block — book with the group code','Jeju'),
+    (tb,'Yakmeul Resort (wedding block)','Resort','2027-05-18','2027-05-23','제주시 일주서로 6935, Jeju Island, South Korea',750,false,'The wedding resort — book with the group code','Jeju'),
     (tb,'Dotonbori hotel (suggested)','Hotel','2027-05-23','2027-05-26','Namba, Osaka',400,false,null,'Osaka, Japan'),
     (tb,'Kyoto hotel (suggested)','Hotel','2027-05-26','2027-05-28','Kawaramachi, Kyoto',300,false,null,'Kyoto, Japan'),
     (tb,'Shinjuku hotel (suggested)','Hotel','2027-05-28','2027-05-30','Shinjuku, Tokyo',380,false,null,'Tokyo, Japan');
@@ -112,7 +112,7 @@ begin
     (tb,'Udo Island by bike 🚲','activity','2027-05-20','10:00','Udo, Jeju',25,false,null),
     (tb,'Welcome dinner with the families 🥂','food','2027-05-20','18:30','Jeju',null,true,null),
     (tb,'Spa / jjimjilbang chill day','activity','2027-05-21','13:00','Jeju',15,false,'Rest up before the big day'),
-    (tb,'Wedding ceremony 💍','other','2027-05-22','16:00','Ceremony venue, Jeju',null,true,'THE day — May 22, 2027'),
+    (tb,'Wedding ceremony 💍','other','2027-05-22','16:00','Yakmeul Resort, Jeju',null,true,'THE day — May 22, 2027'),
     (tb,'Reception dinner 🥂','food','2027-05-22','18:30','Jeju',null,true,null),
     (tb,'Recovery brunch ☕','food','2027-05-23','10:30','Jeju',20,false,null),
     (tb,'Dotonbori neon night + takoyaki','food','2027-05-23','19:30','Osaka',20,false,null),
@@ -137,7 +137,7 @@ begin
   insert into wtn_stays (trip_id,name,type,check_in,check_out,address,cost,confirmed,notes,region) values
     (tc,'Myeongdong hotel (suggested)','Hotel','2027-05-15','2027-05-18','Myeongdong, Seoul',420,false,null,'Seoul, South Korea'),
     (tc,'Haeundae beachfront hotel (suggested)','Hotel','2027-05-18','2027-05-20','Haeundae, Busan',260,false,null,'Busan, South Korea'),
-    (tc,'Jeju wedding hotel','Hotel','2027-05-20','2027-05-25','Jeju City',750,false,'Wedding block — book with the group code','Jeju'),
+    (tc,'Yakmeul Resort (wedding block)','Resort','2027-05-20','2027-05-25','제주시 일주서로 6935, Jeju Island, South Korea',750,false,'The wedding resort — book with the group code','Jeju'),
     (tc,'Insadong hotel (suggested)','Hotel','2027-05-25','2027-05-29','Insadong, Seoul',520,false,null,'Seoul, South Korea');
 
   insert into wtn_flights (trip_id,from_airport,to_airport,airline,depart_date,depart_time,arrive_date,arrive_time,cost,confirmed,mode,notes) values
@@ -158,7 +158,7 @@ begin
     (tc,'Jeju: Dongmun Market dinner','food','2027-05-20','18:30','Jeju City',25,false,null),
     (tc,'East loop: Seongsan peak + Udo Island','sightseeing','2027-05-21','08:00','Jeju',30,false,null),
     (tc,'Rehearsal dinner 🥂','food','2027-05-21','18:30','Jeju',null,true,null),
-    (tc,'Wedding ceremony 💍','other','2027-05-22','16:00','Ceremony venue, Jeju',null,true,'THE day — May 22, 2027'),
+    (tc,'Wedding ceremony 💍','other','2027-05-22','16:00','Yakmeul Resort, Jeju',null,true,'THE day — May 22, 2027'),
     (tc,'Reception dinner 🥂','food','2027-05-22','18:30','Jeju',null,true,null),
     (tc,'Recovery brunch + O''sulloc tea fields','food','2027-05-23','11:00','Jeju',25,false,null),
     (tc,'Hyeopjae Beach afternoon','activity','2027-05-23','14:30','Jeju',null,false,null),
