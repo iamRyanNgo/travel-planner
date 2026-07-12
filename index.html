@@ -100,6 +100,9 @@ body.trip-open .card,body.trip-open .stat-card,body.trip-open .fun-stat,body.tri
 [data-theme="light"] body.trip-open .card,[data-theme="light"] body.trip-open .stat-card,[data-theme="light"] body.trip-open .fun-stat,[data-theme="light"] body.trip-open .booking-card,[data-theme="light"] body.trip-open .budget-group,[data-theme="light"] body.trip-open .trip-hero{
   background:color-mix(in srgb,#fff 58%,transparent);border-color:color-mix(in srgb,#fff 60%,transparent);
 }
+/* .budget-group has no chrome of its own, so when glass turns it into a
+   panel it needs the same rounding + breathing room as every other card */
+body.trip-open .budget-group{border-radius:var(--radius);padding:15px 17px}
 /* Itinerary "By Day": wrap each day in its own glass card so the header
    and timeline aren't floating see-through over the photo */
 body.trip-open .day-block{
@@ -467,10 +470,10 @@ body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,trans
 .budget-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
 .budget-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
 /* ── Spend-by-day column chart ── */
-.sbd-wrap{display:flex;align-items:flex-end;gap:5px;overflow-x:auto;padding:24px 2px 0;position:relative}
-.sbd-wrap::after{content:'';position:absolute;left:0;right:0;bottom:19px;height:1px;background:var(--border)}
-.sbd-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;flex:1 0 14px;max-width:30px;position:relative;z-index:1;cursor:default}
-.sbd-bar{width:100%;max-width:20px;background:color-mix(in srgb,var(--gold) 42%,transparent);border-radius:4px 4px 0 0;transition:background .12s}
+.sbd-wrap{display:flex;align-items:flex-end;gap:4px;overflow-x:auto;padding:18px 2px 0;position:relative}
+.sbd-wrap::after{content:'';position:absolute;left:0;right:0;bottom:17px;height:1px;background:var(--border)}
+.sbd-col{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:5px;flex:1 0 12px;max-width:26px;position:relative;z-index:1;cursor:default}
+.sbd-bar{width:100%;max-width:16px;background:color-mix(in srgb,var(--gold) 42%,transparent);border-radius:4px 4px 0 0;transition:background .12s}
 .sbd-col.max .sbd-bar{background:var(--gold)}
 .sbd-col:hover .sbd-bar{background:color-mix(in srgb,var(--gold) 68%,transparent)}
 .sbd-col.max:hover .sbd-bar{background:var(--gold2)}
@@ -479,9 +482,9 @@ body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,trans
 .sbd-col.pre.max .sbd-bar{background:var(--gold)}
 .sbd-x{font-size:9.5px;color:var(--dim);line-height:1.1;white-space:nowrap;height:10px}
 .sbd-col.pre .sbd-x,.sbd-col.first .sbd-x{color:var(--muted);font-weight:600}
-.sbd-col.pre{margin-right:10px}
-.sbd-col.pre::after{content:'';position:absolute;right:-8px;top:6px;bottom:19px;width:1px;background:var(--border)}
-.sbd-toplabel{font-size:10.5px;font-weight:700;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.sbd-col.pre{margin-right:9px}
+.sbd-col.pre::after{content:'';position:absolute;right:-7px;top:6px;bottom:17px;width:1px;background:var(--border)}
+.sbd-toplabel{font-size:10px;font-weight:700;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
 #sbdTip{position:fixed;z-index:400;background:var(--panel);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:12px;color:var(--text);box-shadow:var(--shadow);pointer-events:none;display:none;white-space:nowrap}
 .budget-stat .bv{font-size:22px;font-weight:700;margin-bottom:2px}
 .budget-stat .bl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
@@ -3986,7 +3989,7 @@ function spendByDayChart(t,d,disp,cur){
   if(!cols.some(c=>c.amt>0))return'';
   const max=Math.max(...cols.map(c=>c.amt));
   const maxIdx=cols.findIndex(c=>c.amt===max);
-  const H=104;
+  const H=82;
   const fmtK=v=>v>=1000?`${disp}${Math.round(v/100)/10}k`:formatCost(Math.round(v),disp);
   const maxCol=cols[maxIdx];
   const maxNote=maxCol.pre?'Pre-trip':(days[maxIdx-1]?fmtShort(days[maxIdx-1]):'After the trip');
@@ -4002,7 +4005,7 @@ function spendByDayChart(t,d,disp,cur){
         <div class="sbd-x">${esc(c.label)}</div>
       </div>`).join('')}
     </div>
-    <p style="font-size:11px;color:var(--dim);margin-top:8px">Stays are spread across their nights · “Pre” = booked before the trip${skipped?' · some items excluded (no exchange rate)':''}</p>
+    <p style="font-size:10.5px;color:var(--dim);margin-top:6px">Stays are spread across their nights · “Pre” = booked before the trip${skipped?' · some items excluded (no exchange rate)':''}</p>
   </div>`;
 }
 function sbdTipShow(ev,el){
