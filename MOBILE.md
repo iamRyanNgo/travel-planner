@@ -15,6 +15,52 @@ areas; everything else is the same document.
 
 ---
 
+## ▶ Paste this into the other project's session
+
+Copy the block below verbatim into a Claude Code (or similar) session opened on
+the project you want to make mobile-friendly. It tells the agent to read the rest
+of this file and apply it, adapting the selectors to that codebase.
+
+```text
+Make this project mobile-friendly and installable as a PWA, using the patterns
+in MOBILE.md (I'll paste its contents below, or it's in the repo root). Follow
+the §10 porting checklist IN ORDER, adapting every selector/id in the snippets
+to THIS codebase's actual markup — don't paste them blindly.
+
+Before you start:
+- Tell me the framework/build setup you find and how the doc's vanilla snippets
+  map onto it (e.g. where the single breakpoint and global CSS should live, how
+  the service worker + manifest get served, what the nav/tab/modal components
+  are called here). If it's React/Vue/etc., translate the DOM/event patterns to
+  the framework's idioms rather than adding raw addEventListener globals.
+- Identify this app's real "primary destinations" for the bottom nav and its
+  main scrollable content container for the swipe/pull-to-refresh gestures.
+
+Then work in shippable increments, pausing after each so I can test on a phone:
+  1. Foundations (§0) — viewport-fit=cover meta, iOS metas, 16px inputs,
+     tap-highlight/touch-action.
+  2. Safe areas (§1) — wrap every fixed top/bottom offset in env(safe-area-*).
+  3. One breakpoint (§2) — add @media (max-width:680px); hide desktop-only
+     chrome; tighten density.
+  4. Bottom nav + collapsing header (§4).
+  5. Bottom-sheet modals (§7).
+  6. Touch targets (§6) — 44px floor on (pointer:coarse), focus-visible ring.
+  7. PWA (§3) — manifest + maskable icon, network-first service worker, install
+     button. Confirm the shell is served no-cache and sw.js no-store.
+
+Stop after step 7 and check with me before adding gestures (§5), offline (§8),
+or polish (§9) — those are opt-in per what the app needs.
+
+Do NOT change any business logic, data model, or visual design language while
+doing this — mobile plumbing only. After each step, verify it actually works
+(load the page, check the DOM/CSS applied) rather than assuming.
+```
+
+If you can't attach the file, paste the whole of MOBILE.md right after that
+block so the agent has the snippets inline.
+
+---
+
 ## 0. The four things you must do first
 
 These are non-negotiable foundations. Skip one and mobile feels broken no matter
