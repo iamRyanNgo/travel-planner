@@ -469,6 +469,48 @@ body.trip-open .fun-stat-pop{background:color-mix(in srgb,var(--panel) 92%,trans
 /* ── Budget ── */
 .budget-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
 .budget-stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+/* ── Handbook (/guide) ── */
+.gd-wrap{max-width:1060px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:36px;padding-bottom:60px}
+.gd-nav{position:sticky;top:84px;align-self:start;max-height:78vh;overflow-y:auto}
+.gd-nav .gd-lbl{font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);padding:14px 0 6px}
+.gd-nav .gd-lbl:first-child{padding-top:0}
+.gd-nav a{display:block;color:var(--muted);text-decoration:none;font-size:13.5px;padding:5px 10px;border-radius:7px;border-left:2px solid transparent;line-height:1.4}
+.gd-nav a:hover{color:var(--text);background:var(--panel2)}
+.gd-nav a.on{color:var(--gold);border-left-color:var(--gold);background:var(--accent-soft);font-weight:600}
+.gd-main{min-width:0;display:flex;flex-direction:column;gap:30px}
+.gd-sec{scroll-margin-top:90px}
+.gd-sec h2{font-size:25px;margin-bottom:4px}
+.gd-sec h2 .gd-em{font-family:'Inter',sans-serif;font-size:17px;margin-right:9px}
+.gd-sub{color:var(--muted);font-size:14px;margin:0 0 14px;max-width:62ch}
+.gd-main p{margin:0 0 11px;max-width:66ch;font-size:14.5px;line-height:1.65}
+.gd-main ul,.gd-main ol{margin:0 0 11px;padding-left:20px;max-width:66ch;font-size:14.5px;line-height:1.65}
+.gd-main li{margin-bottom:5px}
+.gd-main li::marker{color:var(--gold)}
+.gd-main h3{font-family:'Inter',sans-serif;font-size:15px;font-weight:700;margin:16px 0 7px}
+.gd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:11px}
+.gd-card{background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:15px 17px}
+.gd-card h4{font-family:'Inter',sans-serif;font-size:13.5px;font-weight:700;margin:0 0 4px}
+.gd-card p{font-size:13px;color:var(--muted);margin:0}
+.gd-note{border-left:3px solid var(--gold);background:var(--accent-soft);border-radius:0 10px 10px 0;padding:11px 15px;font-size:14px;margin:0 0 11px;max-width:66ch}
+.gd-dl{display:grid;gap:9px;margin:0 0 12px;max-width:66ch}
+.gd-dl dt{font-weight:700;font-size:14px}
+.gd-dl dd{margin:2px 0 0;color:var(--muted);font-size:14px;line-height:1.6}
+.gd-steps{counter-reset:gs;list-style:none;padding:0;display:grid;gap:9px;max-width:66ch}
+.gd-steps li{counter-increment:gs;display:grid;grid-template-columns:25px minmax(0,1fr);gap:11px;align-items:start;margin:0;font-size:14.5px}
+.gd-steps li::before{content:counter(gs);display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:var(--accent-soft);color:var(--gold);font-size:12px;font-weight:700}
+.gd-kbd{font-size:11.5px;font-weight:600;background:var(--panel2);border:1px solid var(--border2);border-bottom-width:2px;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.gd-tbl{width:100%;border-collapse:collapse;font-size:14px}
+.gd-tbl th,.gd-tbl td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+.gd-tbl th{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.gd-tbl td:first-child{white-space:nowrap;font-weight:600}
+.gd-scroll{overflow-x:auto}
+@media(max-width:860px){
+  .gd-wrap{grid-template-columns:minmax(0,1fr);gap:18px}
+  .gd-nav{position:static;max-height:none;border:1px solid var(--border);border-radius:13px;padding:11px 9px;background:var(--panel);display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:2px}
+  .gd-nav .gd-lbl{grid-column:1/-1;padding:7px 0 3px}
+  .gd-nav .gd-lbl:first-child{padding-top:0}
+  .gd-sec h2{font-size:22px}
+}
 /* ── Spend-by-day column chart ── */
 .sbd-wrap{display:flex;align-items:flex-end;gap:4px;overflow-x:auto;padding:18px 2px 0;position:relative}
 .sbd-wrap::after{content:'';position:absolute;left:0;right:0;bottom:17px;height:1px;background:var(--border)}
@@ -1054,6 +1096,8 @@ let PENDING_INVITE = new URLSearchParams(window.location.search).get('invite');
 // /admin → jump to the admin panel once signed in (a shortcut; the real gate
 // is isAdmin() plus the admin-only RLS policies on the server)
 const ADMIN_ROUTE = /^\/admin\/?$/.test(window.location.pathname);
+// /guide → the handbook, readable without an account
+const GUIDE_ROUTE = /^\/guide\/?$/.test(window.location.pathname);
 let CUR     = {view:'loading', tripId:null, tab:'overview'};
 let PWA_PROMPT = null;
 let ITIN_COLLAPSED = new Set(); // day dates collapsed in itinerary
@@ -1609,6 +1653,7 @@ async function openTrip(id,tab='overview'){
 async function navRestore(s){
   if(!ME)return;
   flushNotes();
+  if(s?.v==='guide'){CUR={view:'guide',tripId:null,tab:'overview'};renderHandbook();return;}
   const trip=s?.v==='trip'?TRIPS.find(x=>x.id===s.trip):null;
   if(!trip){ // dashboard (or a trip we no longer have access to)
     CUR={view:'dashboard',tripId:null,tab:'overview'};
@@ -1736,6 +1781,7 @@ function buildMobMenu(){
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       `<button class="mob-menu-item" onclick="closeMobMenu();openMyTravelers()">🧳 My Travelers</button>`,
       themeItem,
+      `<button class="mob-menu-item" onclick="closeMobMenu();openHandbook()">📖 Handbook</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();openHelpGuide()">❓ Help guide</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
@@ -1747,6 +1793,7 @@ function buildMobMenu(){
       `<button class="mob-menu-item" onclick="closeMobMenu();exportAllData()">⬇ Export my data</button>`,
       `<hr style="border:none;border-top:1px solid var(--border);margin:4px 0">`,
       themeItem,
+      `<button class="mob-menu-item" onclick="closeMobMenu();openHandbook()">📖 Handbook</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();openHelpGuide()">❓ Help guide</button>`,
       `<button class="mob-menu-item" onclick="closeMobMenu();signOut()">↩ Sign out</button>`,
     ].join(''));
@@ -1761,6 +1808,9 @@ async function initApp(){
   // no sign-in required. Short-circuits the whole auth flow.
   const shareTok=new URLSearchParams(location.search).get('share');
   if(shareTok){renderSharedTrip(shareTok);return;}
+  // /guide — the handbook reads fine with no account, so it can be sent to
+  // someone before they've signed up. Short-circuits auth like the share link.
+  if(GUIDE_ROUTE){CUR={view:'guide',tripId:null,tab:'overview'};renderHandbook();return;}
   showLoading('Checking your session…');
   let handled=false;
   // IMPORTANT: never await other Supabase calls *inside* this callback — it runs
@@ -1872,6 +1922,7 @@ function showSignIn(){
         <button class="btn primary" id="pwBtn" onclick="signInWithPassword()" style="width:100%;justify-content:center">Sign in</button>
       </div>
       <p style="font-size:12px;color:var(--dim);margin-top:16px">Access is by approval only. You'll submit a brief request after signing in.</p>
+      <p style="font-size:12.5px;margin-top:10px"><a href="/guide" onclick="event.preventDefault();openHandbook()" style="color:var(--gold);text-decoration:none">📖 How to use WhereToNext →</a></p>
     </div>
   </div>`;
 }
@@ -4424,6 +4475,201 @@ function syncDate(srcEl,dstId,plusDays=0){
 function syncTime(srcEl,dstId){
   const dst=document.getElementById(dstId);
   if(dst&&srcEl.value&&!dst.value)dst.value=srcEl.value;
+}
+
+/* ── Handbook: the full written guide, at /guide and from the ⋯ menu.
+   Readable without signing in, so it can be sent to someone before they
+   have an account. ── */
+function openHandbook(){
+  if(CUR.view==='trip')flushNotes();
+  CUR={view:'guide',tripId:null,tab:'overview'};
+  try{history.pushState({v:'guide'},'','/guide')}catch{}
+  renderHandbook();
+}
+function leaveHandbook(){
+  try{history.pushState({v:'dashboard'},'','/')}catch{}
+  if(ME)goHome(); else showSignIn();
+}
+function renderHandbook(){
+  document.body.classList.remove('trip-open');
+  document.getElementById('breadcrumb').innerHTML='';
+  const nav=[
+    ['Start here',[['signing-in','Signing in'],['your-trips','Your trips'],['invited','If you were invited']]],
+    ['Planning a trip',[['overview','Overview'],['itin','Itinerary'],['travel','Travel'],['stays','Accommodations'],['map','Map'],['packing','Packing'],['budget','Budget'],['travelers','Travelers']]],
+    ['Together',[['sharing','Invites &amp; sharing'],['discuss','Comments &amp; votes']]],
+    ['On the road',[['onthetrip','While travelling'],['phone','On your phone']]],
+    ['Reference',[['menu','The ⋯ menu'],['shortcuts','Shortcuts'],['trouble','If something breaks']]],
+  ];
+  const sec=(id,emoji,title,sub,body)=>`<section class="gd-sec" id="gd-${id}">
+    <h2><span class="gd-em">${emoji}</span>${title}</h2>
+    ${sub?`<p class="gd-sub">${sub}</p>`:''}${body}</section>`;
+  document.getElementById('root').innerHTML=`
+  <div style="max-width:1060px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0 22px">
+    <h1 style="font-size:32px">How to use WhereToNext</h1>
+    <button class="btn sm ghost" style="margin-left:auto" onclick="leaveHandbook()">${ME?'← Back to my trips':'← Back to sign in'}</button>
+  </div>
+  <div class="gd-wrap">
+    <nav class="gd-nav" id="gdNav" aria-label="Handbook contents">
+      ${nav.map(([lbl,items])=>`<div class="gd-lbl">${lbl}</div>${items.map(([id,t])=>`<a href="#gd-${id}">${t}</a>`).join('')}`).join('')}
+    </nav>
+    <div class="gd-main">
+      <p style="font-size:16px;color:var(--muted);max-width:62ch;margin:0">Everything for a trip in one place — the day-by-day plan, flights, hotels, a map, what to pack, what it costs and who owes who. Plan it together beforehand, then open it on your phone while you're there.</p>
+      <div class="gd-note">New here? Read <b>Signing in</b>, then <b>Your trips</b>. If someone sent you a link to a trip they're planning, skip to <b>If you were invited</b> — that's the two-minute version.</div>
+
+      ${sec('signing-in','🔑','Signing in','The site is invite-only, so there are two ways in and one short wait the first time.',`
+        <dl class="gd-dl">
+          <dt>Continue with Google</dt><dd>The usual way. Tap the button and pick your Google account — there's no separate password to remember.</dd>
+          <dt>Sign in with a username instead</dt><dd>For anyone without a Google account. Tap that link under the Google button and enter the username and password you were given.</dd>
+        </dl>
+        <p>The first time you sign in you'll land on a <b>Request Access</b> screen. Leave a short note about who you are, send it, and you'll see a “pending” screen until you're approved. Once that happens, sign in again and you're in for good.</p>`)}
+
+      ${sec('your-trips','🧳','Your trips','The home screen lists every trip you own or have been invited to.',`
+        <ul><li>Trips are ordered by date — <b>the next one up comes first</b>.</li>
+        <li>Finished trips drop below a <b>Past Adventures</b> divider at the bottom. Nothing is deleted; it just moves out of the way.</li>
+        <li>Tap any trip card to open it.</li></ul>
+        <p><b>To start a trip:</b> tap <b>＋ New Trip</b>. Give it a name, a destination and dates. You can also pick an emoji, choose a cover colour or upload a photo, and add more destinations for a multi-city trip. Only the name is required.</p>
+        <div class="gd-note">Fill in the <b>Country</b> field if you can. It's what powers the local weather and the emergency information on the Overview tab.</div>`)}
+
+      ${sec('invited','🎉','If you were invited','Someone else is doing the planning and you just want to follow along.',`
+        <ol class="gd-steps">
+          <li>Open the link you were sent and sign in. The trip appears on your home screen automatically.</li>
+          <li>Start on <b>Overview</b> for the shape of the trip, then <b>Itinerary</b> for the day-by-day plan.</li>
+          <li>Check <b>Travel</b> and <b>Accommodations</b> for confirmation numbers and addresses, and <b>Packing</b> for anything assigned to you.</li>
+          <li>Got an opinion? Tap the 💬 bubble on any activity to comment or vote.</li>
+        </ol>
+        <p style="margin-top:11px">What you can change depends on your role — <b>editor</b> can edit, <b>viewer</b> can read and comment. You may also get a <b>read-only link</b> that needs no account, showing the itinerary, travel and places and nothing private.</p>`)}
+
+      ${sec('overview','📋','Overview','The front page of a trip — a summary before you leave, and a daily briefing once you’re there.',`
+        <div class="gd-grid">
+          <div class="gd-card"><h4>⏰ Reminders</h4><p>Appears when something needs you: airline check-in has opened (24h before a flight), or a free-cancellation deadline is close.</p></div>
+          <div class="gd-card"><h4>📍 Today</h4><p>During the trip: today's plan, the local forecast and emergency numbers in one strip. <b>Full day →</b> jumps to today in the itinerary.</p></div>
+          <div class="gd-card"><h4>🌤 Weather</h4><p>Seven-day forecast per destination. Switch °C/°F, or set a specific place with <b>📍 Set location</b>.</p></div>
+          <div class="gd-card"><h4>🚨 Emergency</h4><p>Local police/ambulance/fire numbers, nearest hospital and police station with phones, your insurance, and health &amp; visa links.</p></div>
+          <div class="gd-card"><h4>📊 Trip stats</h4><p>Days, events, travel legs, accommodations and budget, plus air time and nights away. Hover <b>Destinations</b> to see them all.</p></div>
+          <div class="gd-card"><h4>👥 Members</h4><p>Everyone on the trip and their role. Invite people from here if you're the owner.</p></div>
+        </div>
+        <div class="gd-note" style="margin-top:13px">Add your own emergency contacts (hotel desk, a local friend, your embassy) and your travel-insurance policy under <b>✎ Edit trip</b> — they appear on this card, tap-to-call on a phone.</div>`)}
+
+      ${sec('itin','🗓','Itinerary','The heart of the trip: what you’re doing, day by day.',`
+        <dl class="gd-dl">
+          <dt>🗓 By Day</dt><dd>Every day in order, with flights and hotel check-ins slotted in automatically.</dd>
+          <dt>🎭 All Activities</dt><dd>Everything grouped by type instead of date — handy for ideas without a day yet.</dd>
+        </dl>
+        <h3>Adding things</h3>
+        <ul><li><b>A quick idea:</b> type into the “Brainstorm this day…” box and press Enter — saved as a 💭 idea to flesh out later.</li>
+        <li><b>A real plan:</b> tap <b>＋</b> on a day and pick what it is, then add a time, place, cost and notes.</li>
+        <li><b>Moving things:</b> drag an activity by its <b>⠿</b> handle onto another day.</li></ul>
+        <h3>Finding your way around</h3>
+        <ul><li><b>Destination pins</b> on a multi-city trip filter to one place — you'll see only the days you're there, ordered by when you arrive. <b>🌍 All</b> resets.</li>
+        <li><b>🙈 Hide empty days</b> collapses days with nothing planned.</li>
+        <li><b>📅 Export to calendar</b> downloads the trip for Google or Apple Calendar.</li>
+        <li>Tap 📔 on any day to write a journal entry while you're travelling.</li></ul>`)}
+
+      ${sec('travel','✈️','Travel','Flights, trains, buses, ferries and car journeys.',`
+        <p>Tap <b>＋ Add</b> and choose the mode, then fill in where to and from, dates and times, airline and flight number, seat, terminal, confirmation number and cost. Mark it <b>Booking confirmed</b> once it's paid for — confirmed and unconfirmed are counted separately in the budget.</p>
+        <ul><li>Return flights pair up automatically into one card.</li>
+        <li>Flight length is worked out <b>across time zones</b>, so an overnight long-haul shows its real duration.</li>
+        <li>Everything here appears on the matching itinerary day by itself.</li></ul>`)}
+
+      ${sec('stays','🏨','Accommodations','Hotels, Airbnbs, resorts — anywhere you’re sleeping.',`
+        <p>Add the property name, check-in and check-out dates, address, confirmation number and phone. The address becomes a tappable map link, and the stay shows up on the itinerary as check-in and check-out.</p>
+        <div class="gd-note"><b>Fill in “Free cancellation until”.</b> The card shows a green badge while you can still cancel free, turns amber in the last three days, and the deadline appears in your Reminders.</div>`)}
+
+      ${sec('map','🗺','Map','Everywhere you’re going, pinned.',`
+        <p>Anything with an address or place name gets a pin. On a multi-city trip the destination pins filter the map the same way they filter the itinerary.</p>
+        <p>For an exact position, paste a Google Maps link into the <b>Google Maps Link</b> field when adding a place. <b>📥 Import places</b> in the ⋯ menu pulls in a batch at once.</p>`)}
+
+      ${sec('packing','🎒','Packing','A shared checklist so nothing gets left behind.',`
+        <p>Add items yourself or start from a template and edit it down. Tap an item to check it off; the progress counter is on the Overview tab.</p>
+        <p><b>Templates:</b> 🎒 Travel Essentials · 🏖 Beach / Resort · ⛷ Ski / Winter · 🏙 City Break · 💒 Wedding / Formal Event · 🌏 International Long-Haul.</p>`)}
+
+      ${sec('budget','💰','Budget','What the trip costs, where it goes, and who owes who.',`
+        <p>Costs on flights, accommodations and activities flow in automatically. Add anything else with <b>＋ Add Manual</b> — Flights, Accommodation, Food &amp; Drink, Activities, Transport, Shopping and Misc, each with a planned and actual amount.</p>
+        <dl class="gd-dl">
+          <dt>Confirmed vs Potential</dt><dd>Confirmed is what you've actually booked; potential is still tentative. The bar under the totals shows the split.</dd>
+          <dt>📊 Spend by Day</dt><dd>A bar per day, priciest highlighted. Hotels spread across the nights you stay, flights count on the day you fly, and <b>Pre</b> collects everything booked before you left.</dd>
+          <dt>💱 Show in</dt><dd>Convert the whole budget to another currency at today's rate. Your stored amounts don't change.</dd>
+          <dt>🤝 Splits</dt><dd>Tap 💸 on an expense to say who paid and who shares it. The Splits tab works out the fewest payments to settle up.</dd>
+        </dl>`)}
+
+      ${sec('travelers','🔒','Travelers','Passport and document details — private to the trip owner.',`
+        <p>Store passport numbers and expiry dates, Known Traveler / Global Entry numbers, redress numbers and loyalty memberships. Other members cannot see this tab, by design.</p>
+        <div class="gd-note">If a passport expires within six months of your return date, a <b>🛂 Passport check</b> warning appears on the Overview tab — many countries refuse entry on that rule.</div>
+        <p>Use <b>🧳 My Travelers</b> in the ⋯ menu to save people you travel with often and reuse their details next time.</p>`)}
+
+      ${sec('sharing','👥','Invites &amp; sharing','Three ways to bring people in, depending on how much they need.',`
+        <dl class="gd-dl">
+          <dt>Invite by email</dt><dd>Open the 👥 people button and enter their email. They need an approved account already.</dd>
+          <dt>Invite link</dt><dd>Copy the link from the same panel and send it. Whoever opens it joins with the role you picked.</dd>
+          <dt>Public read-only link</dt><dd>Anyone can open it with no account. Shows the itinerary, travel and places — deliberately <b>not</b> passport details, documents, member emails or comments. Turn it off and the link stops working.</dd>
+        </dl>
+        <p><b>Roles:</b> an <b>editor</b> can add and change anything; a <b>viewer</b> can read, comment and vote. Only the <b>owner</b> can manage members, see Travelers or delete the trip.</p>`)}
+
+      ${sec('discuss','💬','Comments &amp; votes','Decide things together without a group chat.',`
+        <p>Every activity, flight and accommodation has a 💬 bubble. Tap it to comment or vote the idea up. The bubble shows a count when there's activity, and changes appear live for everyone with the trip open.</p>`)}
+
+      ${sec('onthetrip','📍','While travelling','What the app does once the trip actually starts.',`
+        <ul><li><b>Today card</b> on the Overview: the day's plan, today's weather, tonight's hotel and local emergency numbers.</li>
+        <li><b>📍 Today button</b> on the itinerary jumps straight to today.</li>
+        <li><b>Works offline.</b> Anything already loaded stays readable with no signal, and your changes send as soon as you're back online — a pill at the bottom shows what's waiting.</li>
+        <li><b>Reminders</b> for check-in windows and cancellation deadlines. Tap <b>🔔 Enable alerts</b> once to get them as notifications.</li>
+        <li><b>Journal:</b> tap 📔 on a day to write how it went. After the trip the Overview becomes a recap with your entries.</li></ul>`)}
+
+      ${sec('phone','📱','On your phone','It’s built phone-first. Install it and it behaves like an app.',`
+        <p><b>To install:</b> on Android tap <b>⬇ Install App</b> when it appears. On iPhone open the site in Safari and choose <b>Share → Add to Home Screen</b>.</p>
+        <div class="gd-scroll"><table class="gd-tbl"><thead><tr><th>Gesture</th><th>What it does</th></tr></thead><tbody>
+          <tr><td>Swipe left / right</td><td>Move between tabs</td></tr>
+          <tr><td>Pull down</td><td>Refresh the trip</td></tr>
+          <tr><td>Long-press an activity</td><td>Quick actions for it</td></tr>
+          <tr><td>Drag the ⠿ handle</td><td>Move an activity to another day</td></tr>
+          <tr><td>Drag the ＋ button</td><td>Move it out of your way — it snaps to the nearest edge and stays there</td></tr>
+        </tbody></table></div>
+        <p style="margin-top:11px">Main sections sit in the bar along the bottom; the rest are under <b>More</b>.</p>`)}
+
+      ${sec('menu','⋯','The menu','Tap your avatar, top right. What’s listed depends on where you are and what you can edit.',`
+        <div class="gd-scroll"><table class="gd-tbl"><thead><tr><th>Item</th><th>What it does</th></tr></thead><tbody>
+          <tr><td>🔍 Search</td><td>Find anything across your trips</td></tr>
+          <tr><td>🖨 Print</td><td>A clean printable copy — pick which sections</td></tr>
+          <tr><td>📅 Export calendar</td><td>Download the trip for Google or Apple Calendar</td></tr>
+          <tr><td>📥 Import places</td><td>Bring in a batch of saved Google Maps places</td></tr>
+          <tr><td>⎘ Clone trip</td><td>Copy a trip to start a new one</td></tr>
+          <tr><td>✎ Edit trip</td><td>Name, dates, destinations, cover, emergency contacts, insurance</td></tr>
+          <tr><td>🧳 My Travelers</td><td>People you travel with often, saved for reuse</td></tr>
+          <tr><td>⬇ Export my data</td><td>Download everything you've stored</td></tr>
+          <tr><td>☀️ / 🌙 Light / Dark</td><td>Switch the theme — it remembers your choice</td></tr>
+          <tr><td>📖 Handbook</td><td>This guide</td></tr>
+          <tr><td>❓ Help guide</td><td>A short tour of the app inside the app</td></tr>
+        </tbody></table></div>`)}
+
+      ${sec('shortcuts','⌨️','Shortcuts','On a computer.',`
+        <ul><li><span class="gd-kbd">/</span> — open search</li>
+        <li><span class="gd-kbd">n</span> — new trip (from the home screen)</li>
+        <li><span class="gd-kbd">Esc</span> — close whatever is open</li>
+        <li>Your mouse's <b>back button</b> steps back through the app, like any website</li></ul>`)}
+
+      ${sec('trouble','🛟','If something breaks','',`
+        <dl class="gd-dl">
+          <dt>The page won't load, or spins forever</dt><dd>Try a hard refresh — <span class="gd-kbd">Ctrl/Cmd</span> + <span class="gd-kbd">Shift</span> + <span class="gd-kbd">R</span>. If it still hangs, the server may be asleep; tell whoever runs the site.</dd>
+          <dt>I changed something and it didn't save</dt><dd>The app tells you when a save fails. If you were offline it's queued — look for the pill at the bottom and reconnect.</dd>
+          <dt>Weather or the map shows the wrong place</dt><dd>Add the country to the destination (“Plymouth, United States” rather than just “Plymouth”). For an exact spot, paste a Google Maps link.</dd>
+          <dt>I deleted something by accident</dt><dd>An <b>Undo</b> button appears at the bottom for a few seconds. Deleting a whole trip asks first and can't be undone.</dd>
+          <dt>I can't see the Travelers tab, or can't edit</dt><dd>That's your role. Travelers is owner-only; editing needs editor access. Ask the trip owner.</dd>
+        </dl>`)}
+
+      <p style="border-top:1px solid var(--border);padding-top:18px;color:var(--dim);font-size:13px;max-width:none">Features change as the app grows — if something here doesn't match what you see, trust the app.</p>
+    </div>
+  </div>`;
+  // highlight the section you're reading
+  const links=[...document.querySelectorAll('#gdNav a')];
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver(es=>es.forEach(e=>{
+      if(!e.isIntersecting)return;
+      links.forEach(a=>a.classList.remove('on'));
+      document.querySelector(`#gdNav a[href="#${e.target.id}"]`)?.classList.add('on');
+    }),{rootMargin:'-80px 0px -70% 0px',threshold:0});
+    document.querySelectorAll('.gd-sec').forEach(s=>io.observe(s));
+  }
+  window.scrollTo(0,0);
 }
 
 /* ── Help guide: a simple feature slideshow ── */
